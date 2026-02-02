@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(codegen_engine DESCRIPTION "Compiler project" VERSION 1.0 LANGUAGES CXX)
+project(llvm_builder DESCRIPTION "LLvm representation builder" VERSION 1.0 LANGUAGES CXX)
 
 find_program(CCACHE_PROGRAM ccache)
 if(CCACHE_PROGRAM)
@@ -41,18 +41,85 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     # TODO{vibhanshu}: enable _GLIBCXX_DEBUG flags in Debug mode
     string(APPEND CMAKE_CXX_FLAGS_DEBUG " -O0 -ggdb3 -finline-small-functions -D_GLIBCXX_DEBUG_PEDANTIC=1 -D_GLIBCXX_SANITIZE_VECTOR=1 -gz=zlib")
     string(APPEND CMAKE_CXX_FLAGS_RELWITHDEBINFO " -O3 -ggdb3 -fno-omit-frame-pointer -fuse-linker-plugin -fdevirtualize-at-ltrans -gz=zlib -Wno-maybe-uninitialized")
-    string(APPEND CMAKE_CXX_FLAGS_RELEASE " -O3 -DCORE_RELEASE -DNDEBUG -s -fuse-linker-plugin -fdevirtualize-at-ltrans")
+    string(APPEND CMAKE_CXX_FLAGS_RELEASE " -O3 -DLLVM_BUILDER_RELEASE -DNDEBUG -s -fuse-linker-plugin -fdevirtualize-at-ltrans")
     # string(APPEND CMAKE_CXX_FLAGS_RELWITHDEBINFO " -O3 -ggdb3 -fno-omit-frame-pointer -flto=8 -fuse-linker-plugin -fdevirtualize-at-ltrans -gz=zlib -Wno-maybe-uninitialized")
-    # string(APPEND CMAKE_CXX_FLAGS_RELEASE " -O3 -DCORE_RELEASE -DNDEBUG -s -flto=8 -fuse-linker-plugin -fdevirtualize-at-ltrans")
+    # string(APPEND CMAKE_CXX_FLAGS_RELEASE " -O3 -DLLVM_BUILDER_RELEASE -DNDEBUG -s -flto=8 -fuse-linker-plugin -fdevirtualize-at-ltrans")
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     add_compile_options(-fcolor-diagnostics)
     string(APPEND CMAKE_CXX_FLAGS_DEBUG " -O0 -ggdb -finline-functions -D_GLIBCXX_DEBUG_PEDANTIC=1 -D_GLIBCXX_SANITIZE_VECTOR=1 -gz=zlib -fsanitize=undefined")
     string(APPEND CMAKE_CXX_FLAGS_RELWITHDEBINFO " -O3 -ggdb -fno-omit-frame-pointer -gz=zlib -fsanitize=memory -fsanitize-memory-track-origins -fsanitize-recover=memory")
-    string(APPEND CMAKE_CXX_FLAGS_RELEASE " -O3 -g0 -DCORE_RELEASE -DNDEBUG ")
-    # string(APPEND CMAKE_CXX_FLAGS_RELEASE " -O3 -g0 -DCORE_RELEASE -DNDEBUG -flto=auto")
+    string(APPEND CMAKE_CXX_FLAGS_RELEASE " -O3 -g0 -DLLVM_BUILDER_RELEASE -DNDEBUG ")
+    # string(APPEND CMAKE_CXX_FLAGS_RELEASE " -O3 -g0 -DLLVM_BUILDER_RELEASE -DNDEBUG -flto=auto")
 endif()
 
-message(">> Define module:${PROJECT_NAME}")
+set(MODULE_NAME "${PROJECT_NAME}")
 
-add_subdirectory(core)
-# add_subdirectory(grammar)
+find_package(LLVM REQUIRED CONFIG)
+message("Found LLVM ${LLVM_PACKAGE_VERSION}")
+message("Using LLVMConfig.cmake in ${LLVM_DIR}")
+include_directories(${LLVM_INCLUDE_DIRS})
+separate_arguments(LLVM_DEFINITIONS_LIST NATIVE_COMMAND ${LLVM_DEFINITIONS})
+add_definitions(${LLVM_DEFINITIONS_LIST})
+include_directories(include)
+
+llvm_map_components_to_libnames(llvm_libs
+  Core
+  CodeGen
+  ExecutionEngine
+  IRReader
+  native
+  OrcJIT
+  OrcDebugging
+  )
+
+file(GLOB_RECURSE ${MODULE_NAME}_sources CONFIGURE_DEPENDS "src/*/*.cpp")
+list(FILTER ${MODULE_NAME}_sources EXCLUDE REGEX "\\.[xt]\\.cpp$")
+message(VERBOSE "List of identified source files: ${${MODULE_NAME}_sources}")
+
+add_library(${MODULE_NAME}_headers INTERFACE)
+target_include_directories(
+    ${MODULE_NAME}_headers INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+)
+
+add_library(${MODULE_NAME} STATIC ${${MODULE_NAME}_sources})
+target_link_libraries(${MODULE_NAME} PUBLIC ${MODULE_NAME}_headers)
+
+# Precompiled headers for LLVM (significantly speeds up compilation)
+option(USE_PCH "Use precompiled headers for LLVM" ON)
+if(USE_PCH)
+    target_precompile_headers(${MODULE_NAME} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/llvm/pch.h
+    )
+    message(STATUS "PCH enabled for ${MODULE_NAME}")
+endif()
+
+install(TARGETS ${MODULE_NAME} DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} FILES_MATCHING
+        PATTERN "*/*.hpp"
+        PATTERN "*/*.h")
+
+function(setup_test target src_files)
+    add_executable(${target} ${src_files} ${ARGN})
+    target_link_libraries(${target} PRIVATE GTest::gtest GTest::gtest_main ${MODULE_NAME})
+    target_include_directories(${target} PRIVATE include)
+    add_test(${target}_test ${target})
+endfunction()
+
+enable_testing()
+find_package(GTest REQUIRED)
+file(GLOB_RECURSE ${MODULE_NAME}_test_sources CONFIGURE_DEPENDS "src/unit_tests/*.x.cpp")
+message(VERBOSE "List of tests: ${${MODULE_NAME}_test_sources}")
+setup_test(unit_test_${MODULE_NAME} "${${MODULE_NAME}_test_sources}")
+target_link_libraries(unit_test_${MODULE_NAME} PUBLIC ${llvm_libs})
+
+function(setup_llvm_exec target src_file)
+    add_executable(${target} ${src_file})
+    target_link_libraries(${target} PRIVATE ${MODULE_NAME})
+    target_link_libraries(${target} PUBLIC ${llvm_libs})
+    target_include_directories(${target} PRIVATE include)
+endfunction()
+
+setup_llvm_exec(dummy "src/apps/dummy.x.cpp")
+setup_llvm_exec(dummy2 "src/apps/dummy2.x.cpp")
+setup_llvm_exec(raw_llvm "src/apps/raw_llvm.x.cpp")
