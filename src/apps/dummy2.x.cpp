@@ -1,6 +1,7 @@
 #include "llvm_builder/value.h"
 #include "llvm_builder/analyze.h"
 #include "util/debug.h"
+#include "util/cstring.h"
 #include "llvm_builder/defines.h"
 #include <iostream>
 #include <string>
@@ -92,7 +93,6 @@ int32_t main(int32_t argc, char **argv) {
 
     std::cout << " ======= APP BEGIN ======= " << std::endl;
     // object::Counter::singleton().add_callback(std::make_unique<StdOutCallback>());
-    CODEGEN_LINE(PackagedModule pkg_module)
     CODEGEN_LINE(FunctionBuilder fn_builder)
     CODEGEN_LINE(Function fn)
     CODEGEN_LINE(Function fn_struct)
@@ -116,7 +116,6 @@ int32_t main(int32_t argc, char **argv) {
     CODEGEN_LINE(ValueInfo arg_b)
     CODEGEN_LINE(ValueInfo c_5)
     CODEGEN_LINE(ValueInfo compare_1)
-    LLVM_BUILDER_ASSERT(pkg_module.has_error())
     LLVM_BUILDER_ASSERT(fn.has_error())
     LLVM_BUILDER_ASSERT(l_module.has_error())
     LLVM_BUILDER_ASSERT(int32_type.has_error())
@@ -232,11 +231,11 @@ int32_t main(int32_t argc, char **argv) {
     CODEGEN_LINE(arg2 = sample_fn_ctx.field("arg2").load())
     CODEGEN_LINE(ValueInfo c1 = ValueInfo::from_constant(101))
     CODEGEN_LINE(ValueInfo c2 = ValueInfo::from_constant(999))
-    CODEGEN_LINE(ValueInfo res = arg1.add(arg2, "construct_add"))
-    CODEGEN_LINE(ValueInfo res2 = res.add(c1, "add_const1"))
-    CODEGEN_LINE(ValueInfo res3 = res2.add(c2, "add_const1"))
-    CODEGEN_LINE(ValueInfo res4 = res2.add(sample_fn_ctx.field("arg3").load(), "add_arg"))
-    CODEGEN_LINE(ValueInfo res5 = res3.add(res4, "accum_res"))
+    CODEGEN_LINE(ValueInfo res = arg1.add(arg2))
+    CODEGEN_LINE(ValueInfo res2 = res.add(c1))
+    CODEGEN_LINE(ValueInfo res3 = res2.add(c2))
+    CODEGEN_LINE(ValueInfo res4 = res2.add(sample_fn_ctx.field("arg3").load()))
+    CODEGEN_LINE(ValueInfo res5 = res3.add(res4))
     CODEGEN_LINE(CodeSectionContext::set_return_value(res5))
     // Next function
     std::cout << "------------- Function BEGIN ------------------------- " << std::endl;
@@ -246,9 +245,9 @@ int32_t main(int32_t argc, char **argv) {
     CODEGEN_LINE(arg_a = if_else_ctx.field("a").load())
     CODEGEN_LINE(arg_b = if_else_ctx.field("b").load())
     CODEGEN_LINE(c_5 = ValueInfo::from_constant(5))
-    CODEGEN_LINE(compare_1 = arg_b.less_than(c_5, "comp_test"))
+    CODEGEN_LINE(compare_1 = arg_b.less_than(c_5))
     LLVM_BUILDER_ALWAYS_ASSERT(bool_type.check_sync(compare_1));
-    CODEGEN_LINE(ValueInfo compare_2 = compare_1.not_equal(ValueInfo::from_constant(false), "if_cond"))
+    CODEGEN_LINE(ValueInfo compare_2 = compare_1.not_equal(ValueInfo::from_constant(false)))
     LLVM_BUILDER_ALWAYS_ASSERT(bool_type.check_sync(compare_2));
     CODEGEN_LINE(IfElseCond if_else_branch{"cond_block", compare_2})
     CODEGEN_LINE(CodeSectionContext::mk_ptr("test_value_fwd"_cs, int32_type, ValueInfo::from_constant(0)))
@@ -256,16 +255,16 @@ int32_t main(int32_t argc, char **argv) {
     // if_else_branch.then_branch([] {
     CODEGEN_LINE(if_else_branch.then_branch().enter())
     CODEGEN_LINE(arg_a = if_else_ctx.field("a").load())
-    CODEGEN_LINE(ValueInfo then_val = arg_a.add(ValueInfo::from_constant(999), "then_add_tmp"))
+    CODEGEN_LINE(ValueInfo then_val = arg_a.add(ValueInfo::from_constant(999)))
     CODEGEN_LINE(then_val.push("test_value_fwd"_cs))
-    CODEGEN_LINE(ValueInfo then_val_2 = then_val.add(then_val, "double_then"))
+    CODEGEN_LINE(ValueInfo then_val_2 = then_val.add(then_val))
     CODEGEN_LINE(then_val_2.push("test_value_fwd_2"_cs))
     CODEGEN_LINE(if_else_branch.then_branch().exit())
     CODEGEN_LINE(if_else_branch.else_branch().enter())
     CODEGEN_LINE(arg_a = if_else_ctx.field("a").load())
-    CODEGEN_LINE(ValueInfo else_val = arg_a.add(ValueInfo::from_constant(8080), "else_add_tmp"))
+    CODEGEN_LINE(ValueInfo else_val = arg_a.add(ValueInfo::from_constant(8080)))
     CODEGEN_LINE(else_val.push("test_value_fwd"_cs))
-    CODEGEN_LINE(ValueInfo else_val_2 = else_val.add(else_val, "double_then"))
+    CODEGEN_LINE(ValueInfo else_val_2 = else_val.add(else_val))
 #if 0
     std::cout << " -------------- if_else_2 ---------- " << std::endl;
     CODEGEN_LINE(IfElseCond if_else_branch_2{"cond_block_2", compare_1})
@@ -288,16 +287,16 @@ int32_t main(int32_t argc, char **argv) {
     CODEGEN_LINE(if_else_branch.else_branch().exit())
     // if_else_branch.then_branch([] {
     //     CODEGEN_LINE(ValueInfo arg_a = CodeSectionContext::pop("a"_cs))
-    //     CODEGEN_LINE(ValueInfo then_val = arg_a.add(ValueInfo::from_constant(999), "then_add_tmp"))
+    //     CODEGEN_LINE(ValueInfo then_val = arg_a.add(ValueInfo::from_constant(999)))
     //     CODEGEN_LINE(then_val.push("test_value_fwd"_cs))
-    //     CODEGEN_LINE(ValueInfo then_val_2 = then_val.add(then_val, "double_then"))
+    //     CODEGEN_LINE(ValueInfo then_val_2 = then_val.add(then_val))
     //     CODEGEN_LINE(then_val_2.push("test_value_fwd_2"_cs))
     // });
     // if_else_branch.else_branch([] {
     //     CODEGEN_LINE(ValueInfo arg_a = CodeSectionContext::pop("a"_cs))
-    //     CODEGEN_LINE(ValueInfo else_val = arg_a.add(ValueInfo::from_constant(8080), "else_add_tmp"))
+    //     CODEGEN_LINE(ValueInfo else_val = arg_a.add(ValueInfo::from_constant(8080)))
     //     CODEGEN_LINE(else_val.push("test_value_fwd"_cs))
-    //     CODEGEN_LINE(ValueInfo else_val_2 = else_val.add(else_val, "double_then"))
+    //     CODEGEN_LINE(ValueInfo else_val_2 = else_val.add(else_val))
     //     CODEGEN_LINE(else_val_2.push("test_value_fwd_2"_cs))
     // });
     CODEGEN_LINE(if_else_branch.bind())
@@ -312,7 +311,7 @@ int32_t main(int32_t argc, char **argv) {
     // ValueInfo arg_b = l_fn_body.pop("b"_cs);
     CODEGEN_LINE(ValueInfo c_1 = ValueInfo::from_constant(1))
     CODEGEN_LINE(c_5 = ValueInfo::from_constant(5))
-    CODEGEN_LINE(compare_1 = c_1.less_than(c_5, "comp_test"))
+    CODEGEN_LINE(compare_1 = c_1.less_than(c_5))
     CODEGEN_LINE(ValueInfo test_val = ValueInfo::mk_pointer(bool_type))
     CODEGEN_LINE(test_val.store(compare_1))
     // {
@@ -321,7 +320,7 @@ int32_t main(int32_t argc, char **argv) {
     //     {
     //         CODEGEN_LINE(DynamicLoopCond::BranchSection& loop_body = loop_cond.loop_body())
     //         CODEGEN_LINE(loop_body.enter())
-    //         CODEGEN_LINE(ValueInfo then_val = arg_a.add(ValueInfo::from_constant(100), "add_value"))
+    //         CODEGEN_LINE(ValueInfo then_val = arg_a.add(ValueInfo::from_constant(100)))
     //         CODEGEN_LINE(then_val.push("test_value_fwd"_cs))
     //         CODEGEN_LINE(loop_body.exit())
     //     }

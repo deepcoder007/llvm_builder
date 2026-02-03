@@ -28,7 +28,6 @@ TEST(API_OBJECT, basic_null_test) {
 
     NULL_OBJECT_TEST(Cursor)
     NULL_OBJECT_TEST(Module)
-    NULL_OBJECT_TEST(PackagedModule)
 
     NULL_OBJECT_TEST(TypeInfo)
     // TODO{vibhanshu}: null of field_entry is a bit different
@@ -43,12 +42,12 @@ TEST(API_OBJECT, basic_null_test) {
     NULL_OBJECT_TEST(Function)
     NULL_OBJECT_TEST(FunctionBuilder)
 
-    NULL_OBJECT_TEST(RuntimeObject)
-    NULL_OBJECT_TEST(RuntimeArray)
-    NULL_OBJECT_TEST(RuntimeField)
-    NULL_OBJECT_TEST(RuntimeStruct)
-    NULL_OBJECT_TEST(RuntimeEventFn)
-    NULL_OBJECT_TEST(RuntimeNamespace)
+    NULL_OBJECT_TEST(runtime::Object)
+    NULL_OBJECT_TEST(runtime::Array)
+    NULL_OBJECT_TEST(runtime::Field)
+    NULL_OBJECT_TEST(runtime::Struct)
+    NULL_OBJECT_TEST(runtime::EventFn)
+    NULL_OBJECT_TEST(runtime::Namespace)
     NULL_OBJECT_TEST(JustInTimeRunner)
 
 #undef NULL_OBJECT_TEST

@@ -3,7 +3,7 @@
 //
 
 #include "string_util.h"
-#include "llvm_builder/util/cstring.h"
+#include "util/cstring.h"
 
 LLVM_BUILDER_NS_BEGIN
 

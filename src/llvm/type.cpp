@@ -9,7 +9,9 @@
 #include "llvm/context_impl.h"
 
 #include "util/debug.h"
+#include "meta/noncopyable.h"
 #include "util/string_util.h"
+#include "util/cstring.h"
 #include "ext_include.h"
 #include <ostream>
 #include <string>
@@ -290,7 +292,7 @@ auto TypeInfo::field_entry_t::null() -> field_entry_t& {
     /**/                                                                \
                                                                         
 #define BINARY_OP_IMPL_FN(FN_NAME, SIGN_FN, UNSIGNED_FN, FLOAT_FN)      \
-    llvm::Value* FN_NAME (llvm::Value* lhs, llvm::Value* rhs, const std::string& op_name) { \
+    llvm::Value* FN_NAME (llvm::Value* lhs, llvm::Value* rhs) {        \
         CODEGEN_FN                                                      \
         LLVM_BUILDER_ASSERT(lhs != nullptr)                                 \
         LLVM_BUILDER_ASSERT(rhs != nullptr)                                 \
@@ -302,22 +304,22 @@ auto TypeInfo::field_entry_t::null() -> field_entry_t& {
         if (is_vector()) {                                              \
             const TypeInfo& l_base_type = base_type();                  \
             if (l_base_type.is_signed_integer()) {                      \
-                return l_builder. SIGN_FN (lhs, rhs, op_name);          \
+                return l_builder. SIGN_FN (lhs, rhs, "");               \
             } else {                                                    \
                 LLVM_BUILDER_ASSERT(l_base_type.is_unsigned_integer());         \
-                return l_builder. UNSIGNED_FN (lhs, rhs, op_name);      \
+                return l_builder. UNSIGNED_FN (lhs, rhs, "");           \
             }                                                           \
         } else if (is_integer()) {                                      \
             if (is_signed_integer()) {                                  \
-                return l_builder. SIGN_FN (lhs, rhs, op_name);          \
+                return l_builder. SIGN_FN (lhs, rhs, "");               \
             } else {                                                    \
                 LLVM_BUILDER_ASSERT(is_unsigned_integer());                     \
-                return l_builder. UNSIGNED_FN (lhs, rhs, op_name);      \
+                return l_builder. UNSIGNED_FN (lhs, rhs, "");           \
             }                                                           \
         } else if (is_boolean()) {                                      \
-            return l_builder. UNSIGNED_FN(lhs, rhs, op_name);           \
+            return l_builder. UNSIGNED_FN(lhs, rhs, "");                \
         } else if(is_float_equiv()) {                                   \
-            return l_builder. FLOAT_FN (lhs, rhs, op_name);             \
+            return l_builder. FLOAT_FN (lhs, rhs, "");                  \
         } else {                                                        \
             CODEGEN_PUSH_ERROR(TYPE_ERROR, " operation not supported yet for type:" << short_name()); \
             return nullptr;                                             \
@@ -730,8 +732,7 @@ public:
     }
 public:
     // NOTE{vibhanshu}: unary operators
-    llvm::Value *M_fixed_point_type_cast(const ValueInfo &src_value,
-                                        const std::string &op_name) {
+    llvm::Value *M_fixed_point_type_cast(const ValueInfo &src_value) {
         CODEGEN_FN
         LLVM_BUILDER_ASSERT(not src_value.has_error());
         LLVM_BUILDER_ASSERT(m_type != nullptr and not src_value.has_error());
@@ -747,14 +748,13 @@ public:
             return nullptr;
         }
         if (is_signed_integer()) {
-            return l_builder.CreateSExtOrTrunc(src, m_type, op_name);
+            return l_builder.CreateSExtOrTrunc(src, m_type, "");
         } else {
             LLVM_BUILDER_ASSERT(is_unsigned_integer());
-            return l_builder.CreateZExtOrTrunc(src, m_type, op_name);
+            return l_builder.CreateZExtOrTrunc(src, m_type, "");
         }
     }
-    llvm::Value *M_floating_point_type_cast(const ValueInfo &src_value,
-                                            const std::string &op_name) {
+    llvm::Value *M_floating_point_type_cast(const ValueInfo &src_value) {
         CODEGEN_FN
         LLVM_BUILDER_ASSERT(not src_value.has_error());
         LLVM_BUILDER_ASSERT(m_type != nullptr and not src_value.has_error());
@@ -769,10 +769,9 @@ public:
         if (not src->getType()->isFloatTy() and not src->getType()->isDoubleTy()) {
             return nullptr;
         }
-        return l_builder.CreateFPCast(src, m_type, op_name);
+        return l_builder.CreateFPCast(src, m_type, "");
     }
-    llvm::Value *M_fixed_to_floating_type_cast(const ValueInfo &src_value,
-                                               const std::string &op_name) {
+    llvm::Value *M_fixed_to_floating_type_cast(const ValueInfo &src_value) {
         CODEGEN_FN
         LLVM_BUILDER_ASSERT(not src_value.has_error());
         LLVM_BUILDER_ASSERT(m_type != nullptr and not src_value.has_error());
@@ -788,14 +787,13 @@ public:
             return nullptr;
         }
         if (src_value.type().is_signed_integer()) {
-            return l_builder.CreateSIToFP(src, m_type, op_name);
+            return l_builder.CreateSIToFP(src, m_type, "");
         } else {
             LLVM_BUILDER_ASSERT(src_value.type().is_unsigned_integer());
-            return l_builder.CreateUIToFP(src, m_type, op_name);
+            return l_builder.CreateUIToFP(src, m_type, "");
         }
     }
-    llvm::Value *M_floating_to_fixed_type_cast(const ValueInfo &src_value,
-                                               const std::string &op_name) {
+    llvm::Value *M_floating_to_fixed_type_cast(const ValueInfo &src_value) {
         CODEGEN_FN
         LLVM_BUILDER_ASSERT(not src_value.has_error());
         LLVM_BUILDER_ASSERT(m_type != nullptr and not src_value.has_error());
@@ -811,14 +809,13 @@ public:
             return nullptr;
         }
         if (is_signed_integer()) {
-            return l_builder.CreateFPToSI(src, m_type, op_name);
+            return l_builder.CreateFPToSI(src, m_type, "");
         } else {
             LLVM_BUILDER_ASSERT(is_unsigned_integer());
-            return l_builder.CreateFPToUI(src, m_type, op_name);
+            return l_builder.CreateFPToUI(src, m_type, "");
         }
     }
-    llvm::Value* type_cast(const ValueInfo &src_value,
-                             const std::string &op_name) {
+    llvm::Value* type_cast(const ValueInfo &src_value) {
         CODEGEN_FN
         LLVM_BUILDER_ASSERT(not src_value.has_error());
         if (m_type == nullptr or src_value.has_error()) {
@@ -826,18 +823,18 @@ public:
         }
         const TypeInfo& src_type = src_value.type();
         if (src_type.is_integer() and is_integer()) {
-            return M_fixed_point_type_cast(src_value, op_name);
+            return M_fixed_point_type_cast(src_value);
         } else if (src_type.is_float() and is_float()) {
-            return M_floating_point_type_cast(src_value, op_name);
+            return M_floating_point_type_cast(src_value);
         } else if (src_type.is_integer() and is_float()) {
-            return M_fixed_to_floating_type_cast(src_value, op_name);
+            return M_fixed_to_floating_type_cast(src_value);
         } else if (src_type.is_float() and is_integer()) {
-            return M_floating_to_fixed_type_cast(src_value, op_name);
+            return M_floating_to_fixed_type_cast(src_value);
         } else if (src_type.is_boolean() and is_integer()) {
             llvm::Value* src = src_value.native_value();
             llvm::IRBuilder<>& l_builder = CursorContextImpl::builder();
             LLVM_BUILDER_ASSERT(src->getType()->isIntegerTy());
-            return l_builder.CreateZExtOrTrunc(src, m_type, op_name);
+            return l_builder.CreateZExtOrTrunc(src, m_type, "");
         } else {
             CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type cast combination not supported");
             return nullptr;
@@ -1208,7 +1205,7 @@ TypeInfo TypeInfo::from_raw(llvm::Type* l_raw_type) {
     }
 }
 
-ValueInfo TypeInfo::type_cast(const ValueInfo& src_value, const std::string& op_name) const {
+ValueInfo TypeInfo::type_cast(const ValueInfo& src_value) const {
     CODEGEN_FN
     if (has_error()) {
         return ValueInfo::null();
@@ -1218,7 +1215,7 @@ ValueInfo TypeInfo::type_cast(const ValueInfo& src_value, const std::string& op_
         return ValueInfo::null();
     }
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
-        llvm::Value* l_res = ptr->type_cast(src_value, op_name);
+        llvm::Value* l_res = ptr->type_cast(src_value);
         return ValueInfo{*this, TagInfo{}, l_res};
     } else {
         CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type already deleted");
@@ -1228,8 +1225,7 @@ ValueInfo TypeInfo::type_cast(const ValueInfo& src_value, const std::string& op_
 
 
 #define BINARY_VALUE_OP(OP_NAME)                                                                          \
-  ValueInfo TypeInfo::OP_NAME(const ValueInfo& lhs, const ValueInfo& rhs,                                 \
-                              const std::string& op_name) const {                                         \
+  ValueInfo TypeInfo::OP_NAME(const ValueInfo& lhs, const ValueInfo& rhs) const {                         \
     CODEGEN_FN                                                                                            \
     if (has_error()) {                                                                                    \
       return ValueInfo::null();                                                                           \
@@ -1239,7 +1235,7 @@ ValueInfo TypeInfo::type_cast(const ValueInfo& src_value, const std::string& op_
         return ValueInfo::null();                                                                         \
     }                                                                                                     \
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {                                                      \
-        llvm::Value* l_res = ptr-> OP_NAME(lhs.native_value(), rhs.native_value(), op_name);              \
+        llvm::Value* l_res = ptr-> OP_NAME(lhs.native_value(), rhs.native_value());                       \
         return ValueInfo{*this, TagInfo{}, l_res};                                                        \
     } else {                                                                                              \
         CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type already deleted");                                           \

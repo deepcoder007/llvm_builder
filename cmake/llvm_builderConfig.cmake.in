@@ -1,0 +1,26 @@
+@PACKAGE_INIT@
+
+# llvm_builder CMake Config
+# This package bundles LLVM dependencies - no external LLVM installation required
+
+include(CMakeFindDependencyMacro)
+
+# Set up the bundled library paths
+set(LLVM_BUILDER_BUNDLED @LLVM_BUILDER_BUNDLE_LLVM@)
+
+if(LLVM_BUILDER_BUNDLED)
+    # Use bundled LLVM libraries
+    set(LLVM_BUILDER_LIBS_DIR "${CMAKE_CURRENT_LIST_DIR}/../lib/.libs")
+    if(EXISTS "${LLVM_BUILDER_LIBS_DIR}")
+        link_directories("${LLVM_BUILDER_LIBS_DIR}")
+    endif()
+endif()
+
+# Include the targets file
+include("${CMAKE_CURRENT_LIST_DIR}/llvm_builderTargets.cmake")
+
+# Provide the library
+set(LLVM_BUILDER_LIBRARIES llvm_builder::llvm_builder)
+set(LLVM_BUILDER_INCLUDE_DIRS "@PACKAGE_CMAKE_INSTALL_INCLUDEDIR@")
+
+check_required_components(llvm_builder)

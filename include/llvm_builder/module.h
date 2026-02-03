@@ -6,9 +6,7 @@
 #define LLVM_BUILDER_LLVM_MODULE_H_
 
 #include "llvm_builder/type.h"
-#include "llvm_builder/meta/noncopyable.h"
 #include "llvm_builder/defines.h"
-#include "llvm_builder/util/cstring.h"
 #include "llvm_builder/util/object.h"
 #include "llvm_builder/function.h"
 #include "value.h"
@@ -29,7 +27,6 @@ LLVM_BUILDER_NS_BEGIN
 class CursorPtr;
 class Function;
 class Module;
-class PackagedModule;
 class JustInTimeRunner;
 
 // TODO{vibhanshu}: do we need one context or multiple?
@@ -65,7 +62,6 @@ class ModuleImpl;
 
 class Module : public _BaseObject<Module> {
     using BaseT = _BaseObject<Module>;
-    friend class PackagedModule;
     friend class Cursor::Impl;
     // TODO{vibhanshu}: do we need to support inner modules ? probably inner module
     //                  can help seperate declaration and definition modules
@@ -90,7 +86,7 @@ public:
     bool contains(const std::string& symbol) const;
     void register_symbol(const LinkSymbol& link_symbol);
     void init_standard();
-    PackagedModule package();
+    std::unique_ptr<llvm::orc::ThreadSafeModule> take_thread_safe_module();
     Function get_function(const std::string& name);
     void add_struct_definition(const TypeInfo& struct_type);
     void write_to_file() const;
@@ -98,29 +94,6 @@ public:
     void write_to_ostream() const;
     bool operator == (const Module& o) const;
     static Module null();
-};
-
-class PackagedModule : public _BaseObject<PackagedModule> {
-    using BaseT = _BaseObject<PackagedModule>;
-    friend class JustInTimeRunner;
-public:
-    class Impl;
-private:
-    std::shared_ptr<Impl> m_impl;
-public:
-    explicit PackagedModule(Module module);
-    explicit PackagedModule();
-    ~PackagedModule();
-public:
-    bool is_valid() const;
-    const std::string &name() const;
-    const std::vector<LinkSymbol> &public_symbols() const;
-    llvm::orc::ThreadSafeModule* native_handle() const;
-    const TypeInfo& struct_type(const std::string &name) const;
-    bool operator == (const PackagedModule& o) const;
-    static PackagedModule null();
-public:
-    static PackagedModule from_module(Module m);
 };
 
 LLVM_BUILDER_NS_END

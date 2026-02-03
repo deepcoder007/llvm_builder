@@ -3,7 +3,7 @@
 // 
 
 #include "llvm_builder/function.h"
-#include "llvm_builder/meta/noncopyable.h"
+#include "meta/noncopyable.h"
 #include "util/debug.h"
 #include "llvm_builder/module.h"
 #include "llvm/context_impl.h"

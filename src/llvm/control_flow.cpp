@@ -9,7 +9,7 @@
 #include "llvm_builder/module.h"
 #include "util/debug.h"
 #include "util/string_util.h"
-#include "llvm_builder/meta/noncopyable.h"
+#include "meta/noncopyable.h"
 #include "ext_include.h"
 
 LLVM_BUILDER_NS_BEGIN

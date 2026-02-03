@@ -8,7 +8,6 @@
 
 #include "llvm_builder/defines.h"
 #include "llvm_builder/defines.h"
-#include "llvm_builder/util/cstring.h"
 #include "type.h"
 #include "value.h"
 #include "llvm_builder/function.h"
@@ -29,10 +28,15 @@ class IfElseCond {
 public:
     using br_fn_t = std::function<void()>;
 public:
-    class BranchSection : meta::noncopyable {
+    class BranchSection {
         class Impl;
     private:
         std::unique_ptr<Impl> m_impl;
+
+        BranchSection(const BranchSection&) = delete;
+        BranchSection(BranchSection&&) = delete;
+        BranchSection& operator=(const BranchSection&) = delete;
+        BranchSection& operator=(BranchSection&&) = delete;
     public:
         explicit BranchSection(const std::string& name, branch_type type, Function fn, IfElseCond& parent);
         ~BranchSection();

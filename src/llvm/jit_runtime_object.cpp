@@ -3,9 +3,10 @@
 //
 
 #include "util/debug.h"
+#include "meta/noncopyable.h"
 #include "llvm_builder/jit.h"
 #include "llvm_builder/module.h"
-#include "llvm_builder/ds/fixed_string.h"
+#include "ds/fixed_string.h"
 #include "llvm/context_impl.h"
 #include "util/string_util.h"
 #include "ext_include.h"
@@ -15,27 +16,29 @@
 
 LLVM_BUILDER_NS_BEGIN
 
+namespace runtime {
+
 //
-// RuntimeObject::Impl
+// Object::Impl
 //
-class RuntimeObject::Impl : meta::noncopyable {
+class Object::Impl : meta::noncopyable {
     struct ObjectInfo {
         uint64_t m_field_addr;
-        RuntimeObject m_obj;
+        Object m_obj;
     };
     struct ArrayInfo {
         uint64_t m_field_addr;
-        RuntimeArray m_arr;
+        Array m_arr;
     };
 private:
-    const RuntimeStruct& m_parent;
+    const Struct& m_parent;
     void* m_buf = nullptr;
     uint32_t m_size = 0;
     std::unordered_map<std::string, ObjectInfo> m_linked_objects;
     std::unordered_map<std::string, ArrayInfo> m_linked_arrays;
     bool m_is_frozen = false;
 public:
-    explicit Impl(const RuntimeStruct &parent)
+    explicit Impl(const Struct &parent)
         : m_parent{parent} {
         LLVM_BUILDER_ASSERT(not m_parent.has_error());
         const uint32_t size = parent.size_in_bytes();
@@ -56,12 +59,12 @@ public:
         LLVM_BUILDER_ASSERT(not is_frozen());
         for (const std::string& fname : m_parent.field_names()) {
             if (m_parent[fname].is_struct_pointer()) {
-                RuntimeObject l_object = get_object(fname);
+                Object l_object = get_object(fname);
                 if (l_object.has_error()) {
                     return false;
                 }
             } else if (m_parent[fname].is_array_pointer()) {
-                RuntimeArray l_array = get_array(fname);
+                Array l_array = get_array(fname);
                 if (l_array.has_error()) {
                     return false;
                 }
@@ -70,17 +73,17 @@ public:
         m_is_frozen = true;
         return m_is_frozen;
     }
-    std::vector<RuntimeField> null_fields() const {
-        std::vector<RuntimeField> l_result;
+    std::vector<Field> null_fields() const {
+        std::vector<Field> l_result;
         for (const std::string& fname : m_parent.field_names()) {
-            const RuntimeField l_field = m_parent[fname];
+            const Field l_field = m_parent[fname];
             if (l_field.is_struct_pointer()) {
-                RuntimeObject l_object = get_object(fname);
+                Object l_object = get_object(fname);
                 if (l_object.has_error()) {
                     l_result.emplace_back(l_field);
                 }
             } else if (l_field.is_array_pointer()) {
-                RuntimeArray l_arr = get_array(fname);
+                Array l_arr = get_array(fname);
                 if (l_arr.has_error()) {
                     l_result.emplace_back(l_field);
                 }
@@ -88,11 +91,11 @@ public:
         }
         return l_result;
     }
-    bool is_instance_of(const RuntimeStruct& o) const {
+    bool is_instance_of(const Struct& o) const {
         LLVM_BUILDER_ASSERT(not o.has_error());
         return m_parent == o;
     }
-    const RuntimeStruct& struct_def() const {
+    const Struct& struct_def() const {
         return m_parent;
     }
     void *ref() const {
@@ -100,37 +103,37 @@ public:
         return m_buf;
     }
     template <typename T>
-    T* get_field_location(const RuntimeField& field) const {
+    T* get_field_location(const Field& field) const {
         LLVM_BUILDER_ASSERT(is_instance_of(field.struct_def()));
         int32_t l_offset = field.offset();
         char* l_field_ptr = M_get_buf((uint32_t)l_offset);
         LLVM_BUILDER_ASSERT(l_field_ptr  != nullptr);
         return reinterpret_cast<T*>(l_field_ptr);
     }
-    void add_object(const std::string& field_name, uint64_t field_addr, const RuntimeObject& o) {
+    void add_object(const std::string& field_name, uint64_t field_addr, const Object& o) {
         LLVM_BUILDER_ASSERT(field_addr != 0);
         LLVM_BUILDER_ASSERT(not o.has_error());
         LLVM_BUILDER_ASSERT(o.is_frozen());
         m_linked_objects[field_name] = {field_addr, o};
     }
-    RuntimeObject get_object(const std::string& field_name) const {
+    Object get_object(const std::string& field_name) const {
         if (m_linked_objects.contains(field_name)) {
             return m_linked_objects.at(field_name).m_obj;
         } else {
-            return RuntimeObject::null();
+            return Object::null();
         }
     }
-    void add_array(const std::string& field_name, uint64_t field_addr, const RuntimeArray& o) {
+    void add_array(const std::string& field_name, uint64_t field_addr, const Array& o) {
         LLVM_BUILDER_ASSERT(field_addr != 0);
         LLVM_BUILDER_ASSERT(not o.has_error());
         LLVM_BUILDER_ASSERT(o.is_frozen());
         m_linked_arrays[field_name] = {field_addr, o};
     }
-    RuntimeArray get_array(const std::string& field_name) const {
+    Array get_array(const std::string& field_name) const {
         if (m_linked_arrays.contains(field_name)) {
             return m_linked_arrays.at(field_name).m_arr;
         } else {
-            return RuntimeArray::null();
+            return Array::null();
         }
     }
     void print(std::ostream &os) const {
@@ -154,12 +157,12 @@ private:
 };
 
 //
-// RuntimeObject
+// Object
 //
-RuntimeObject::RuntimeObject() : BaseT{State::ERROR} {
+Object::Object() : BaseT{State::ERROR} {
 }
 
-RuntimeObject::RuntimeObject(const RuntimeStruct& parent)
+Object::Object(const Struct& parent)
     : BaseT{State::VALID} {
     CODEGEN_FN
     if (parent.has_error()) {
@@ -169,17 +172,17 @@ RuntimeObject::RuntimeObject(const RuntimeStruct& parent)
     }
 }
 
-RuntimeObject::RuntimeObject(const RuntimeObject&) = default;
+Object::Object(const Object&) = default;
 
-RuntimeObject::RuntimeObject(RuntimeObject&&) = default;
+Object::Object(Object&&) = default;
 
-RuntimeObject& RuntimeObject::operator = (const RuntimeObject&) = default;
+Object& Object::operator = (const Object&) = default;
 
-RuntimeObject& RuntimeObject::operator = (RuntimeObject&&) = default;
+Object& Object::operator = (Object&&) = default;
 
-RuntimeObject::~RuntimeObject() = default;
+Object::~Object() = default;
 
-bool RuntimeObject::is_frozen() const {
+bool Object::is_frozen() const {
     CODEGEN_FN;
     if (has_error()) {
         return false;
@@ -188,7 +191,7 @@ bool RuntimeObject::is_frozen() const {
     return m_impl->is_frozen();
 }
 
-bool RuntimeObject::try_freeze() {
+bool Object::try_freeze() {
     CODEGEN_FN;
     if (has_error()) {
         return false;
@@ -201,16 +204,16 @@ bool RuntimeObject::try_freeze() {
     return m_impl->try_freeze();
 }
 
-auto RuntimeObject::null_fields() const -> std::vector<RuntimeField> {
+auto Object::null_fields() const -> std::vector<Field> {
     CODEGEN_FN;
     if (has_error()) {
-        return std::vector<RuntimeField>{};
+        return std::vector<Field>{};
     }
     LLVM_BUILDER_ASSERT(m_impl);
     return m_impl->null_fields();
 }
 
-bool RuntimeObject::is_instance_of(const RuntimeStruct &o) const {
+bool Object::is_instance_of(const Struct &o) const {
     if (has_error() or o.has_error()) {
         return false;
     }
@@ -218,15 +221,15 @@ bool RuntimeObject::is_instance_of(const RuntimeStruct &o) const {
     return m_impl->is_instance_of(o);
 }
 
-const RuntimeStruct& RuntimeObject::struct_def() const {
+const Struct& Object::struct_def() const {
     if (has_error()) {
-        return RuntimeStruct::null();
+        return Struct::null();
     }
     LLVM_BUILDER_ASSERT(m_impl);
     return m_impl->struct_def();
 }
 
-void *RuntimeObject::ref() const {
+void *Object::ref() const {
     if (has_error()) {
         CODEGEN_PUSH_ERROR(JIT, "Trying to access reference of invalid object")
         return nullptr;
@@ -235,26 +238,26 @@ void *RuntimeObject::ref() const {
     return m_impl->ref();
 }
 
-RuntimeObject RuntimeObject::get_object(const std::string& name) const {
+Object Object::get_object(const std::string& name) const {
     CODEGEN_FN
     if (has_error()) {
         CODEGEN_PUSH_ERROR(JIT, "can't access field in invalid object:" << name);
-        return RuntimeObject::null();
+        return Object::null();
     }
-    RuntimeField l_field = struct_def()[name];
+    Field l_field = struct_def()[name];
     if (l_field.has_error()) {
         CODEGEN_PUSH_ERROR(JIT, "can't find field:" << name);
-        return RuntimeObject::null();
+        return Object::null();
     }
     if (l_field.is_struct_pointer()) {
         return m_impl->get_object(name);
     } else {
         CODEGEN_PUSH_ERROR(JIT, "field type not struct:" << name);
-        return RuntimeObject::null();
+        return Object::null();
     }
 }
 
-void RuntimeObject::set_object(const std::string& name, const RuntimeObject& v) const {
+void Object::set_object(const std::string& name, const Object& v) const {
     CODEGEN_FN
     if (has_error()) {
         CODEGEN_PUSH_ERROR(JIT, "can't access field in invalid object:" << name);
@@ -264,7 +267,7 @@ void RuntimeObject::set_object(const std::string& name, const RuntimeObject& v) 
         CODEGEN_PUSH_ERROR(JIT, "can't set invalid object for field:" << name);
         return;
     }
-    RuntimeField l_field = struct_def()[name];
+    Field l_field = struct_def()[name];
     if (l_field.has_error()) {
         CODEGEN_PUSH_ERROR(JIT, "can't find field:" << name);
         return;
@@ -288,27 +291,27 @@ void RuntimeObject::set_object(const std::string& name, const RuntimeObject& v) 
     }
 }
 
-RuntimeArray RuntimeObject::get_array(const std::string& name) const {
+Array Object::get_array(const std::string& name) const {
     CODEGEN_FN
     if (has_error()) {
         CODEGEN_PUSH_ERROR(JIT, "can't access field in invalid object:" << name);
-        return RuntimeArray::null();
+        return Array::null();
     }
-    RuntimeField l_field = struct_def()[name];
+    Field l_field = struct_def()[name];
     if (l_field.has_error()) {
         CODEGEN_PUSH_ERROR(JIT, "can't find field:" << name);
-        return RuntimeArray::null();
+        return Array::null();
     }
     if (l_field.is_array_pointer()) {
         return m_impl->get_array(name);
     } else {
         CODEGEN_PUSH_ERROR(JIT, "field type not array:" << name);
-        return RuntimeArray::null();
+        return Array::null();
     }
 
 }
 
-void RuntimeObject::set_array(const std::string& name, const RuntimeArray& v) const {
+void Object::set_array(const std::string& name, const Array& v) const {
     CODEGEN_FN
     if (has_error()) {
         CODEGEN_PUSH_ERROR(JIT, "can't access field in invalid object:" << name);
@@ -318,7 +321,7 @@ void RuntimeObject::set_array(const std::string& name, const RuntimeArray& v) co
         CODEGEN_PUSH_ERROR(JIT, "can't set invalid object for field:" << name);
         return;
     }
-    RuntimeField l_field = struct_def()[name];
+    Field l_field = struct_def()[name];
     if (l_field.has_error()) {
         CODEGEN_PUSH_ERROR(JIT, "can't find field:" << name);
         return;
@@ -343,13 +346,13 @@ void RuntimeObject::set_array(const std::string& name, const RuntimeArray& v) co
 
 #define DEF_OBJECT_FN(type)                                                            \
 template <>                                                                             \
-type##_t RuntimeObject::get(const std::string& name) const {                            \
+type##_t Object::get(const std::string& name) const {                                   \
     CODEGEN_FN                                                                          \
     if (has_error()) {                                                                  \
         CODEGEN_PUSH_ERROR(JIT, "can't access field in invalid object:" << name);       \
         return std::numeric_limits<type##_t>::max();                                    \
     }                                                                                   \
-    RuntimeField l_field = struct_def()[name];                                          \
+    Field l_field = struct_def()[name];                                                 \
     if (l_field.has_error()) {                                                          \
         CODEGEN_PUSH_ERROR(JIT, "can't find field:" << name);                           \
         return std::numeric_limits<type##_t>::max();                                    \
@@ -362,13 +365,13 @@ type##_t RuntimeObject::get(const std::string& name) const {                    
     }                                                                                   \
 }                                                                                       \
 template <>                                                                             \
-void RuntimeObject::set(const std::string& name, type##_t v) const {                    \
+void Object::set(const std::string& name, type##_t v) const {                           \
     CODEGEN_FN                                                                          \
     if (has_error()) {                                                                  \
         CODEGEN_PUSH_ERROR(JIT, "can't access field in invalid object:" << name);       \
         return;                                                                         \
     }                                                                                   \
-    RuntimeField l_field = struct_def()[name];                                          \
+    Field l_field = struct_def()[name];                                                 \
     if (l_field.has_error()) {                                                          \
         CODEGEN_PUSH_ERROR(JIT, "can't find field:" << name);                           \
         return;                                                                         \
@@ -399,33 +402,33 @@ DEF_OBJECT_FN(float64)
 
 #undef DEF_OBJECT_FN
 
-bool RuntimeObject::operator==(const RuntimeObject &rhs) const {
+bool Object::operator==(const Object &rhs) const {
     if (has_error() and rhs.has_error()) {
         return true;
     }
     return m_impl.get() == rhs.m_impl.get();
 }
 
-const RuntimeObject& RuntimeObject::null() {
-    static RuntimeObject s_null{};
+const Object& Object::null() {
+    static Object s_null{};
     LLVM_BUILDER_ASSERT(s_null.has_error());
     return s_null;
 }
 
 //
-// RuntimeArray::Impl
+// Array::Impl
 //
-class RuntimeArray::Impl : meta::noncopyable {
+class Array::Impl : meta::noncopyable {
     const uint32_t m_size = 0;
-    const runtime_type_t m_element_type = runtime_type_t::unknown;
+    const type_t m_element_type = type_t::unknown;
     const uint32_t m_element_size = 0;
     void* m_buf = nullptr;
     // TODO{vibhanshu}: v1 assuming, black-box pointers, add meta-info about types maybe ?
-    RuntimeObject* m_array_objects = nullptr;
-    RuntimeArray* m_array2_objects = nullptr;
+    Object* m_array_objects = nullptr;
+    Array* m_array2_objects = nullptr;
     bool m_is_frozen = false;
 public:
-    explicit Impl(runtime_type_t element_type, uint32_t size)
+    explicit Impl(type_t element_type, uint32_t size)
         : m_size{size}
         , m_element_type{element_type}
         , m_element_size{M_element_size(m_element_type)} {
@@ -434,11 +437,11 @@ public:
         m_buf = std::aligned_alloc(128, m_size * m_element_size);
         std::memset(m_buf, 0, m_size * m_element_size);
         if (is_pointer()) {
-            if (m_element_type == runtime_type_t::pointer_struct) {
-                m_array_objects = new RuntimeObject[m_size];
+            if (m_element_type == type_t::pointer_struct) {
+                m_array_objects = new Object[m_size];
             } else {
-                LLVM_BUILDER_ASSERT(m_element_type == runtime_type_t::pointer_array);
-                m_array2_objects = new RuntimeArray[m_size];
+                LLVM_BUILDER_ASSERT(m_element_type == type_t::pointer_array);
+                m_array2_objects = new Array[m_size];
             }
         }
     }
@@ -457,7 +460,7 @@ public:
         return is_pointer();
     }
     bool is_pointer() const {
-        return m_element_type == runtime_type_t::pointer_array or m_element_type == runtime_type_t::pointer_struct;
+        return m_element_type == type_t::pointer_array or m_element_type == type_t::pointer_struct;
     }
     bool is_frozen() const {
         return m_is_frozen;
@@ -465,14 +468,14 @@ public:
     bool try_freeze() {
         LLVM_BUILDER_ASSERT(not is_frozen());
         if (is_pointer()) {
-            if (m_element_type == runtime_type_t::pointer_struct) {
+            if (m_element_type == type_t::pointer_struct) {
                 for (uint32_t i = 0; i != m_size; ++i) {
                     if (m_array_objects[i].has_error()) {
                         return false;
                     }
                 }
             } else {
-                LLVM_BUILDER_ASSERT(m_element_type == runtime_type_t::pointer_array);
+                LLVM_BUILDER_ASSERT(m_element_type == type_t::pointer_array);
                 for (uint32_t i = 0; i != m_size; ++i) {
                     if (m_array2_objects[i].has_error()) {
                         return false;
@@ -486,7 +489,7 @@ public:
     uint32_t num_elements() const {
         return m_size;
     }
-    runtime_type_t element_type() const {
+    type_t element_type() const {
         return m_element_type;
     }
     uint32_t element_size() const {
@@ -496,34 +499,34 @@ public:
         LLVM_BUILDER_ASSERT(m_buf != nullptr);
         return m_buf;
     }
-    void set_object(uint32_t i, const RuntimeObject& v) {
-        LLVM_BUILDER_ASSERT(m_element_type == runtime_type_t::pointer_struct);
+    void set_object(uint32_t i, const Object& v) {
+        LLVM_BUILDER_ASSERT(m_element_type == type_t::pointer_struct);
         LLVM_BUILDER_ASSERT(m_array_objects != nullptr);
         LLVM_BUILDER_ASSERT(i < m_size);
         m_array_objects[i] = v;
     }
-    void set_array(uint32_t i, const RuntimeArray& v) {
-        LLVM_BUILDER_ASSERT(m_element_type == runtime_type_t::pointer_array);
+    void set_array(uint32_t i, const Array& v) {
+        LLVM_BUILDER_ASSERT(m_element_type == type_t::pointer_array);
         LLVM_BUILDER_ASSERT(m_array2_objects != nullptr);
         LLVM_BUILDER_ASSERT(i < m_size);
         m_array2_objects[i] = v;
     }
-    RuntimeObject get_object(uint32_t i) const {
-        LLVM_BUILDER_ASSERT(m_element_type == runtime_type_t::pointer_struct);
+    Object get_object(uint32_t i) const {
+        LLVM_BUILDER_ASSERT(m_element_type == type_t::pointer_struct);
         LLVM_BUILDER_ASSERT(m_array_objects != nullptr);
         LLVM_BUILDER_ASSERT(i < m_size);
         return m_array_objects[i];
     }
-    RuntimeArray get_array(uint32_t i) const {
-        LLVM_BUILDER_ASSERT(m_element_type == runtime_type_t::pointer_array);
+    Array get_array(uint32_t i) const {
+        LLVM_BUILDER_ASSERT(m_element_type == type_t::pointer_array);
         LLVM_BUILDER_ASSERT(m_array2_objects != nullptr);
         LLVM_BUILDER_ASSERT(i < m_size);
         return m_array2_objects[i];
     }
     void log_values(std::ostream &os) const {
-#define LOG_CASE(type)  case runtime_type_t::type:  M_print_type<type##_t>(os); break;
+#define LOG_CASE(type)  case type_t::type:  M_print_type<type##_t>(os); break;
         switch(m_element_type) {
-            case runtime_type_t::boolean: M_print_type<bool>(os);     break;
+            case type_t::boolean: M_print_type<bool>(os);     break;
             LOG_CASE(int8)
             LOG_CASE(int16)
             LOG_CASE(int32)
@@ -534,7 +537,7 @@ public:
             LOG_CASE(uint64)
             LOG_CASE(float32)
             LOG_CASE(float64)
-            case runtime_type_t::pointer_struct: {
+            case type_t::pointer_struct: {
                 const uint64_t* l_ref = reinterpret_cast<const uint64_t*>(ref());
                 os << "[";
                 for (uint32_t i = 0; i != m_size; ++i) {
@@ -543,7 +546,7 @@ public:
                 os << "]";
                 break;
             }
-            case runtime_type_t::pointer_array: {
+            case type_t::pointer_array: {
                 const uint64_t* l_ref = reinterpret_cast<const uint64_t*>(ref());
                 os << "[";
                 for (uint32_t i = 0; i != m_size; ++i) {
@@ -567,41 +570,41 @@ private:
         }
         os << "]";
     }
-    static uint32_t M_element_size(runtime_type_t type) {
+    static uint32_t M_element_size(type_t type) {
         switch (type) {
-        case runtime_type_t::unknown:
+        case type_t::unknown:
           return std::numeric_limits<uint32_t>::max();
           break;
-        case runtime_type_t::boolean: return 1; break;
-        case runtime_type_t::int8:    return 1; break;
-        case runtime_type_t::int16:   return 2; break;
-        case runtime_type_t::int32:   return 4; break;
-        case runtime_type_t::int64:   return 8; break;
-        case runtime_type_t::uint8:   return 1; break;
-        case runtime_type_t::uint16:  return 2; break;
-        case runtime_type_t::uint32:  return 4; break;
-        case runtime_type_t::uint64:  return 8; break;
-        case runtime_type_t::float32: return 4; break;
-        case runtime_type_t::float64: return 4; break;
-        case runtime_type_t::pointer_struct: return sizeof(uint64_t); break;
-        case runtime_type_t::pointer_array:  return sizeof(uint64_t); break;
+        case type_t::boolean: return 1; break;
+        case type_t::int8:    return 1; break;
+        case type_t::int16:   return 2; break;
+        case type_t::int32:   return 4; break;
+        case type_t::int64:   return 8; break;
+        case type_t::uint8:   return 1; break;
+        case type_t::uint16:  return 2; break;
+        case type_t::uint32:  return 4; break;
+        case type_t::uint64:  return 8; break;
+        case type_t::float32: return 4; break;
+        case type_t::float64: return 4; break;
+        case type_t::pointer_struct: return sizeof(uint64_t); break;
+        case type_t::pointer_array:  return sizeof(uint64_t); break;
         default:   return std::numeric_limits<uint32_t>::max(); break;
         }
     }
 };
 
 //
-// RuntimeArray
+// Array
 //
-RuntimeArray::RuntimeArray() : BaseT{State::ERROR} {
+Array::Array() : BaseT{State::ERROR} {
 }
 
-RuntimeArray::RuntimeArray(runtime_type_t element_type, uint32_t size)
+Array::Array(type_t element_type, uint32_t size)
     : BaseT{State::VALID} {
     if (size == 0) {
         CODEGEN_PUSH_ERROR(JIT, "Can't define array of length 0")
         M_mark_error();
-    } else if (element_type == runtime_type_t::unknown) {
+    } else if (element_type == type_t::unknown) {
         CODEGEN_PUSH_ERROR(JIT, "Can't define array of invalid type")
         M_mark_error();
     } else {
@@ -609,14 +612,14 @@ RuntimeArray::RuntimeArray(runtime_type_t element_type, uint32_t size)
     }
 }
 
-RuntimeArray::RuntimeArray(const RuntimeArray&) = default;
-RuntimeArray::RuntimeArray(RuntimeArray&&) = default;
-RuntimeArray& RuntimeArray::operator = (const RuntimeArray&) = default;
-RuntimeArray& RuntimeArray::operator = (RuntimeArray&&) = default;
+Array::Array(const Array&) = default;
+Array::Array(Array&&) = default;
+Array& Array::operator = (const Array&) = default;
+Array& Array::operator = (Array&&) = default;
 
-RuntimeArray::~RuntimeArray() = default;
+Array::~Array() = default;
 
-bool RuntimeArray::is_scalar() const {
+bool Array::is_scalar() const {
     CODEGEN_FN;
     if (has_error()) {
         return false;
@@ -625,7 +628,7 @@ bool RuntimeArray::is_scalar() const {
     return m_impl->is_scalar();
 }
 
-bool RuntimeArray::is_pointer() const {
+bool Array::is_pointer() const {
     CODEGEN_FN;
     if (has_error()) {
         return false;
@@ -634,7 +637,7 @@ bool RuntimeArray::is_pointer() const {
     return m_impl->is_pointer();
 }
 
-bool RuntimeArray::is_frozen() const {
+bool Array::is_frozen() const {
     CODEGEN_FN;
     if (has_error()) {
         return false;
@@ -643,7 +646,7 @@ bool RuntimeArray::is_frozen() const {
     return m_impl->is_frozen();
 }
 
-bool RuntimeArray::try_freeze() {
+bool Array::try_freeze() {
     CODEGEN_FN;
     if (has_error()) {
         return false;
@@ -656,7 +659,7 @@ bool RuntimeArray::try_freeze() {
     return m_impl->try_freeze();
 }
 
-uint32_t RuntimeArray::num_elements() const {
+uint32_t Array::num_elements() const {
     if (has_error()) {
         return std::numeric_limits<uint32_t>::max();
     }
@@ -664,15 +667,15 @@ uint32_t RuntimeArray::num_elements() const {
     return m_impl->num_elements();
 }
 
-runtime_type_t RuntimeArray::element_type() const {
+type_t Array::element_type() const {
     if (has_error()) {
-        return runtime_type_t::unknown;
+        return type_t::unknown;
     }
     LLVM_BUILDER_ASSERT(m_impl);
     return m_impl->element_type();
 }
 
-uint32_t RuntimeArray::element_size() const {
+uint32_t Array::element_size() const {
     if (has_error()) {
         return std::numeric_limits<uint32_t>::max();
     }
@@ -680,7 +683,7 @@ uint32_t RuntimeArray::element_size() const {
     return m_impl->element_size();
 }
 
-void* RuntimeArray::ref() const {
+void* Array::ref() const {
     if (has_error()) {
         return nullptr;
     }
@@ -690,7 +693,7 @@ void* RuntimeArray::ref() const {
 
 #define DEF_ARRAY_FN(type)                                                              \
 template <>                                                                             \
-type##_t RuntimeArray::get(uint32_t i) const {                                          \
+type##_t Array::get(uint32_t i) const {                                                 \
     CODEGEN_FN                                                                          \
     if (has_error()) {                                                                  \
         CODEGEN_PUSH_ERROR(JIT, "can't access invalid array:");                         \
@@ -700,7 +703,7 @@ type##_t RuntimeArray::get(uint32_t i) const {                                  
         CODEGEN_PUSH_ERROR(JIT, "array index out of range:" << i);                      \
         return std::numeric_limits<type##_t>::max();                                    \
     }                                                                                   \
-    if (element_type() == runtime_type_t::type) {                                       \
+    if (element_type() == type_t::type) {                                               \
         const type##_t* l_arr = reinterpret_cast<const type##_t*>(ref());               \
         LLVM_BUILDER_ASSERT(l_arr != nullptr);                                                  \
         return l_arr[i];                                                                \
@@ -710,7 +713,7 @@ type##_t RuntimeArray::get(uint32_t i) const {                                  
     }                                                                                   \
 }                                                                                       \
 template <>                                                                             \
-void RuntimeArray::set(uint32_t i, type##_t v) const {                                  \
+void Array::set(uint32_t i, type##_t v) const {                                         \
     CODEGEN_FN                                                                          \
     if (has_error()) {                                                                  \
         CODEGEN_PUSH_ERROR(JIT, "can't access invalid array:");                         \
@@ -724,7 +727,7 @@ void RuntimeArray::set(uint32_t i, type##_t v) const {                          
         CODEGEN_PUSH_ERROR(JIT, "object already frozen, can't set new value");          \
         return;                                                                         \
     }                                                                                   \
-    if (element_type() == runtime_type_t::type) {                                       \
+    if (element_type() == type_t::type) {                                               \
         type##_t* l_arr = reinterpret_cast<type##_t*>(ref());                           \
         LLVM_BUILDER_ASSERT(l_arr != nullptr);                                                  \
         l_arr[i] = v;                                                                   \
@@ -747,26 +750,26 @@ DEF_ARRAY_FN(uint64)
 
 #undef DEF_ARRAY_FN
 
-RuntimeObject RuntimeArray::get_object(uint32_t i) const {
+Object Array::get_object(uint32_t i) const {
     CODEGEN_FN
     if (has_error()) {
         CODEGEN_PUSH_ERROR(JIT, "can't access invalid array:");
-        return RuntimeObject::null();
+        return Object::null();
     }
     if (i >= num_elements()) {
         CODEGEN_PUSH_ERROR(JIT, "array index out of range:" << i);
-        return RuntimeObject::null();
+        return Object::null();
     }
     LLVM_BUILDER_ASSERT(m_impl)
-    if (m_impl->element_type() == runtime_type_t::pointer_struct) {
+    if (m_impl->element_type() == type_t::pointer_struct) {
         return m_impl->get_object(i);
     } else {
         CODEGEN_PUSH_ERROR(JIT, "array entry not of type struct");
-        return RuntimeObject::null();
+        return Object::null();
     }
 }
 
-void RuntimeArray::set_object(uint32_t i, const RuntimeObject& v) const {
+void Array::set_object(uint32_t i, const Object& v) const {
     CODEGEN_FN
     if (has_error()) {
         CODEGEN_PUSH_ERROR(JIT, "can't access invalid array:");
@@ -789,7 +792,7 @@ void RuntimeArray::set_object(uint32_t i, const RuntimeObject& v) const {
         return;
     }
     LLVM_BUILDER_ASSERT(m_impl)
-    if (m_impl->element_type() == runtime_type_t::pointer_struct) {
+    if (m_impl->element_type() == type_t::pointer_struct) {
         uint64_t* l_arr = reinterpret_cast<uint64_t*>(ref());
         l_arr[i] = (uint64_t)v.ref();
         m_impl->set_object(i, v);
@@ -799,26 +802,26 @@ void RuntimeArray::set_object(uint32_t i, const RuntimeObject& v) const {
     }
 }
 
-RuntimeArray RuntimeArray::get_array(uint32_t i) const {
+Array Array::get_array(uint32_t i) const {
     CODEGEN_FN
     if (has_error()) {
         CODEGEN_PUSH_ERROR(JIT, "can't access invalid array:");
-        return RuntimeArray::null();
+        return Array::null();
     }
     if (i >= num_elements()) {
         CODEGEN_PUSH_ERROR(JIT, "array index out of range:" << i);
-        return RuntimeArray::null();
+        return Array::null();
     }
     LLVM_BUILDER_ASSERT(m_impl)
-    if (m_impl->element_type() == runtime_type_t::pointer_array) {
+    if (m_impl->element_type() == type_t::pointer_array) {
         return m_impl->get_array(i);
     } else {
         CODEGEN_PUSH_ERROR(JIT, "array entry not of type array");
-        return RuntimeArray::null();
+        return Array::null();
     }
 }
 
-void RuntimeArray::set_array(uint32_t i, const RuntimeArray& v) const {
+void Array::set_array(uint32_t i, const Array& v) const {
     CODEGEN_FN
     if (has_error()) {
         CODEGEN_PUSH_ERROR(JIT, "can't access invalid array:");
@@ -841,7 +844,7 @@ void RuntimeArray::set_array(uint32_t i, const RuntimeArray& v) const {
         return;
     }
     LLVM_BUILDER_ASSERT(m_impl)
-    if (m_impl->element_type() == runtime_type_t::pointer_array) {
+    if (m_impl->element_type() == type_t::pointer_array) {
         uint64_t* l_arr = reinterpret_cast<uint64_t*>(ref());
         l_arr[i] = (uint64_t)v.ref();
         m_impl->set_array(i, v);
@@ -851,44 +854,44 @@ void RuntimeArray::set_array(uint32_t i, const RuntimeArray& v) const {
     }
 }
 
-bool RuntimeArray::operator == (const RuntimeArray& rhs) const {
+bool Array::operator == (const Array& rhs) const {
     if (has_error() and rhs.has_error()) {
         return true;
     }
     return m_impl.get() == rhs.m_impl.get();
 }
 
-const RuntimeArray& RuntimeArray::null() {
-    static RuntimeArray s_null{};
+const Array& Array::null() {
+    static Array s_null{};
     LLVM_BUILDER_ASSERT(s_null.has_error());
     return s_null;
 }
 
-auto RuntimeArray::from(runtime_type_t type, uint32_t size) -> RuntimeArray {
+auto Array::from(type_t type, uint32_t size) -> Array {
     CODEGEN_FN
-    if (type == runtime_type_t::unknown) {
+    if (type == type_t::unknown) {
         CODEGEN_PUSH_ERROR(JIT, "Can't create array of unknown type")
-        return RuntimeArray::null();
+        return Array::null();
     }
     if (size == 0 or size == std::numeric_limits<uint32_t>::max()) {
         CODEGEN_PUSH_ERROR(JIT, "Can't create array of invalid size")
-        return RuntimeArray::null();
+        return Array::null();
     }
-    return RuntimeArray{type, size};
+    return Array{type, size};
 }
 
 //
-// RuntimeField::Impl
+// Field::Impl
 //
-class RuntimeField::Impl : meta::noncopyable {
-    const RuntimeStruct& m_parent;
+class Field::Impl : meta::noncopyable {
+    const Struct& m_parent;
     const int32_t m_idx;
     const int32_t m_offset;
     const std::string m_name;
-    const runtime_type_t m_type = runtime_type_t::unknown;
-    RuntimeStruct m_underlying_struct;
+    const type_t m_type = type_t::unknown;
+    Struct m_underlying_struct;
 public:
-    Impl(const RuntimeStruct& parent,
+    Impl(const Struct& parent,
             int32_t idx, int32_t offset,
             const std::string &name,
             const TypeInfo& type)
@@ -904,60 +907,60 @@ public:
         if (is_struct_pointer()) {
             LLVM_BUILDER_ASSERT(type.is_pointer());
             LLVM_BUILDER_ASSERT(type.base_type().is_struct());
-            m_underlying_struct = RuntimeStruct{type.base_type(), RuntimeStruct::construct_t{}};
+            m_underlying_struct = Struct{type.base_type(), Struct::construct_t{}};
         } else if (is_array_pointer()) {
             // TODO{vibhanshu}: do`we need to go deep and extract more info about internals of array`
         }
     }
     ~Impl() = default;
 public:
-    const RuntimeStruct& struct_def() const {
+    const Struct& struct_def() const {
         return m_parent;
     }
-    runtime_type_t type() const {
+    type_t type() const {
         return m_type;
     }
     bool is_bool() const {
-        return m_type == runtime_type_t::boolean;
+        return m_type == type_t::boolean;
     }
     bool is_struct_pointer() const {
-        return m_type == runtime_type_t::pointer_struct;
+        return m_type == type_t::pointer_struct;
     }
     bool is_array_pointer() const {
-        return m_type == runtime_type_t::pointer_array;
+        return m_type == type_t::pointer_array;
     }
     bool is_pointer() const {
         return is_struct_pointer() or is_array_pointer();
     }
     bool is_int8() const {
-        return m_type == runtime_type_t::int8;
+        return m_type == type_t::int8;
     }
     bool is_int16() const {
-        return m_type == runtime_type_t::int16;
+        return m_type == type_t::int16;
     }
     bool is_int32() const {
-        return m_type == runtime_type_t::int32;
+        return m_type == type_t::int32;
     }
     bool is_int64() const {
-        return m_type == runtime_type_t::int64;
+        return m_type == type_t::int64;
     }
     bool is_uint8() const {
-        return m_type == runtime_type_t::uint8;
+        return m_type == type_t::uint8;
     }
     bool is_uint16() const {
-        return m_type == runtime_type_t::uint16;
+        return m_type == type_t::uint16;
     }
     bool is_uint32() const {
-        return m_type == runtime_type_t::uint32;
+        return m_type == type_t::uint32;
     }
     bool is_uint64() const {
-        return m_type == runtime_type_t::uint64;
+        return m_type == type_t::uint64;
     }
     bool is_float32() const {
-        return m_type == runtime_type_t::float32;
+        return m_type == type_t::float32;
     }
     bool is_float64() const {
-        return m_type == runtime_type_t::float64;
+        return m_type == type_t::float64;
     }
     int32_t idx() const {
         return m_idx;
@@ -974,31 +977,31 @@ public:
     void log_values(std::ostream& os, void* data) const {
         if (data != nullptr) {
             switch (m_type) {
-            case runtime_type_t::unknown:  os << "<unknown type>"; break;
-            case runtime_type_t::boolean:  os << *((bool*)data); break;
-            case runtime_type_t::int8:     os << *((int8_t*)data); break;
-            case runtime_type_t::int16:    os << *((int16_t*)data); break;
-            case runtime_type_t::int32:    os << *((int32_t*)data); break;
-            case runtime_type_t::int64:    os << *((int64_t*)data); break;
-            case runtime_type_t::uint8:    os << *((uint8_t*)data); break;
-            case runtime_type_t::uint16:   os << *((uint16_t*)data); break;
-            case runtime_type_t::uint32:   os << *((uint32_t*)data); break;
-            case runtime_type_t::uint64:   os << *((uint64_t*)data); break;
-            case runtime_type_t::float32:  os << *((float32_t*)data); break;
-            case runtime_type_t::float64:  os << *((float64_t*)data); break;
-            case runtime_type_t::pointer_struct: {
+            case type_t::unknown:  os << "<unknown type>"; break;
+            case type_t::boolean:  os << *((bool*)data); break;
+            case type_t::int8:     os << *((int8_t*)data); break;
+            case type_t::int16:    os << *((int16_t*)data); break;
+            case type_t::int32:    os << *((int32_t*)data); break;
+            case type_t::int64:    os << *((int64_t*)data); break;
+            case type_t::uint8:    os << *((uint8_t*)data); break;
+            case type_t::uint16:   os << *((uint16_t*)data); break;
+            case type_t::uint32:   os << *((uint32_t*)data); break;
+            case type_t::uint64:   os << *((uint64_t*)data); break;
+            case type_t::float32:  os << *((float32_t*)data); break;
+            case type_t::float64:  os << *((float64_t*)data); break;
+            case type_t::pointer_struct: {
                             os << "{<pointer>" << *((uint64_t *)data);
                             LLVM_BUILDER_ASSERT(not m_underlying_struct.has_error());
                             m_underlying_struct.log_values(os, (void*)*((uint64_t*)data), m_underlying_struct.size_in_bytes());
                             os << "}";
                             break;
                         }
-            case runtime_type_t::pointer_array: {
+            case type_t::pointer_array: {
                             os << "<pointer>" << *((uint64_t*)data);
                             // TODO{vibhanshu}: log underlying array
                             break;
                         }
-            // case runtime_type_t::pointer:  os << "<pointer>" << *((uint64_t*)data); break;
+            // case type_t::pointer:  os << "<pointer>" << *((uint64_t*)data); break;
             }
         } else {
             os << "<invalid_buffer>";
@@ -1008,12 +1011,12 @@ public:
 
 
 //
-// RuntimeField
+// Field
 //
-RuntimeField::RuntimeField() : BaseT{State::ERROR} {
+Field::Field() : BaseT{State::ERROR} {
 }
 
-RuntimeField::RuntimeField(const RuntimeStruct& parent,
+Field::Field(const Struct& parent,
                            int32_t idx, int32_t offset,
                            const std::string &name,
                            const TypeInfo& type, construct_t)
@@ -1021,17 +1024,17 @@ RuntimeField::RuntimeField(const RuntimeStruct& parent,
     m_impl = std::make_shared<Impl>(parent, idx, offset, name, type);
 }
 
-RuntimeField::~RuntimeField() = default;
+Field::~Field() = default;
 
-const RuntimeStruct& RuntimeField::struct_def() const {
+const Struct& Field::struct_def() const {
     if (has_error()) {
-        return RuntimeStruct::null();
+        return Struct::null();
     }
     LLVM_BUILDER_ASSERT(m_impl);
     return m_impl->struct_def();
 }
 
-int32_t RuntimeField::idx() const {
+int32_t Field::idx() const {
     if (has_error()) {
         return std::numeric_limits<int32_t>::max();
     }
@@ -1039,7 +1042,7 @@ int32_t RuntimeField::idx() const {
     return m_impl->idx();
 }
 
-int32_t RuntimeField::offset() const {
+int32_t Field::offset() const {
     if (has_error()) {
         return std::numeric_limits<int32_t>::max();
     }
@@ -1047,7 +1050,7 @@ int32_t RuntimeField::offset() const {
     return m_impl->offset();
 }
 
-const std::string& RuntimeField::name() const {
+const std::string& Field::name() const {
     if (has_error()) {
         return StringManager::null();
     }
@@ -1056,7 +1059,7 @@ const std::string& RuntimeField::name() const {
 }
 
 #define IS_TYPE_FWD(type)                          \
-    bool RuntimeField::is_##type() const {         \
+    bool Field::is_##type() const {                \
         if (has_error()) {                         \
             return false;                          \
         }                                          \
@@ -1081,7 +1084,7 @@ IS_TYPE_FWD(float64)
 
 #undef IS_TYPE_FWD
 
-void RuntimeField::log_values(std::ostream& os, void* data) const {
+void Field::log_values(std::ostream& os, void* data) const {
     if (has_error()) {
         return;
     }
@@ -1089,67 +1092,67 @@ void RuntimeField::log_values(std::ostream& os, void* data) const {
     return m_impl->log_values(os, data);
 }
 
-bool RuntimeField::operator == (const RuntimeField& rhs) const {
+bool Field::operator == (const Field& rhs) const {
     if (has_error() and rhs.has_error()) {
         return true;
     }
     return m_impl.get() == rhs.m_impl.get();
 }
 
-const RuntimeField &RuntimeField::null() {
-    static RuntimeField s_null{};
+const Field &Field::null() {
+    static Field s_null{};
     LLVM_BUILDER_ASSERT(s_null.has_error());
     return s_null;
 }
 
-runtime_type_t RuntimeField::get_type(const TypeInfo& type) {
+type_t Field::get_type(const TypeInfo& type) {
     if (type.has_error()) {
-        return runtime_type_t::unknown;
+        return type_t::unknown;
     }
     const uint32_t l_size = type.size_in_bytes();
     if (type.is_boolean()) {
-        return runtime_type_t::boolean;
+        return type_t::boolean;
     } else if (type.is_pointer()) {
         const TypeInfo& base_type = type.base_type();
         if (base_type.is_struct()) {
-            return runtime_type_t::pointer_struct;
+            return type_t::pointer_struct;
         } else if (base_type.is_array() or base_type.is_vector()) {
-            return runtime_type_t::pointer_array;
+            return type_t::pointer_array;
         }
     } else if (type.is_float()) {
         if (l_size == 4) {
-            return runtime_type_t::float32;
+            return type_t::float32;
         } else if (l_size == 8) {
-            return runtime_type_t::float64;
+            return type_t::float64;
         }
     } else if (type.is_integer()) {
         if (type.is_signed_integer()) {
             if (l_size == 8) {
-                return runtime_type_t::int64;
+                return type_t::int64;
             } else if (l_size == 4) {
-                return runtime_type_t::int32;
+                return type_t::int32;
             } else if (l_size == 2) {
-                return runtime_type_t::int16;
+                return type_t::int16;
             } else if (l_size == 1) {
-                return runtime_type_t::int8;
+                return type_t::int8;
             }
         } else {
             LLVM_BUILDER_ASSERT(type.is_unsigned_integer());
             if (l_size == 8) {
-                return runtime_type_t::uint64;
+                return type_t::uint64;
             } else if (l_size == 4) {
-                return runtime_type_t::uint32;
+                return type_t::uint32;
             } else if (l_size == 2) {
-                return runtime_type_t::uint16;
+                return type_t::uint16;
             } else if (l_size == 1) {
-                return runtime_type_t::uint8;
+                return type_t::uint8;
             }
         }
     }
-    return runtime_type_t::unknown;
+    return type_t::unknown;
 }
 
-uint32_t RuntimeField::get_raw_size(const TypeInfo& type) {
+uint32_t Field::get_raw_size(const TypeInfo& type) {
     if (type.has_error()) {
         return std::numeric_limits<uint32_t>::max();
     }
@@ -1164,15 +1167,15 @@ uint32_t RuntimeField::get_raw_size(const TypeInfo& type) {
 }
 
 //
-// RuntimeStruct::Impl
+// Struct::Impl
 //
-class RuntimeStruct::Impl : meta::noncopyable {
+class Struct::Impl : meta::noncopyable {
     const std::string m_name;
     const int32_t m_size = 0;
-    std::unordered_map<std::string, RuntimeField> m_fields;
+    std::unordered_map<std::string, Field> m_fields;
     std::vector<std::string> m_field_names;
 public:
-    explicit Impl(const RuntimeStruct& parent, const TypeInfo &type)
+    explicit Impl(const Struct& parent, const TypeInfo &type)
         : m_name{type.struct_name()}, m_size{(int32_t)type.struct_size_bytes()} {
         LLVM_BUILDER_ASSERT(type.is_struct());
         const uint32_t l_num_fields = type.num_elements();
@@ -1180,7 +1183,7 @@ public:
             TypeInfo::field_entry_t l_field = type[i];
             const std::string field_name = l_field.name();
             LLVM_BUILDER_ASSERT(l_field.idx() == i);
-            LLVM_BUILDER_DEBUG(auto it = ) m_fields.try_emplace(field_name, parent, l_field.idx(), l_field.offset(), field_name, l_field.type(), RuntimeField::construct_t{});
+            LLVM_BUILDER_DEBUG(auto it = ) m_fields.try_emplace(field_name, parent, l_field.idx(), l_field.offset(), field_name, l_field.type(), Field::construct_t{});
             LLVM_BUILDER_ASSERT(it.second);
             m_field_names.emplace_back(field_name);
         }
@@ -1191,9 +1194,9 @@ public:
     const std::string &name() const {
         return m_name;
     }
-    RuntimeObject mk_object(const RuntimeStruct& parent) const {
+    Object mk_object(const Struct& parent) const {
         CODEGEN_FN
-        RuntimeObject l_object{parent};
+        Object l_object{parent};
         LLVM_BUILDER_ASSERT(l_object.m_impl);
         LLVM_BUILDER_ASSERT(not l_object.has_error());
         return l_object;
@@ -1207,11 +1210,11 @@ public:
     const std::vector<std::string>& field_names() const {
         return m_field_names;
     }
-    RuntimeField operator[](const std::string &s) const {
+    Field operator[](const std::string &s) const {
         if (m_fields.contains(s)) {
             return m_fields.at(s);
         } else {
-            return RuntimeField::null();
+            return Field::null();
         }
     }
     void log_values(std::ostream& os, void* data, uint32_t size) const {
@@ -1219,7 +1222,7 @@ public:
             os << "\n";
             for (const std::string& fname : m_field_names) {
                 os << fname << ":";
-                const RuntimeField& l_field = m_fields.at(fname);
+                const Field& l_field = m_fields.at(fname);
                 if (l_field.offset() < (int32_t)size) {
                     l_field.log_values(os, (char*)data + l_field.offset());
                 } else {
@@ -1234,12 +1237,12 @@ public:
 };
 
 //
-// RuntimeStruct
+// Struct
 //
-RuntimeStruct::RuntimeStruct() : BaseT{State::ERROR} {
+Struct::Struct() : BaseT{State::ERROR} {
 }
 
-RuntimeStruct::RuntimeStruct(const TypeInfo& type, construct_t)
+Struct::Struct(const TypeInfo& type, construct_t)
   : BaseT{State::VALID} {
     if (not type.is_struct()) {
         CODEGEN_PUSH_ERROR(JIT, "Type not a struct:" << type.short_name());
@@ -1249,7 +1252,7 @@ RuntimeStruct::RuntimeStruct(const TypeInfo& type, construct_t)
     }
 }
 
-const std::string& RuntimeStruct::name() const {
+const std::string& Struct::name() const {
     if (has_error()) {
         return StringManager::null();
     }
@@ -1257,7 +1260,7 @@ const std::string& RuntimeStruct::name() const {
     return m_impl->name();
 }
 
-int32_t RuntimeStruct::size_in_bytes() const {
+int32_t Struct::size_in_bytes() const {
     if (has_error()) {
         return 0;
     }
@@ -1265,7 +1268,7 @@ int32_t RuntimeStruct::size_in_bytes() const {
     return m_impl->size_in_bytes();
 }
 
-int32_t RuntimeStruct::num_fields() const {
+int32_t Struct::num_fields() const {
     if (has_error()) {
         return 0;
     }
@@ -1273,7 +1276,7 @@ int32_t RuntimeStruct::num_fields() const {
     return m_impl->num_fields();
 }
 
-const std::vector<std::string>& RuntimeStruct::field_names() const {
+const std::vector<std::string>& Struct::field_names() const {
     if (has_error()) {
         static const std::vector<std::string> l_null_vec{};
         return l_null_vec;
@@ -1282,7 +1285,7 @@ const std::vector<std::string>& RuntimeStruct::field_names() const {
     return m_impl->field_names();
 }
 
-void RuntimeStruct::log_values(std::ostream& os, void* data, uint32_t size) const {
+void Struct::log_values(std::ostream& os, void* data, uint32_t size) const {
     if (has_error()) {
         return;
     }
@@ -1291,39 +1294,39 @@ void RuntimeStruct::log_values(std::ostream& os, void* data, uint32_t size) cons
 }
 
 
-RuntimeObject RuntimeStruct::mk_object() const {
+Object Struct::mk_object() const {
     if (has_error()) {
-        return RuntimeObject::null();
+        return Object::null();
     }
     LLVM_BUILDER_ASSERT(m_impl);
     return m_impl->mk_object(*this);
 }
 
-RuntimeField RuntimeStruct::operator[] (const std::string& s) const {
+Field Struct::operator[] (const std::string& s) const {
     if (has_error()) {
-        return RuntimeField::null();
+        return Field::null();
     }
     LLVM_BUILDER_ASSERT(m_impl);
     return m_impl->operator[](s);
 }
 
-bool RuntimeStruct::operator == (const RuntimeStruct& rhs) const {
+bool Struct::operator == (const Struct& rhs) const {
     if (has_error() and rhs.has_error()) {
         return true;
     }
     return m_impl.get() == rhs.m_impl.get();
 }
 
-const RuntimeStruct& RuntimeStruct::null() {
-    static RuntimeStruct s_null{};
+const Struct& Struct::null() {
+    static Struct s_null{};
     LLVM_BUILDER_ASSERT(s_null.has_error());
     return s_null;
 }
 
 //
-// RuntimeEventFn::Impl
+// EventFn::Impl
 //
-class RuntimeEventFn::Impl : meta::noncopyable {
+class EventFn::Impl : meta::noncopyable {
     JustInTimeRunner& m_runner;
     const std::string m_name;
     event_fn_t* m_event_fn = nullptr;
@@ -1344,7 +1347,7 @@ public:
         }
         m_is_init = true;
     }
-    int32_t on_event(const RuntimeObject &o) const {
+    int32_t on_event(const Object &o) const {
         LLVM_BUILDER_ASSERT(is_init());
         LLVM_BUILDER_ASSERT(not o.has_error());
         LLVM_BUILDER_ASSERT(not ErrorContext::has_error());
@@ -1360,17 +1363,17 @@ public:
 };
 
 //
-// RuntimeEventFn
+// EventFn
 //
-RuntimeEventFn::RuntimeEventFn() : BaseT{State::ERROR} {
+EventFn::EventFn() : BaseT{State::ERROR} {
 }
 
-RuntimeEventFn::RuntimeEventFn(JustInTimeRunner& runner, const std::string& name, construct_t)
+EventFn::EventFn(JustInTimeRunner& runner, const std::string& name, construct_t)
     : BaseT{State::VALID} {
     m_impl = std::make_shared<Impl>(runner, name);
 }
 
-bool RuntimeEventFn::is_init() const {
+bool EventFn::is_init() const {
     if (has_error()) {
         return false;
     }
@@ -1378,7 +1381,7 @@ bool RuntimeEventFn::is_init() const {
     return m_impl->is_init();
 }
 
-void RuntimeEventFn::init() {
+void EventFn::init() {
     CODEGEN_FN
     if (has_error()) {
         return;
@@ -1387,7 +1390,7 @@ void RuntimeEventFn::init() {
     m_impl->init();
 }
 
-int32_t RuntimeEventFn::on_event(const RuntimeObject& o) const {
+int32_t EventFn::on_event(const Object& o) const {
     CODEGEN_FN
     if (has_error()) {
         CODEGEN_PUSH_ERROR(JIT, "can't run event on invalid object")
@@ -1409,27 +1412,27 @@ int32_t RuntimeEventFn::on_event(const RuntimeObject& o) const {
     return m_impl->on_event(o);
 }
 
-bool RuntimeEventFn::operator==(const RuntimeEventFn &rhs) const {
+bool EventFn::operator==(const EventFn &rhs) const {
     if (has_error() and rhs.has_error()) {
         return true;
     }
     return m_impl.get() == rhs.m_impl.get();
 }
 
-const RuntimeEventFn& RuntimeEventFn::null() {
-    static RuntimeEventFn s_null{};
+const EventFn& EventFn::null() {
+    static EventFn s_null{};
     LLVM_BUILDER_ASSERT(s_null.has_error());
     return s_null;
 }
 
 //
-// RuntimeNamespace::Impl
+// Namespace::Impl
 //
-class RuntimeNamespace::Impl : meta::noncopyable {
+class Namespace::Impl : meta::noncopyable {
     JustInTimeRunner& m_runner;
     const std::string m_namespace;
-    std::unordered_map<std::string, RuntimeStruct> m_structs;
-    std::unordered_map<std::string, RuntimeEventFn> m_event_fns;
+    std::unordered_map<std::string, Struct> m_structs;
+    std::unordered_map<std::string, EventFn> m_event_fns;
     bool m_is_bind = false;
     bool m_is_global = false;
 public :
@@ -1447,7 +1450,7 @@ public:
     bool is_global() const {
         return m_is_global;
     }
-    void bind(const RuntimeNamespace& parent) {
+    void bind(const Namespace& parent) {
         CODEGEN_FN
         // TODO{vibhanshu}: to disallow circular dependency on namespace, disallow any new event addition
         //                  once a namespace is frozen. how to handle the case of global namespace ?
@@ -1459,11 +1462,11 @@ public:
             }
             m_is_bind = true;
         } else {
-            CODEGEN_PUSH_ERROR(JIT, "RuntimeNamespace already bound:" << m_namespace);
+            CODEGEN_PUSH_ERROR(JIT, "Namespace already bound:" << m_namespace);
             parent.M_mark_error();
         }
     }
-    void add_struct(const RuntimeNamespace& parent, const TypeInfo &struct_type) {
+    void add_struct(const Namespace& parent, const TypeInfo &struct_type) {
         CODEGEN_FN
         LLVM_BUILDER_ASSERT(not parent.has_error())
         LLVM_BUILDER_ASSERT(not struct_type.has_error())
@@ -1471,7 +1474,7 @@ public:
         LLVM_BUILDER_ASSERT(is_global());
         LLVM_BUILDER_ASSERT(not is_bind());
         const std::string name = struct_type.struct_name();
-        auto it = m_structs.try_emplace(name, struct_type,  RuntimeStruct::construct_t{});
+        auto it = m_structs.try_emplace(name, struct_type, Struct::construct_t{});
         if (not it.second) {
             CODEGEN_PUSH_ERROR(JIT, "Duplicate struct name found:" << name);
             parent.M_mark_error();
@@ -1482,27 +1485,27 @@ public:
         CODEGEN_FN
         LLVM_BUILDER_ASSERT(not e.empty())
         LLVM_BUILDER_ASSERT(not is_bind());
-        auto it = m_event_fns.try_emplace(e, m_runner, e, typename RuntimeEventFn::construct_t{});
+        auto it = m_event_fns.try_emplace(e, m_runner, e, typename EventFn::construct_t{});
         if (not it.second) {
             // TODO{vibhanshu}: what to do in case of redifinition of event ?
         }
     }
-    RuntimeStruct struct_info(const std::string &name) const {
+    Struct struct_info(const std::string &name) const {
         CODEGEN_FN
         LLVM_BUILDER_ASSERT(not name.empty())
         if (m_structs.contains(name)) {
             return m_structs.at(name);
         } else {
-            return RuntimeStruct::null();
+            return Struct::null();
         }
     }
-    RuntimeEventFn event_fn_info(const std::string &name) const {
+    EventFn event_fn_info(const std::string &name) const {
         CODEGEN_FN
         LLVM_BUILDER_ASSERT(not name.empty())
         if (m_event_fns.contains(name)) {
             return m_event_fns.at(name);
         } else {
-            return RuntimeEventFn::null();
+            return EventFn::null();
         }
     }
     void print(std::ostream& os) const {
@@ -1511,19 +1514,19 @@ public:
 };
 
 //
-// RuntimeNamespace
+// Namespace
 //
-RuntimeNamespace::RuntimeNamespace() : BaseT{State::ERROR} {
+Namespace::Namespace() : BaseT{State::ERROR} {
 }
 
-RuntimeNamespace::RuntimeNamespace(JustInTimeRunner &runner, const std::string &ns, construct_t)
+Namespace::Namespace(JustInTimeRunner &runner, const std::string &ns, construct_t)
   : BaseT{State::VALID} {
     CODEGEN_FN
     LLVM_BUILDER_ASSERT(not runner.has_error());
     m_impl = std::make_shared<Impl>(runner, ns);
 }
 
-auto RuntimeNamespace::name() const -> const std::string& {
+auto Namespace::name() const -> const std::string& {
     if (has_error()) {
         return StringUtil::s_empty;
     }
@@ -1531,7 +1534,7 @@ auto RuntimeNamespace::name() const -> const std::string& {
     return m_impl->name();
 }
 
-bool RuntimeNamespace::is_bind() const {
+bool Namespace::is_bind() const {
     if (has_error()) {
         return false;
     }
@@ -1539,7 +1542,7 @@ bool RuntimeNamespace::is_bind() const {
     return m_impl->is_bind();
 }
 
-bool RuntimeNamespace::is_global() const {
+bool Namespace::is_global() const {
     if (has_error()) {
         return false;
     }
@@ -1547,7 +1550,7 @@ bool RuntimeNamespace::is_global() const {
     return m_impl->is_global();
 }
 
-void RuntimeNamespace::bind() {
+void Namespace::bind() {
     CODEGEN_FN
     if (has_error()) {
         return;
@@ -1556,7 +1559,7 @@ void RuntimeNamespace::bind() {
     m_impl->bind(*this);
 }
 
-void RuntimeNamespace::add_struct(const TypeInfo& struct_type) {
+void Namespace::add_struct(const TypeInfo& struct_type) {
     CODEGEN_FN
     if (has_error()) {
         return;
@@ -1570,14 +1573,14 @@ void RuntimeNamespace::add_struct(const TypeInfo& struct_type) {
         return;
     }
     if (m_impl->is_bind()) {
-        CODEGEN_PUSH_ERROR(JIT, "RuntimeNamespace already bound can't add more values");
+        CODEGEN_PUSH_ERROR(JIT, "Namespace already bound can't add more values");
         return;
     }
     LLVM_BUILDER_ASSERT(m_impl);
     m_impl->add_struct(*this, struct_type);
 }
 
-void RuntimeNamespace::add_event(const std::string &e) {
+void Namespace::add_event(const std::string &e) {
     CODEGEN_FN
     if (has_error()) {
         return;
@@ -1587,40 +1590,42 @@ void RuntimeNamespace::add_event(const std::string &e) {
         return;
     }
     if (m_impl->is_bind()) {
-        CODEGEN_PUSH_ERROR(JIT, "RuntimeNamespace already bound can't add more event");
+        CODEGEN_PUSH_ERROR(JIT, "Namespace already bound can't add more event");
         return;
     }
     LLVM_BUILDER_ASSERT(m_impl);
     m_impl->add_event(e);
 }
 
-auto RuntimeNamespace::struct_info(const std::string& name) const -> RuntimeStruct {
+auto Namespace::struct_info(const std::string& name) const -> Struct {
     if (has_error()) {
-        return RuntimeStruct::null();
+        return Struct::null();
     }
     LLVM_BUILDER_ASSERT(m_impl);
     return m_impl->struct_info(name);
 }
 
-auto RuntimeNamespace::event_fn_info(const std::string& name) const -> RuntimeEventFn {
+auto Namespace::event_fn_info(const std::string& name) const -> EventFn {
     if (has_error()) {
-        return RuntimeEventFn::null();
+        return EventFn::null();
     }
     LLVM_BUILDER_ASSERT(m_impl);
     return m_impl->event_fn_info(name);
 }
 
-bool RuntimeNamespace::operator == (const RuntimeNamespace& rhs) const {
+bool Namespace::operator == (const Namespace& rhs) const {
     if (has_error() and rhs.has_error()) {
         return true;
     }
     return m_impl.get() == rhs.m_impl.get();
 }
 
-const RuntimeNamespace& RuntimeNamespace::null() {
-    static RuntimeNamespace s_null{};
+const Namespace& Namespace::null() {
+    static Namespace s_null{};
     LLVM_BUILDER_ASSERT(s_null.has_error());
     return s_null;
 }
+
+} // namespace runtime
 
 LLVM_BUILDER_NS_END

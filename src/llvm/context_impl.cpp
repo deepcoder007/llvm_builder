@@ -3,7 +3,7 @@
 // 
 
 #include "context_impl.h"
-#include "llvm_builder/ds/fixed_string.h"
+#include "ds/fixed_string.h"
 
 LLVM_BUILDER_NS_BEGIN
 

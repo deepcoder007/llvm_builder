@@ -6,7 +6,6 @@
 #define LLVM_BUILDER_DS_FIXED_STRING_H_
 
 #include "llvm_builder/defines.h"
-#include "llvm_builder/meta/noncopyable.h"
 
 #include <string>
 #include <unordered_set>
@@ -105,11 +104,15 @@ public:
     }
 };
 
-class StringManager : meta::noncopyable {
+class StringManager {
     std::unordered_set<std::string> m_symbol_set;
     bool m_frozen = false;
 private:
     explicit StringManager();
+    StringManager(const StringManager&) = delete;
+    StringManager(StringManager&&) = delete;
+    StringManager& operator=(const StringManager&) = delete;
+    StringManager& operator=(StringManager&&) = delete;
 public:
     ~StringManager();
 public:

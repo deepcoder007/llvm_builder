@@ -5,6 +5,7 @@
 #include "gtest/gtest.h"
 #include <cstdint>
 #include "util/debug.h"
+#include "util/cstring.h"
 #include "llvm_builder/defines.h"
 
 #include "llvm_builder/module.h"
@@ -207,11 +208,11 @@ TEST(LLVM_CODEGEN, basic_test) {
             CODEGEN_LINE(ValueInfo arg2 = ctx.field("arg2").load())
             CODEGEN_LINE(ValueInfo c1 = ValueInfo::from_constant(101))
             CODEGEN_LINE(ValueInfo c2 = ValueInfo::from_constant(999))
-            CODEGEN_LINE(ValueInfo res = arg1.add(arg2, "construct_add"))
-            CODEGEN_LINE(ValueInfo res2 = res.add(c1, "add_const1"))
-            CODEGEN_LINE(ValueInfo res3 = res2.add(c2, "add_const1"))
-            CODEGEN_LINE(ValueInfo res4 = res2.add(ctx.field("arg3").load(), "add_arg"))
-            CODEGEN_LINE(ValueInfo res5 = res3.add(res4, "accum_res"))
+            CODEGEN_LINE(ValueInfo res = arg1.add(arg2))
+            CODEGEN_LINE(ValueInfo res2 = res.add(c1))
+            CODEGEN_LINE(ValueInfo res3 = res2.add(c2))
+            CODEGEN_LINE(ValueInfo res4 = res2.add(ctx.field("arg3").load()))
+            CODEGEN_LINE(ValueInfo res5 = res3.add(res4))
             CODEGEN_LINE(CodeSectionContext::set_return_value(res5))
         }
         {
@@ -235,25 +236,25 @@ TEST(LLVM_CODEGEN, basic_test) {
             CODEGEN_LINE(ValueInfo arg_a = ctx_if_else.field("a").load())
             CODEGEN_LINE(ValueInfo arg_b = ctx_if_else.field("b").load())
             CODEGEN_LINE(ValueInfo c_5 = ValueInfo::from_constant(5))
-            CODEGEN_LINE(ValueInfo compare_1 = arg_b.less_than(c_5, "comp_test"))
+            CODEGEN_LINE(ValueInfo compare_1 = arg_b.less_than(c_5))
             LLVM_BUILDER_ALWAYS_ASSERT(bool_type.check_sync(compare_1));
-            CODEGEN_LINE(ValueInfo compare_2 = compare_1.not_equal(ValueInfo::from_constant(false), "if_cond"))
+            CODEGEN_LINE(ValueInfo compare_2 = compare_1.not_equal(ValueInfo::from_constant(false)))
             LLVM_BUILDER_ALWAYS_ASSERT(bool_type.check_sync(compare_2));
             CODEGEN_LINE(IfElseCond if_else_branch{"cond_block", compare_2})
             CODEGEN_LINE(CodeSectionContext::mk_ptr("test_value_fwd"_cs, int32_type, ValueInfo::from_constant(0)))
             CODEGEN_LINE(CodeSectionContext::mk_ptr("test_value_fwd_2"_cs, int32_type, ValueInfo::from_constant(0)))
             if_else_branch.then_branch([&ctx_if_else] {
                 ValueInfo arg_a = ctx_if_else.field("a").load();
-                ValueInfo then_val = arg_a.add(ValueInfo::from_constant(999), "then_add_tmp");
+                ValueInfo then_val = arg_a.add(ValueInfo::from_constant(999));
                 then_val.push("test_value_fwd"_cs);
-                ValueInfo then_val_2 = then_val.add(then_val, "double_then");
+                ValueInfo then_val_2 = then_val.add(then_val);
                 then_val_2.push("test_value_fwd_2"_cs);
             });
             if_else_branch.else_branch([&ctx_if_else] {
                 ValueInfo arg_a = ctx_if_else.field("a").load();
-                ValueInfo else_val = arg_a.add(ValueInfo::from_constant(8080), "else_add_tmp");
+                ValueInfo else_val = arg_a.add(ValueInfo::from_constant(8080));
                 else_val.push("test_value_fwd"_cs);
-                ValueInfo else_val_2 = else_val.add(else_val, "double_then");
+                ValueInfo else_val_2 = else_val.add(else_val);
                 else_val_2.push("test_value_fwd_2"_cs);
             });
             CODEGEN_LINE(if_else_branch.bind())
@@ -291,18 +292,18 @@ TEST(LLVM_CODEGEN, basic_test) {
         LLVM_BUILDER_ALWAYS_ASSERT(not l_module.is_init());
         CODEGEN_LINE(jit_runner.bind())
 
-        CODEGEN_LINE(const RuntimeNamespace& l_runtime_module = jit_runner.get_global_namespace())
-        CODEGEN_LINE(const RuntimeStruct& l_args3_struct = l_runtime_module.struct_info("args3"))
-        CODEGEN_LINE(const RuntimeStruct& l_abc_struct = l_runtime_module.struct_info("abc_args"))
+        CODEGEN_LINE(const runtime::Namespace& l_runtime_module = jit_runner.get_global_namespace())
+        CODEGEN_LINE(const runtime::Struct& l_args3_struct = l_runtime_module.struct_info("args3"))
+        CODEGEN_LINE(const runtime::Struct& l_abc_struct = l_runtime_module.struct_info("abc_args"))
         LLVM_BUILDER_ALWAYS_ASSERT(not l_runtime_module.has_error());
-        CODEGEN_LINE(const RuntimeEventFn& sample_fn = l_runtime_module.event_fn_info("sample_fn_name"))
+        CODEGEN_LINE(const runtime::EventFn& sample_fn = l_runtime_module.event_fn_info("sample_fn_name"))
         LLVM_BUILDER_ALWAYS_ASSERT(not sample_fn.has_error());
-        CODEGEN_LINE(const RuntimeEventFn& if_else_fn = l_runtime_module.event_fn_info("foo_if_else"))
+        CODEGEN_LINE(const runtime::EventFn& if_else_fn = l_runtime_module.event_fn_info("foo_if_else"))
         LLVM_BUILDER_ALWAYS_ASSERT(not if_else_fn.has_error());
 
         {
             for (int32_t i = 0; i != 10; ++i) {
-                CODEGEN_LINE(RuntimeObject l_args_obj = l_args3_struct.mk_object())
+                CODEGEN_LINE(runtime::Object l_args_obj = l_args3_struct.mk_object())
 
                 l_args_obj.set<int32_t>("arg1", i);
                 l_args_obj.set<int32_t>("arg2", i + 1);
@@ -323,7 +324,7 @@ TEST(LLVM_CODEGEN, basic_test) {
         }
         {
             for (int32_t i = 0; i != 10; ++i) {
-                CODEGEN_LINE(RuntimeObject l_abc_obj = l_abc_struct.mk_object())
+                CODEGEN_LINE(runtime::Object l_abc_obj = l_abc_struct.mk_object())
 
                 l_abc_obj.set<int32_t>("a", i);
                 l_abc_obj.set<int32_t>("b", i + 1);
@@ -414,21 +415,21 @@ TEST(LLVM_CODEGEN, lexical_context) {
         CODEGEN_LINE(jit_runner.add_module(l_cursor))
         CODEGEN_LINE(jit_runner.bind())
 
-        CODEGEN_LINE(const RuntimeNamespace& l_runtime_module = jit_runner.get_global_namespace())
-        CODEGEN_LINE(const RuntimeStruct& l_lexical_struct = l_runtime_module.struct_info("lexical_args"))
+        CODEGEN_LINE(const runtime::Namespace& l_runtime_module = jit_runner.get_global_namespace())
+        CODEGEN_LINE(const runtime::Struct& l_lexical_struct = l_runtime_module.struct_info("lexical_args"))
         LLVM_BUILDER_ALWAYS_ASSERT(not l_runtime_module.has_error());
 
-        CODEGEN_LINE(const RuntimeEventFn& fn1 = l_runtime_module.event_fn_info("fn1"))
-        CODEGEN_LINE(const RuntimeEventFn& fn2 = l_runtime_module.event_fn_info("fn2"))
-        CODEGEN_LINE(const RuntimeEventFn& fn3 = l_runtime_module.event_fn_info("fn3"))
-        CODEGEN_LINE(const RuntimeEventFn& fn4 = l_runtime_module.event_fn_info("fn4"))
+        CODEGEN_LINE(const runtime::EventFn& fn1 = l_runtime_module.event_fn_info("fn1"))
+        CODEGEN_LINE(const runtime::EventFn& fn2 = l_runtime_module.event_fn_info("fn2"))
+        CODEGEN_LINE(const runtime::EventFn& fn3 = l_runtime_module.event_fn_info("fn3"))
+        CODEGEN_LINE(const runtime::EventFn& fn4 = l_runtime_module.event_fn_info("fn4"))
         LLVM_BUILDER_ALWAYS_ASSERT(not fn1.has_error());
         LLVM_BUILDER_ALWAYS_ASSERT(not fn2.has_error());
         LLVM_BUILDER_ALWAYS_ASSERT(not fn3.has_error());
         LLVM_BUILDER_ALWAYS_ASSERT(not fn4.has_error());
 
         for (int32_t i = 0; i != 10; ++i) {
-            CODEGEN_LINE(RuntimeObject l_args_obj = l_lexical_struct.mk_object())
+            CODEGEN_LINE(runtime::Object l_args_obj = l_lexical_struct.mk_object())
 
             l_args_obj.set<int32_t>("arg1", i);
             l_args_obj.set<int32_t>("arg2", i + 1);
@@ -507,10 +508,10 @@ TEST(LLVM_CODEGEN, struct_type_test) {
     CODEGEN_LINE(jit_runner.bind())
     LLVM_BUILDER_ALWAYS_ASSERT(not jit_runner.has_error());
 
-    CODEGEN_LINE(const RuntimeNamespace& l_runtime_module = jit_runner.get_global_namespace())
-    CODEGEN_LINE(const RuntimeStruct& l_test_struct_rt = l_runtime_module.struct_info("test_struct"))
-    CODEGEN_LINE(const RuntimeStruct& l_args_struct = l_runtime_module.struct_info("struct_test_args"))
-    CODEGEN_LINE(const RuntimeEventFn& struct_fn = l_runtime_module.event_fn_info("struct_fn"))
+    CODEGEN_LINE(const runtime::Namespace& l_runtime_module = jit_runner.get_global_namespace())
+    CODEGEN_LINE(const runtime::Struct& l_test_struct_rt = l_runtime_module.struct_info("test_struct"))
+    CODEGEN_LINE(const runtime::Struct& l_args_struct = l_runtime_module.struct_info("struct_test_args"))
+    CODEGEN_LINE(const runtime::EventFn& struct_fn = l_runtime_module.event_fn_info("struct_fn"))
     LLVM_BUILDER_ALWAYS_ASSERT(not l_runtime_module.has_error());
     LLVM_BUILDER_ALWAYS_ASSERT(not l_test_struct_rt.has_error());
     LLVM_BUILDER_ALWAYS_ASSERT(not l_args_struct.has_error());
@@ -524,14 +525,14 @@ TEST(LLVM_CODEGEN, struct_type_test) {
     LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_test_struct_rt["field_5"].offset(), 16);
     LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_test_struct_rt.num_fields(), 5);
 
-    CODEGEN_LINE(RuntimeField field_1 = l_test_struct_rt["field_1"])
-    CODEGEN_LINE(RuntimeField field_2 = l_test_struct_rt["field_2"])
+    CODEGEN_LINE(runtime::Field field_1 = l_test_struct_rt["field_1"])
+    CODEGEN_LINE(runtime::Field field_2 = l_test_struct_rt["field_2"])
     LLVM_BUILDER_ALWAYS_ASSERT(not field_1.has_error());
     LLVM_BUILDER_ALWAYS_ASSERT(not field_2.has_error());
     LLVM_BUILDER_ALWAYS_ASSERT_EQ(field_1.idx(), 0);
     LLVM_BUILDER_ALWAYS_ASSERT_EQ(field_2.idx(), 1);
     {
-        CODEGEN_LINE(RuntimeObject l_test_object = l_test_struct_rt.mk_object())
+        CODEGEN_LINE(runtime::Object l_test_object = l_test_struct_rt.mk_object())
         l_test_object.set<int32_t>("field_1", 100);
         l_test_object.set<int32_t>("field_2", 200);
         l_test_object.set<int32_t>("field_3", 300);
@@ -545,9 +546,9 @@ TEST(LLVM_CODEGEN, struct_type_test) {
     }
     {
         for (int32_t i = 0; i != 10; ++i) {
-            CODEGEN_LINE(RuntimeObject l_test_obj = l_test_struct_rt.mk_object())
+            CODEGEN_LINE(runtime::Object l_test_obj = l_test_struct_rt.mk_object())
             l_test_obj.try_freeze();
-            CODEGEN_LINE(RuntimeObject l_args_obj = l_args_struct.mk_object())
+            CODEGEN_LINE(runtime::Object l_args_obj = l_args_struct.mk_object())
             LLVM_BUILDER_ALWAYS_ASSERT(not l_test_obj.has_error());
             LLVM_BUILDER_ALWAYS_ASSERT(l_test_obj.is_instance_of(l_test_struct_rt));
             int32_t result = 0;
@@ -635,14 +636,14 @@ TEST(LLVM_CODEGEN, multi_type) {
                 arg5.field("uint_arg1").store(arg2);
                 arg5.field("float32_arg1").store(arg3);
                 arg5.field("float64_arg1").store(arg4);
-                arg5.field("int16_arg1").store(arg1.cast(int16_type, "int16_typecast"));
-                arg5.field("int64_arg1").store(arg1.cast(int64_type, "int64_typecast"));
-                arg5.field("int16_arg2").store(arg1_neg.cast(int16_type, "int16_typecast"));
-                arg5.field("int64_arg2").store(arg1_neg.cast(int64_type, "int64_typecast"));
-                arg5.field("uint16_arg2").store(arg1_neg.cast(uint16_type, "uint16_typecast"));
-                arg5.field("uint64_arg2").store(arg1_neg.cast(uint64_type, "uint64_typecast"));
-                arg5.field("float32_arg2").store(arg4.cast(float32_type, "float32_type_cast"));
-                arg5.field("float64_arg2").store(arg3.cast(float64_type, "float64_type_cast"));
+                arg5.field("int16_arg1").store(arg1.cast(int16_type));
+                arg5.field("int64_arg1").store(arg1.cast(int64_type));
+                arg5.field("int16_arg2").store(arg1_neg.cast(int16_type));
+                arg5.field("int64_arg2").store(arg1_neg.cast(int64_type));
+                arg5.field("uint16_arg2").store(arg1_neg.cast(uint16_type));
+                arg5.field("uint64_arg2").store(arg1_neg.cast(uint64_type));
+                arg5.field("float32_arg2").store(arg4.cast(float32_type));
+                arg5.field("float64_arg2").store(arg3.cast(float64_type));
                 CodeSectionContext::set_return_value(ValueInfo::from_constant(0));
             }
             {
@@ -656,18 +657,18 @@ TEST(LLVM_CODEGEN, multi_type) {
     CODEGEN_LINE(jit_runner.add_module(l_cursor))
     CODEGEN_LINE(jit_runner.bind())
 
-    CODEGEN_LINE(const RuntimeNamespace& l_runtime_module = jit_runner.get_global_namespace())
-    CODEGEN_LINE(const RuntimeStruct& l_output_struct = l_runtime_module.struct_info("multi_type_struct"))
-    CODEGEN_LINE(const RuntimeStruct& l_args_struct = l_runtime_module.struct_info("multi_type_args"))
-    CODEGEN_LINE(const RuntimeEventFn& multi_type_fn = l_runtime_module.event_fn_info("basic_multi_type_test"))
+    CODEGEN_LINE(const runtime::Namespace& l_runtime_module = jit_runner.get_global_namespace())
+    CODEGEN_LINE(const runtime::Struct& l_output_struct = l_runtime_module.struct_info("multi_type_struct"))
+    CODEGEN_LINE(const runtime::Struct& l_args_struct = l_runtime_module.struct_info("multi_type_args"))
+    CODEGEN_LINE(const runtime::EventFn& multi_type_fn = l_runtime_module.event_fn_info("basic_multi_type_test"))
     LLVM_BUILDER_ALWAYS_ASSERT(not l_runtime_module.has_error());
     LLVM_BUILDER_ALWAYS_ASSERT(not multi_type_fn.has_error());
 
     {
         for (int32_t i = 0; i != 10; ++i) {
-            CODEGEN_LINE(RuntimeObject l_output_obj = l_output_struct.mk_object())
+            CODEGEN_LINE(runtime::Object l_output_obj = l_output_struct.mk_object())
             l_output_obj.try_freeze();
-            CODEGEN_LINE(RuntimeObject l_args_obj = l_args_struct.mk_object())
+            CODEGEN_LINE(runtime::Object l_args_obj = l_args_struct.mk_object())
             {
                 l_args_obj.set<int32_t>("arg1", i);
                 l_args_obj.set<int32_t>("arg1_neg", i * -1);
@@ -837,19 +838,19 @@ TEST(LLVM_CODEGEN, array_type_test) {
         CODEGEN_LINE(jit_runner.add_module(l_cursor))
         CODEGEN_LINE(jit_runner.bind())
 
-        CODEGEN_LINE(const RuntimeNamespace& l_runtime_module = jit_runner.get_global_namespace())
-        CODEGEN_LINE(const RuntimeStruct& l_arr_load_struct = l_runtime_module.struct_info("arr_load_args"))
-        CODEGEN_LINE(const RuntimeStruct& l_arr_assign_struct = l_runtime_module.struct_info("arr_assign_args"))
-        CODEGEN_LINE(const RuntimeStruct& l_vec_load_struct = l_runtime_module.struct_info("vec_load_args"))
-        CODEGEN_LINE(const RuntimeStruct& l_vec_assign_struct = l_runtime_module.struct_info("vec_assign_args"))
+        CODEGEN_LINE(const runtime::Namespace& l_runtime_module = jit_runner.get_global_namespace())
+        CODEGEN_LINE(const runtime::Struct& l_arr_load_struct = l_runtime_module.struct_info("arr_load_args"))
+        CODEGEN_LINE(const runtime::Struct& l_arr_assign_struct = l_runtime_module.struct_info("arr_assign_args"))
+        CODEGEN_LINE(const runtime::Struct& l_vec_load_struct = l_runtime_module.struct_info("vec_load_args"))
+        CODEGEN_LINE(const runtime::Struct& l_vec_assign_struct = l_runtime_module.struct_info("vec_assign_args"))
         LLVM_BUILDER_ALWAYS_ASSERT(not l_runtime_module.has_error());
 
-        CODEGEN_LINE(const RuntimeEventFn& arr_idx_load_fn = l_runtime_module.event_fn_info("array_idx_load"))
-        CODEGEN_LINE(const RuntimeEventFn& arr_idx_load_lazy_fn = l_runtime_module.event_fn_info("array_idx_load_lazy"))
-        CODEGEN_LINE(const RuntimeEventFn& arr_idx_assign_fn = l_runtime_module.event_fn_info("array_idx_assign"))
-        CODEGEN_LINE(const RuntimeEventFn& arr_idx_assign_lazy_fn = l_runtime_module.event_fn_info("array_idx_assign_lazy"))
-        CODEGEN_LINE(const RuntimeEventFn& vec_idx_load_fn = l_runtime_module.event_fn_info("vector_idx_load"))
-        CODEGEN_LINE(const RuntimeEventFn& vec_idx_assign_fn = l_runtime_module.event_fn_info("vector_idx_assign"))
+        CODEGEN_LINE(const runtime::EventFn& arr_idx_load_fn = l_runtime_module.event_fn_info("array_idx_load"))
+        CODEGEN_LINE(const runtime::EventFn& arr_idx_load_lazy_fn = l_runtime_module.event_fn_info("array_idx_load_lazy"))
+        CODEGEN_LINE(const runtime::EventFn& arr_idx_assign_fn = l_runtime_module.event_fn_info("array_idx_assign"))
+        CODEGEN_LINE(const runtime::EventFn& arr_idx_assign_lazy_fn = l_runtime_module.event_fn_info("array_idx_assign_lazy"))
+        CODEGEN_LINE(const runtime::EventFn& vec_idx_load_fn = l_runtime_module.event_fn_info("vector_idx_load"))
+        CODEGEN_LINE(const runtime::EventFn& vec_idx_assign_fn = l_runtime_module.event_fn_info("vector_idx_assign"))
         LLVM_BUILDER_ALWAYS_ASSERT(not arr_idx_load_fn.has_error());
         LLVM_BUILDER_ALWAYS_ASSERT(not arr_idx_load_lazy_fn.has_error());
         LLVM_BUILDER_ALWAYS_ASSERT(not arr_idx_assign_fn.has_error());
@@ -858,13 +859,13 @@ TEST(LLVM_CODEGEN, array_type_test) {
         LLVM_BUILDER_ALWAYS_ASSERT(not vec_idx_assign_fn.has_error());
 
         {
-            CODEGEN_LINE(RuntimeArray arr_obj = RuntimeArray::from(runtime_type_t::int32, 10))
+            CODEGEN_LINE(runtime::Array arr_obj = runtime::Array::from(runtime::type_t::int32, 10))
             for (uint32_t i = 0; i != 10; ++i) {
                 arr_obj.set<int32_t>(i, (int32_t)(i+1) * 10);
             }
             arr_obj.try_freeze();
             for (int32_t i = 0; i != 5; ++i) {
-                CODEGEN_LINE(RuntimeObject l_args_obj = l_arr_load_struct.mk_object())
+                CODEGEN_LINE(runtime::Object l_args_obj = l_arr_load_struct.mk_object())
                 l_args_obj.set<int32_t>("a", i);
                 l_args_obj.set_array("b", arr_obj);
                 l_args_obj.try_freeze();
@@ -873,13 +874,13 @@ TEST(LLVM_CODEGEN, array_type_test) {
             }
         }
         {
-            CODEGEN_LINE(RuntimeArray arr_obj = RuntimeArray::from(runtime_type_t::int32, 10))
+            CODEGEN_LINE(runtime::Array arr_obj = runtime::Array::from(runtime::type_t::int32, 10))
             for (uint32_t i = 0; i != 10; ++i) {
                 arr_obj.set<int32_t>(i, (int32_t)(i+1) * 10);
             }
             arr_obj.try_freeze();
             for (int32_t i = 0; i != 5; ++i) {
-                CODEGEN_LINE(RuntimeObject l_args_obj = l_arr_load_struct.mk_object())
+                CODEGEN_LINE(runtime::Object l_args_obj = l_arr_load_struct.mk_object())
                 l_args_obj.set<int32_t>("a", i);
                 l_args_obj.set_array("b", arr_obj);
                 l_args_obj.try_freeze();
@@ -888,10 +889,10 @@ TEST(LLVM_CODEGEN, array_type_test) {
             }
         }
         {
-            CODEGEN_LINE(RuntimeArray arr_obj = RuntimeArray::from(runtime_type_t::int32, 10))
+            CODEGEN_LINE(runtime::Array arr_obj = runtime::Array::from(runtime::type_t::int32, 10))
             arr_obj.try_freeze();
             for (int32_t i = 0; i != 5; ++i) {
-                CODEGEN_LINE(RuntimeObject l_args_obj = l_arr_assign_struct.mk_object())
+                CODEGEN_LINE(runtime::Object l_args_obj = l_arr_assign_struct.mk_object())
                 l_args_obj.set<int32_t>("idx", i);
                 l_args_obj.set_array("arr", arr_obj);
                 l_args_obj.set<int32_t>("value", i * 100);
@@ -903,10 +904,10 @@ TEST(LLVM_CODEGEN, array_type_test) {
             }
         }
         {
-            CODEGEN_LINE(RuntimeArray arr_obj = RuntimeArray::from(runtime_type_t::int32, 10))
+            CODEGEN_LINE(runtime::Array arr_obj = runtime::Array::from(runtime::type_t::int32, 10))
             arr_obj.try_freeze();
             for (int32_t i = 0; i != 5; ++i) {
-                CODEGEN_LINE(RuntimeObject l_args_obj = l_arr_assign_struct.mk_object())
+                CODEGEN_LINE(runtime::Object l_args_obj = l_arr_assign_struct.mk_object())
                 l_args_obj.set<int32_t>("idx", i);
                 l_args_obj.set_array("arr", arr_obj);
                 l_args_obj.set<int32_t>("value", i * 100);
@@ -918,13 +919,13 @@ TEST(LLVM_CODEGEN, array_type_test) {
             }
         }
         {
-            CODEGEN_LINE(RuntimeArray arr_obj = RuntimeArray::from(runtime_type_t::int32, 10))
+            CODEGEN_LINE(runtime::Array arr_obj = runtime::Array::from(runtime::type_t::int32, 10))
             for (int i = 0; i != 10; ++i) {
                 arr_obj.set<int32_t>(static_cast<uint32_t>(i), (i+1) * 10);
             }
             arr_obj.try_freeze();
             for (int32_t i = 0; i != 5; ++i) {
-                CODEGEN_LINE(RuntimeObject l_args_obj = l_vec_load_struct.mk_object())
+                CODEGEN_LINE(runtime::Object l_args_obj = l_vec_load_struct.mk_object())
                 l_args_obj.set<int32_t>("a", i);
                 l_args_obj.set_array("b", arr_obj);
                 l_args_obj.try_freeze();
@@ -934,10 +935,10 @@ TEST(LLVM_CODEGEN, array_type_test) {
             }
         }
         {
-            CODEGEN_LINE(RuntimeArray arr_obj = RuntimeArray::from(runtime_type_t::int32, 10))
+            CODEGEN_LINE(runtime::Array arr_obj = runtime::Array::from(runtime::type_t::int32, 10))
             arr_obj.try_freeze();
             for (int32_t i = 0; i != 5; ++i) {
-                CODEGEN_LINE(RuntimeObject l_args_obj = l_vec_assign_struct.mk_object())
+                CODEGEN_LINE(runtime::Object l_args_obj = l_vec_assign_struct.mk_object())
                 l_args_obj.set<int32_t>("idx", i);
                 l_args_obj.set_array("vec", arr_obj);
                 l_args_obj.set<int32_t>("value", i * 100);
@@ -992,8 +993,8 @@ TEST(LLVM_CODEGEN, vector_type_test) {
                 ValueInfo arg1 = ctx.field("arg1").load().load();
                 ValueInfo arg2 = ctx.field("arg2").load().load();
                 ValueInfo arg3 = ctx.field("arg3").load();
-                ValueInfo l_sum_vec = arg1.add(arg2, "construct_add");
-                ValueInfo l_sum_vec_2 = l_sum_vec.add(l_sum_vec, "double_res");
+                ValueInfo l_sum_vec = arg1.add(arg2);
+                ValueInfo l_sum_vec_2 = l_sum_vec.add(l_sum_vec);
                 arg3.store(l_sum_vec_2);
                 CodeSectionContext::set_return_value(ValueInfo::from_constant(0));
             }
@@ -1041,13 +1042,13 @@ TEST(LLVM_CODEGEN, vector_type_test) {
     CODEGEN_LINE(jit_runner.add_module(l_cursor))
     CODEGEN_LINE(jit_runner.bind())
 
-    CODEGEN_LINE(const RuntimeNamespace& l_runtime_module = jit_runner.get_global_namespace())
-    CODEGEN_LINE(const RuntimeStruct& l_vec_add_struct = l_runtime_module.struct_info("vec_add_args"))
-    CODEGEN_LINE(const RuntimeStruct& l_vec_set_struct = l_runtime_module.struct_info("vec_set_args"))
-    CODEGEN_LINE(const RuntimeStruct& l_vec_load_struct = l_runtime_module.struct_info("vec_load_args"))
-    CODEGEN_LINE(const RuntimeEventFn& vec_add_fn = l_runtime_module.event_fn_info("sample_vec_add_op"))
-    CODEGEN_LINE(const RuntimeEventFn& vec_set_fn = l_runtime_module.event_fn_info("set_vector_value_idx1"))
-    CODEGEN_LINE(const RuntimeEventFn& vec_load_fn = l_runtime_module.event_fn_info("load_vector_value_idx1"))
+    CODEGEN_LINE(const runtime::Namespace& l_runtime_module = jit_runner.get_global_namespace())
+    CODEGEN_LINE(const runtime::Struct& l_vec_add_struct = l_runtime_module.struct_info("vec_add_args"))
+    CODEGEN_LINE(const runtime::Struct& l_vec_set_struct = l_runtime_module.struct_info("vec_set_args"))
+    CODEGEN_LINE(const runtime::Struct& l_vec_load_struct = l_runtime_module.struct_info("vec_load_args"))
+    CODEGEN_LINE(const runtime::EventFn& vec_add_fn = l_runtime_module.event_fn_info("sample_vec_add_op"))
+    CODEGEN_LINE(const runtime::EventFn& vec_set_fn = l_runtime_module.event_fn_info("set_vector_value_idx1"))
+    CODEGEN_LINE(const runtime::EventFn& vec_load_fn = l_runtime_module.event_fn_info("load_vector_value_idx1"))
     LLVM_BUILDER_ALWAYS_ASSERT(not l_runtime_module.has_error());
     LLVM_BUILDER_ALWAYS_ASSERT(not vec_add_fn.has_error());
     LLVM_BUILDER_ALWAYS_ASSERT(not vec_set_fn.has_error());
@@ -1055,9 +1056,9 @@ TEST(LLVM_CODEGEN, vector_type_test) {
 
     {
         for (int32_t i = 0; i != 10; ++i) {
-            CODEGEN_LINE(RuntimeArray arr1_obj = RuntimeArray::from(runtime_type_t::int32, 10))
-            CODEGEN_LINE(RuntimeArray arr2_obj = RuntimeArray::from(runtime_type_t::int32, 10))
-            CODEGEN_LINE(RuntimeArray arr3_obj = RuntimeArray::from(runtime_type_t::int32, 10))
+            CODEGEN_LINE(runtime::Array arr1_obj = runtime::Array::from(runtime::type_t::int32, 10))
+            CODEGEN_LINE(runtime::Array arr2_obj = runtime::Array::from(runtime::type_t::int32, 10))
+            CODEGEN_LINE(runtime::Array arr3_obj = runtime::Array::from(runtime::type_t::int32, 10))
             for (int32_t j = 0; j != 10; ++j) {
                 CODEGEN_LINE(arr1_obj.set<int32_t>(static_cast<uint32_t>(j), i + j))
                 CODEGEN_LINE(arr2_obj.set<int32_t>(static_cast<uint32_t>(j), i + j + 6))
@@ -1066,7 +1067,7 @@ TEST(LLVM_CODEGEN, vector_type_test) {
             CODEGEN_LINE(arr1_obj.try_freeze())
             CODEGEN_LINE(arr2_obj.try_freeze())
             CODEGEN_LINE(arr3_obj.try_freeze())
-            CODEGEN_LINE(RuntimeObject l_args_obj = l_vec_add_struct.mk_object())
+            CODEGEN_LINE(runtime::Object l_args_obj = l_vec_add_struct.mk_object())
             CODEGEN_LINE(l_args_obj.set_array("arg1", arr1_obj))
             CODEGEN_LINE(l_args_obj.set_array("arg2", arr2_obj))
             CODEGEN_LINE(l_args_obj.set_array("arg3", arr3_obj))
@@ -1086,12 +1087,12 @@ TEST(LLVM_CODEGEN, vector_type_test) {
     }
     {
         for (int32_t i = 0; i != 10; ++i) {
-            CODEGEN_LINE(RuntimeArray arr_obj = RuntimeArray::from(runtime_type_t::int32, 10))
+            CODEGEN_LINE(runtime::Array arr_obj = runtime::Array::from(runtime::type_t::int32, 10))
             for (int32_t j = 0; j != 10; ++j) {
                 arr_obj.set<int32_t>(static_cast<uint32_t>(j), 0);
             }
             arr_obj.try_freeze();
-            CODEGEN_LINE(RuntimeObject l_args_obj = l_vec_set_struct.mk_object())
+            CODEGEN_LINE(runtime::Object l_args_obj = l_vec_set_struct.mk_object())
             l_args_obj.set_array("arg1", arr_obj);
             l_args_obj.set<int32_t>("v", i * 10);
             l_args_obj.try_freeze();
@@ -1101,12 +1102,12 @@ TEST(LLVM_CODEGEN, vector_type_test) {
     }
     {
         for (int32_t i = 0; i != 10; ++i) {
-            CODEGEN_LINE(RuntimeArray arr_obj = RuntimeArray::from(runtime_type_t::int32, 10))
+            CODEGEN_LINE(runtime::Array arr_obj = runtime::Array::from(runtime::type_t::int32, 10))
             for (int32_t j = 0; j != 10; ++j) {
                 arr_obj.set<int32_t>(static_cast<uint32_t>(j), i * 100 + j);
             }
             arr_obj.try_freeze();
-            CODEGEN_LINE(RuntimeObject l_args_obj = l_vec_load_struct.mk_object())
+            CODEGEN_LINE(runtime::Object l_args_obj = l_vec_load_struct.mk_object())
             l_args_obj.set_array("arg1", arr_obj);
             l_args_obj.try_freeze();
             CODEGEN_LINE(int32_t result = vec_load_fn.on_event(l_args_obj))
@@ -1159,11 +1160,11 @@ TEST(LLVM_CODEGEN, multi_module) {
                 ValueInfo arg2 = ctx.field("arg2").load();
                 ValueInfo c1 = ValueInfo::from_constant(101);
                 ValueInfo c2 = ValueInfo::from_constant(999);
-                ValueInfo res = arg1.add(arg2, "construct_add");
-                ValueInfo res2 = res.add(c1, "add_const1");
-                ValueInfo res3 = res2.add(c2, "add_const1");
-                ValueInfo res4 = res2.add(ctx.field("arg3").load(), "add_arg");
-                ValueInfo res5 = res3.add(res4, "accum_res");
+                ValueInfo res = arg1.add(arg2);
+                ValueInfo res2 = res.add(c1);
+                ValueInfo res3 = res2.add(c2);
+                ValueInfo res4 = res2.add(ctx.field("arg3").load());
+                ValueInfo res5 = res3.add(res4);
                 ValueInfo res6 = fn_ext.call_fn(res5);
                 ValueInfo res7 = fn_local_ext.call_fn(res6);
                 CodeSectionContext::set_return_value(res7);
@@ -1191,7 +1192,7 @@ TEST(LLVM_CODEGEN, multi_module) {
                 CodeSection l_fn_body = fn.mk_section("test_fn_body");
                 l_fn_body.enter();
                 ValueInfo arg = fn.context().value();
-                ValueInfo res = arg.add(arg, "construct_add");
+                ValueInfo res = arg.add(arg);
                 CodeSectionContext::set_return_value(res);
             }
             jit_runner.process_module_fn(fn);
@@ -1211,7 +1212,7 @@ TEST(LLVM_CODEGEN, multi_module) {
                 CodeSection l_fn_body = fn.mk_section("test_fn_body");
                 l_fn_body.enter();
                 ValueInfo arg = fn.context().value();
-                ValueInfo res = arg.add(arg, "construct_add");
+                ValueInfo res = arg.add(arg);
                 CodeSectionContext::set_return_value(res);
             }
             jit_runner.process_module_fn(fn);
@@ -1226,9 +1227,9 @@ TEST(LLVM_CODEGEN, multi_module) {
     CODEGEN_LINE(jit_runner.add_module(l_cursor))
     CODEGEN_LINE(jit_runner.bind())
 
-    CODEGEN_LINE(const RuntimeNamespace& l_runtime_module = jit_runner.get_global_namespace())
-    CODEGEN_LINE(const RuntimeStruct& l_multi_struct = l_runtime_module.struct_info("multi_args"))
-    CODEGEN_LINE(const RuntimeEventFn& fn1_fn = l_runtime_module.event_fn_info("fn1"))
+    CODEGEN_LINE(const runtime::Namespace& l_runtime_module = jit_runner.get_global_namespace())
+    CODEGEN_LINE(const runtime::Struct& l_multi_struct = l_runtime_module.struct_info("multi_args"))
+    CODEGEN_LINE(const runtime::EventFn& fn1_fn = l_runtime_module.event_fn_info("fn1"))
     LLVM_BUILDER_ALWAYS_ASSERT(not l_runtime_module.has_error());
     LLVM_BUILDER_ALWAYS_ASSERT(not fn1_fn.has_error());
     LLVM_BUILDER_ALWAYS_ASSERT(fn1_fn.is_init());
@@ -1237,7 +1238,7 @@ TEST(LLVM_CODEGEN, multi_module) {
         const int32_t golden_set[10] = { 2410, 2420, 2430, 2440, 2450,
                                       2460, 2470, 2480, 2490, 2500};
         for (int32_t i = 0; i != 10; ++i) {
-            CODEGEN_LINE(RuntimeObject l_args_obj = l_multi_struct.mk_object())
+            CODEGEN_LINE(runtime::Object l_args_obj = l_multi_struct.mk_object())
             l_args_obj.set<int32_t>("arg1", i);
             l_args_obj.set<int32_t>("arg2", i + 1);
             l_args_obj.set<int32_t>("arg3", i + 2);
@@ -1335,12 +1336,12 @@ TEST(LLVM_CODEGEN, resilient_api) {
     CODEGEN_LINE(jit_runner.add_module(l_cursor))
     CODEGEN_LINE(jit_runner.bind())
 
-    CODEGEN_LINE(const RuntimeNamespace& l_runtime_module = jit_runner.get_global_namespace())
-    CODEGEN_LINE(const RuntimeStruct& l_resilient_struct = l_runtime_module.struct_info("resilient_args"))
-    CODEGEN_LINE(const RuntimeEventFn& fn1_fn = l_runtime_module.event_fn_info("fn1"))
-    CODEGEN_LINE(const RuntimeEventFn& fn2_fn = l_runtime_module.event_fn_info("fn2"))
-    CODEGEN_LINE(const RuntimeEventFn& fn3_fn = l_runtime_module.event_fn_info("fn3"))
-    CODEGEN_LINE(const RuntimeEventFn& fn4_fn = l_runtime_module.event_fn_info("fn4"))
+    CODEGEN_LINE(const runtime::Namespace& l_runtime_module = jit_runner.get_global_namespace())
+    CODEGEN_LINE(const runtime::Struct& l_resilient_struct = l_runtime_module.struct_info("resilient_args"))
+    CODEGEN_LINE(const runtime::EventFn& fn1_fn = l_runtime_module.event_fn_info("fn1"))
+    CODEGEN_LINE(const runtime::EventFn& fn2_fn = l_runtime_module.event_fn_info("fn2"))
+    CODEGEN_LINE(const runtime::EventFn& fn3_fn = l_runtime_module.event_fn_info("fn3"))
+    CODEGEN_LINE(const runtime::EventFn& fn4_fn = l_runtime_module.event_fn_info("fn4"))
     LLVM_BUILDER_ALWAYS_ASSERT(not l_runtime_module.has_error());
     LLVM_BUILDER_ALWAYS_ASSERT(not fn1_fn.has_error());
     LLVM_BUILDER_ALWAYS_ASSERT(not fn2_fn.has_error());
@@ -1348,7 +1349,7 @@ TEST(LLVM_CODEGEN, resilient_api) {
     LLVM_BUILDER_ALWAYS_ASSERT(not fn4_fn.has_error());
 
     for (int32_t i = 0; i != 10; ++i) {
-        CODEGEN_LINE(RuntimeObject l_args_obj = l_resilient_struct.mk_object())
+        CODEGEN_LINE(runtime::Object l_args_obj = l_resilient_struct.mk_object())
         l_args_obj.set<int32_t>("arg1", i);
         l_args_obj.set<int32_t>("arg2", i + 1);
         l_args_obj.set<int32_t>("arg3", i + 2);

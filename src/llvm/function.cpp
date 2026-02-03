@@ -4,8 +4,8 @@
 
 #include "llvm_builder/function.h"
 #include "llvm_builder/analyze.h"
-#include "llvm_builder/meta/noncopyable.h"
-#include "llvm_builder/ds/fixed_string.h"
+#include "meta/noncopyable.h"
+#include "ds/fixed_string.h"
 #include "util/debug.h"
 #include "llvm_builder/module.h"
 #include "llvm/context_impl.h"

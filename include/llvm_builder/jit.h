@@ -6,7 +6,6 @@
 #define LLVM_BUILDER_LLVM_JIT_H_
 
 #include "llvm_builder/defines.h"
-#include "llvm_builder/meta/noncopyable.h"
 #include "llvm_builder/module.h"
 #include "llvm_builder/util/object.h"
 #include <memory>
@@ -16,13 +15,16 @@
 LLVM_BUILDER_NS_BEGIN
 
 class JustInTimeRunner;
-class RuntimeArray;
-class RuntimeNamespace;
-class RuntimeStruct;
-class RuntimeField;
-class RuntimeEventFn;
 
-enum class runtime_type_t {
+namespace runtime {
+
+class Array;
+class Namespace;
+class Struct;
+class Field;
+class EventFn;
+
+enum class type_t {
     unknown,
     boolean,
     int8,
@@ -41,67 +43,67 @@ enum class runtime_type_t {
 
 // TODO{vibhanshu}: check if all the pointer type fields are initialized
 //                 to valid values, before this object is used in event
-class RuntimeObject : public _BaseObject<RuntimeField> {
-    using BaseT = _BaseObject<RuntimeField>;
-    friend class RuntimeStruct;
-    friend class RuntimeField;
-    friend class RuntimeEventFn;
+class Object : public _BaseObject<Field> {
+    using BaseT = _BaseObject<Field>;
+    friend class Struct;
+    friend class Field;
+    friend class EventFn;
     class Impl;
 private:
     std::shared_ptr<Impl> m_impl;
 private:
-    explicit RuntimeObject(const RuntimeStruct& parent);
+    explicit Object(const Struct& parent);
 public:
-    explicit RuntimeObject();
-    RuntimeObject(const RuntimeObject&);
-    RuntimeObject(RuntimeObject&&);
-    RuntimeObject& operator = (const RuntimeObject&);
-    RuntimeObject& operator = (RuntimeObject&&);
-    ~RuntimeObject();
+    explicit Object();
+    Object(const Object&);
+    Object(Object&&);
+    Object& operator = (const Object&);
+    Object& operator = (Object&&);
+    ~Object();
 public:
     bool is_frozen() const;
     bool try_freeze();
-    std::vector<RuntimeField> null_fields() const;
-    bool is_instance_of(const RuntimeStruct &o) const;
-    const RuntimeStruct& struct_def() const;
+    std::vector<Field> null_fields() const;
+    bool is_instance_of(const Struct &o) const;
+    const Struct& struct_def() const;
     // TODO{vibhanshu}: remove ref() once this api is stable
     void* ref() const;
     template <typename T>
     T get(const std::string& fname) const;
     template <typename T>
     void set(const std::string& name, T v) const;
-    RuntimeObject get_object(const std::string& name) const;
-    void set_object(const std::string& name, const RuntimeObject& v) const;
-    RuntimeArray get_array(const std::string& name) const;
-    void set_array(const std::string& name, const RuntimeArray& v) const;
-    bool operator == (const RuntimeObject& rhs) const;
-    static const RuntimeObject& null();
+    Object get_object(const std::string& name) const;
+    void set_object(const std::string& name, const Object& v) const;
+    Array get_array(const std::string& name) const;
+    void set_array(const std::string& name, const Array& v) const;
+    bool operator == (const Object& rhs) const;
+    static const Object& null();
 };
 
 
-// TODO{vibhanshu}: possible to merge it with RuntimeObject?
-class RuntimeArray : public _BaseObject<RuntimeField> {
-    using BaseT = _BaseObject<RuntimeField>;
+// TODO{vibhanshu}: possible to merge it with Object?
+class Array : public _BaseObject<Field> {
+    using BaseT = _BaseObject<Field>;
     class Impl;
 private:
     std::shared_ptr<Impl> m_impl;
 private:
-    explicit RuntimeArray(runtime_type_t element_type, uint32_t size);
+    explicit Array(type_t element_type, uint32_t size);
 public:
     // TODO{vibhanshu}: add type info also to array
-    explicit RuntimeArray();
-    RuntimeArray(const RuntimeArray&);
-    RuntimeArray(RuntimeArray&&);
-    RuntimeArray& operator = (const RuntimeArray&);
-    RuntimeArray& operator = (RuntimeArray&&);
-    ~RuntimeArray();
+    explicit Array();
+    Array(const Array&);
+    Array(Array&&);
+    Array& operator = (const Array&);
+    Array& operator = (Array&&);
+    ~Array();
 public:
     bool is_scalar() const;
     bool is_pointer() const;
     bool is_frozen() const;
     bool try_freeze();
     uint32_t num_elements() const;
-    runtime_type_t element_type() const;
+    type_t element_type() const;
     uint32_t element_size() const;
     // TODO{vibhanshu}: remove ref() once this api is stable
     void* ref() const;
@@ -109,30 +111,30 @@ public:
     T get(uint32_t i) const;
     template <typename T>
     void set(uint32_t i, T v) const;
-    RuntimeObject get_object(uint32_t i) const;
-    void set_object(uint32_t i, const RuntimeObject& v) const;
-    RuntimeArray get_array(uint32_t i) const;
-    void set_array(uint32_t i, const RuntimeArray& v) const;
-    bool operator == (const RuntimeArray& rhs) const;
-    static const RuntimeArray& null();
+    Object get_object(uint32_t i) const;
+    void set_object(uint32_t i, const Object& v) const;
+    Array get_array(uint32_t i) const;
+    void set_array(uint32_t i, const Array& v) const;
+    bool operator == (const Array& rhs) const;
+    static const Array& null();
 public:
-    static RuntimeArray from(runtime_type_t type, uint32_t size);
+    static Array from(type_t type, uint32_t size);
 };
 
-class RuntimeField : public _BaseObject<RuntimeField> {
-    using BaseT = _BaseObject<RuntimeField>;
+class Field : public _BaseObject<Field> {
+    using BaseT = _BaseObject<Field>;
     class Impl;
     struct construct_t {};
-    friend class RuntimeStruct;
-    friend class RuntimeObject;
+    friend class Struct;
+    friend class Object;
 private:
     std::shared_ptr<Impl> m_impl;
 public:
-    explicit RuntimeField();
-    explicit RuntimeField(const RuntimeStruct& parent, int32_t idx, int32_t offset, const std::string &name, const TypeInfo& type, construct_t);
-    ~RuntimeField();
+    explicit Field();
+    explicit Field(const Struct& parent, int32_t idx, int32_t offset, const std::string &name, const TypeInfo& type, construct_t);
+    ~Field();
 public:
-    const RuntimeStruct& struct_def() const;
+    const Struct& struct_def() const;
     int32_t idx() const;
     int32_t offset() const;
     const std::string &name() const;
@@ -149,9 +151,9 @@ public:
     bool is_uint64() const;
     bool is_float32() const;
     bool is_float64() const;
-    bool operator == (const RuntimeField& rhs) const;
-    static const RuntimeField& null();
-    static runtime_type_t get_type(const TypeInfo& type);
+    bool operator == (const Field& rhs) const;
+    static const Field& null();
+    static type_t get_type(const TypeInfo& type);
     static uint32_t get_raw_size(const TypeInfo& type);
 private:
     void log_values(std::ostream& os, void* data) const;
@@ -160,38 +162,38 @@ private:
 // TODO{vibhanshu}: add API to return a aggregate or some view of different set of underlying variables
 // e.g a group of ints, arg1, arg2, ... argN  can be transformed to an array view based API like int[N]
 // this is very similar to memroy view protocol
-class RuntimeStruct : public _BaseObject<RuntimeStruct> {
-    using BaseT = _BaseObject<RuntimeStruct>;
+class Struct : public _BaseObject<Struct> {
+    using BaseT = _BaseObject<Struct>;
     class Impl;
-    friend class RuntimeNamespace;
-    friend class RuntimeObject;
-    friend class RuntimeArray;
-    friend class RuntimeField;
+    friend class Namespace;
+    friend class Object;
+    friend class Array;
+    friend class Field;
     struct construct_t {};
 private:
     std::shared_ptr<Impl> m_impl;
 public:
-    explicit RuntimeStruct();
-    explicit RuntimeStruct(const TypeInfo& type, construct_t);
-    ~RuntimeStruct() = default;
+    explicit Struct();
+    explicit Struct(const TypeInfo& type, construct_t);
+    ~Struct() = default;
 public:
     const std::string& name() const;
     int32_t size_in_bytes() const;
     int32_t num_fields() const;
     const std::vector<std::string>& field_names() const;
-    RuntimeObject mk_object() const;
-    RuntimeField operator[] (const std::string& s) const;
-    bool operator == (const RuntimeStruct& rhs) const;
-    static const RuntimeStruct& null();
+    Object mk_object() const;
+    Field operator[] (const std::string& s) const;
+    bool operator == (const Struct& rhs) const;
+    static const Struct& null();
 private:
     void log_values(std::ostream& os, void* data, uint32_t size) const;
 };
 
-RuntimeField operator""_field(const char* s, size_t len);
+Field operator""_field(const char* s, size_t len);
 
-class RuntimeEventFn : public _BaseObject<RuntimeEventFn> {
-    using BaseT = _BaseObject<RuntimeEventFn>;
-    friend class RuntimeNamespace;
+class EventFn : public _BaseObject<EventFn> {
+    using BaseT = _BaseObject<EventFn>;
+    friend class Namespace;
     class Impl;
     struct construct_t{};
 public:
@@ -199,26 +201,25 @@ public:
 private:
     std::shared_ptr<Impl> m_impl;
 public:
-    explicit RuntimeEventFn();
-    explicit RuntimeEventFn(JustInTimeRunner& runner, const std::string& name, construct_t);
-    ~RuntimeEventFn() = default;
+    explicit EventFn();
+    explicit EventFn(JustInTimeRunner& runner, const std::string& name, construct_t);
+    ~EventFn() = default;
 public:
     bool is_init() const;
     void init();
-    int32_t on_event(const RuntimeObject& o) const;
-    bool operator == (const RuntimeEventFn& rhs) const;
-    static const RuntimeEventFn& null();
+    int32_t on_event(const Object& o) const;
+    bool operator == (const EventFn& rhs) const;
+    static const EventFn& null();
 };
 
 // TODO{vibhanshu}: Namespace can't have circular dependency,
 //           if a event in namespace A depends on event in namespace B
 //           then there can  be no dependency of any event in B on any event of A
 //           implement this check
-class RuntimeNamespace : public _BaseObject<RuntimeNamespace> {
-    friend class JustInTimeRunner;
-    using BaseT = _BaseObject<RuntimeNamespace>;
+class Namespace : public _BaseObject<Namespace> {
+    friend class LLVM_BUILDER_NS()::JustInTimeRunner;
+    using BaseT = _BaseObject<Namespace>;
     class Impl;
-    friend class JustInTimeRunner;
     struct construct_t {};
 public:
     using symbol_type = LinkSymbol::symbol_type;
@@ -226,22 +227,33 @@ public:
 private:
     std::shared_ptr<Impl> m_impl;
 public:
-    explicit RuntimeNamespace();
-    explicit RuntimeNamespace(JustInTimeRunner& runner, const std::string& ns, construct_t);
-    ~RuntimeNamespace() = default;
+    explicit Namespace();
+    explicit Namespace(JustInTimeRunner& runner, const std::string& ns, construct_t);
+    ~Namespace() = default;
 public:
     const std::string& name() const;
     bool is_bind() const;
     bool is_global() const;
     void bind();
-    RuntimeStruct struct_info(const std::string& name) const;
-    RuntimeEventFn event_fn_info(const std::string& name) const;
-    bool operator == (const RuntimeNamespace& rhs) const;
-    static const RuntimeNamespace& null();
+    Struct struct_info(const std::string& name) const;
+    EventFn event_fn_info(const std::string& name) const;
+    bool operator == (const Namespace& rhs) const;
+    static const Namespace& null();
 private:
     void add_struct(const TypeInfo& struct_type);
     void add_event(const std::string& e);
 };
+
+} // namespace runtime
+
+// Backwards compatibility aliases
+using RuntimeObject = runtime::Object;
+using RuntimeArray = runtime::Array;
+using RuntimeField = runtime::Field;
+using RuntimeStruct = runtime::Struct;
+using RuntimeEventFn = runtime::EventFn;
+using RuntimeNamespace = runtime::Namespace;
+using runtime_type_t = runtime::type_t;
 
 class JustInTimeRunner : public _BaseObject<JustInTimeRunner> {
     using BaseT = _BaseObject<JustInTimeRunner>;
@@ -262,8 +274,8 @@ public:
     bool process_module_fn(Function& fn);
     void add_module(Cursor& cursor);
     fn_t* get_fn(const std::string& symbol) const;
-    RuntimeNamespace get_namespace(const std::string& name) const;
-    RuntimeNamespace get_global_namespace() const;
+    runtime::Namespace get_namespace(const std::string& name) const;
+    runtime::Namespace get_global_namespace() const;
     bool operator == (const JustInTimeRunner& o) const;
     static const JustInTimeRunner& null();
 };

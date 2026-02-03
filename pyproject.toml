@@ -1,0 +1,46 @@
+[build-system]
+requires = ["scikit-build-core>=0.4.3", "nanobind>=1.3.2"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "llvm_builder_py"
+version = "1.0.0"
+description = "Python bindings for llvm_builder - A high-level LLVM IR builder library"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Vibhanshu", email = "vibhanshu@example.com"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: C++",
+    "Topic :: Software Development :: Compilers",
+    "Topic :: Software Development :: Code Generators",
+]
+keywords = ["llvm", "jit", "compiler", "code generation", "ir"]
+
+[project.urls]
+Homepage = "https://github.com/vibhanshu/llvm_builder"
+Documentation = "https://github.com/vibhanshu/llvm_builder#readme"
+Repository = "https://github.com/vibhanshu/llvm_builder.git"
+
+[tool.scikit-build]
+cmake.args = ["-DBUILD_PYTHON_BINDINGS=ON"]
+wheel.packages = []
+build-dir = "build/{wheel_tag}"
+# Enable wheel repair to bundle shared libraries
+wheel.repair.auditwheel = "repair"
+wheel.repair.delocate = "delocate-wheel"
+
+[tool.scikit-build.cmake.define]
+CMAKE_BUILD_TYPE = "Release"
+LLVM_BUILDER_BUNDLE_LLVM = "ON"

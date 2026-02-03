@@ -11,7 +11,8 @@
 #include "llvm_builder/module.h"
 #include "util/debug.h"
 #include "util/string_util.h"
-#include "llvm_builder/meta/noncopyable.h"
+#include "util/cstring.h"
+#include "meta/noncopyable.h"
 #include "ext_include.h"
 
 LLVM_BUILDER_NS_BEGIN
@@ -34,9 +35,10 @@ TagInfo::TagInfo(std::vector<std::string>&& value) : m_values{std::move(value)} 
     }
 }
 
-bool TagInfo::contains(CString v) const {
+bool TagInfo::contains(std::string_view v) const {
+    CString cv{v};
     for (const std::string& e : m_values) {
-        if (v.equals(e)) {
+        if (cv.equals(e)) {
             return true;
         }
     }
@@ -102,7 +104,7 @@ private:
         l_res.m_index_list[1] = idx_v;
         return l_res.M_deref();
     }
-    ValueInfo M_deref(const std::string &op_name = std::string{}) const {
+    ValueInfo M_deref() const {
         CODEGEN_FN
         if (CursorContextImpl::has_value()) {
             llvm::IRBuilder<>& l_cursor = CursorContextImpl::builder();
@@ -110,7 +112,7 @@ private:
             for (const ValueInfo& v : m_index_list) {
                 l_raw_index_list.emplace_back(v.native_value());
             }
-            llvm::Value* l_entry_idx = l_cursor.CreateGEP(m_orig_type.base_type().native_value(), m_raw_value, l_raw_index_list, llvm::Twine{op_name, "_index"});
+            llvm::Value* l_entry_idx = l_cursor.CreateGEP(m_orig_type.base_type().native_value(), m_raw_value, l_raw_index_list, "_index");
             return ValueInfo{m_type.pointer_type(), TagInfo{}, l_entry_idx};
         } else {
             return ValueInfo::null();
@@ -150,12 +152,8 @@ ValueInfo::~ValueInfo() {
     // object::Counter::singleton().on_delete(object::Callback::object_t::VALUE, (uint64_t)this, "");
 }
 
-bool ValueInfo::has_tag(CString v) const {
+bool ValueInfo::has_tag(std::string_view v) const {
     return m_tag_info.contains(v);
-}
-
-bool ValueInfo::has_tag(const std::string& v) const {
-    return has_tag(CString{v});
 }
 
 void ValueInfo::add_tag(const std::string& v) {
@@ -176,16 +174,16 @@ bool ValueInfo::operator == (const ValueInfo& v2) const {
     return m_raw_value == v2.m_raw_value and m_type_info == v2.m_type_info;
 }
 
-ValueInfo ValueInfo::cast(TypeInfo target_type, const std::string& op_name) const {
+ValueInfo ValueInfo::cast(TypeInfo target_type) const {
     CODEGEN_FN
     if (has_error()) {
         return ValueInfo::null();
     }
-    return target_type.type_cast(*this, op_name);
+    return target_type.type_cast(*this);
 }
 
 #define _BASE_BINARY_OP_IMPL_FN(FN_NAME, RETURN)                                                 \
-    ValueInfo ValueInfo:: FN_NAME (ValueInfo v2, const std::string& op_name) const {             \
+    ValueInfo ValueInfo:: FN_NAME (ValueInfo v2) const {                                         \
     CODEGEN_FN                                                                                   \
     if (has_error()) {                                                                           \
         return ValueInfo::null();                                                                \
@@ -200,7 +198,7 @@ ValueInfo ValueInfo::cast(TypeInfo target_type, const std::string& op_name) cons
     }                                                                                            \
     TagInfo l_tag_info = tag_info();                                                             \
     l_tag_info = l_tag_info.set_union(v2.tag_info());                                            \
-    ValueInfo r = RETURN . FN_NAME (*this, v2, op_name);                                         \
+    ValueInfo r = RETURN . FN_NAME (*this, v2);                                                  \
     r.add_tag(l_tag_info);                                                                       \
     return r;                                                                                    \
 }                                                                                                \
@@ -216,7 +214,7 @@ FOR_EACH_LOGICAL_OP(BINARY_CMP_OP_IMPL_FN)
 #undef BINARY_CMP_OP_IMPL_FN
 #undef _BASE_BINARY_OP_IMPL_FN
 
-ValueInfo ValueInfo::cond(ValueInfo then_value, ValueInfo else_value, const std::string& op_name) const {
+ValueInfo ValueInfo::cond(ValueInfo then_value, ValueInfo else_value) const {
     CODEGEN_FN
     if (has_error()) {
         return ValueInfo::null();
@@ -239,7 +237,7 @@ ValueInfo ValueInfo::cond(ValueInfo then_value, ValueInfo else_value, const std:
         }
         TagInfo l_tag_info = tag_info().set_union(then_value.tag_info()).set_union(else_value.tag_info());
         llvm::IRBuilder<>& l_cursor = CursorContextImpl::builder();
-        llvm::Value* l_entry = l_cursor.CreateSelect(m_raw_value, then_value.m_raw_value, else_value.m_raw_value, op_name);
+        llvm::Value* l_entry = l_cursor.CreateSelect(m_raw_value, then_value.m_raw_value, else_value.m_raw_value, "");
         return ValueInfo{then_value.type(), l_tag_info, l_entry};
     } else {
         M_mark_error();
@@ -247,18 +245,19 @@ ValueInfo ValueInfo::cond(ValueInfo then_value, ValueInfo else_value, const std:
     }
 }
 
-void ValueInfo::push(CString name) const {
+void ValueInfo::push(std::string_view name) const {
     if (has_error()) {
         return;
     }
-    if (name.empty()) {
+    CString cname{name};
+    if (cname.empty()) {
         CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't store/push an empty string as name");
     } else {
-        CodeSectionContext::push(name, *this);
+        CodeSectionContext::push(cname, *this);
     }
 }
 
-ValueInfo ValueInfo::load(const std::string& op_name) const {
+ValueInfo ValueInfo::load() const {
     CODEGEN_FN
     if (has_error()) {
         return ValueInfo::null();
@@ -269,7 +268,7 @@ ValueInfo ValueInfo::load(const std::string& op_name) const {
             CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define load underlying operation for non pointer type");
             return ValueInfo::null();
         }
-        llvm::Value* l_load_value = CursorContextImpl::builder().CreateLoad(type().base_type().native_value(), m_raw_value, op_name);
+        llvm::Value* l_load_value = CursorContextImpl::builder().CreateLoad(type().base_type().native_value(), m_raw_value, "");
         return ValueInfo{type().base_type(), m_tag_info, l_load_value};
     } else {
         M_mark_error();
@@ -341,45 +340,6 @@ ValueInfo ValueInfo::field(const std::string& s) const {
 }
 
 
-[[nodiscard]]
-ValueInfo ValueInfo::load_vector_entry(uint32_t i) const {
-    CODEGEN_FN
-    if (has_error()) {
-        return ValueInfo::null();
-    }
-    return load_vector_entry(i, LLVM_BUILDER_CONCAT << "load_vector_" << i);
-}
-
-ValueInfo ValueInfo::store_vector_entry(uint32_t i, ValueInfo value) const {
-    CODEGEN_FN
-    if (has_error()) {
-        return ValueInfo::null();
-    }
-    return store_vector_entry(i, value, LLVM_BUILDER_CONCAT << "store_vector_" << i);
-}
-
-ValueInfo ValueInfo::load_vector_entry(const ValueInfo& idx_v, const std::string& op_name) const {
-    CODEGEN_FN
-    if (has_error()) {
-        return ValueInfo::null();
-    }
-    if (idx_v.has_error()) {
-        return ValueInfo::null();
-    }
-    return M_load_vector_entry(idx_v.native_value(), op_name);
-}
-
-ValueInfo ValueInfo::store_vector_entry(const ValueInfo& idx_v, ValueInfo value, const std::string& op_name) const {
-    CODEGEN_FN
-    if (has_error()) {
-        return ValueInfo::null();
-    }
-    if (idx_v.has_error()) {
-        return ValueInfo::null();
-    }
-    return M_store_vector_entry(idx_v.native_value(), value, op_name);
-}
-
 ValueInfo ValueInfo::load_vector_entry(const ValueInfo& idx_v) const {
     CODEGEN_FN
     if (has_error()) {
@@ -388,7 +348,7 @@ ValueInfo ValueInfo::load_vector_entry(const ValueInfo& idx_v) const {
     if (idx_v.has_error()) {
         return ValueInfo::null();
     }
-    return M_load_vector_entry(idx_v.native_value(), LLVM_BUILDER_CONCAT << "load_vector_idx");
+    return M_load_vector_entry(idx_v.native_value());
 }
 
 ValueInfo ValueInfo::store_vector_entry(const ValueInfo& idx_v, ValueInfo value) const {
@@ -399,10 +359,10 @@ ValueInfo ValueInfo::store_vector_entry(const ValueInfo& idx_v, ValueInfo value)
     if (idx_v.has_error()) {
         return ValueInfo::null();
     }
-    return M_store_vector_entry(idx_v.native_value(), value, LLVM_BUILDER_CONCAT << "load_vector_idx");
+    return M_store_vector_entry(idx_v.native_value(), value);
 }
 
-ValueInfo ValueInfo::M_load_vector_entry(llvm::Value* idx_value, const std::string& op_name) const {
+ValueInfo ValueInfo::M_load_vector_entry(llvm::Value* idx_value) const {
     CODEGEN_FN
     if (has_error()) {
         return ValueInfo::null();
@@ -418,7 +378,7 @@ ValueInfo ValueInfo::M_load_vector_entry(llvm::Value* idx_value, const std::stri
     }
     if (CursorContextImpl::has_value()) {
         llvm::IRBuilder<>& l_cursor = CursorContextImpl::builder();
-        llvm::Value* l_entry = l_cursor.CreateExtractElement(m_raw_value, idx_value, op_name);
+        llvm::Value* l_entry = l_cursor.CreateExtractElement(m_raw_value, idx_value, "");
         return ValueInfo{type().base_type(), m_tag_info, l_entry};
     } else {
         M_mark_error();
@@ -426,7 +386,7 @@ ValueInfo ValueInfo::M_load_vector_entry(llvm::Value* idx_value, const std::stri
     }
 }
 
-ValueInfo ValueInfo::M_store_vector_entry(llvm::Value* idx_value, const ValueInfo& value, const std::string& op_name) const {
+ValueInfo ValueInfo::M_store_vector_entry(llvm::Value* idx_value, const ValueInfo& value) const {
     CODEGEN_FN
     if (idx_value == nullptr) {
         CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't store value to invalid location");
@@ -443,7 +403,7 @@ ValueInfo ValueInfo::M_store_vector_entry(llvm::Value* idx_value, const ValueInf
     }
     if (CursorContextImpl::has_value()) {
         llvm::IRBuilder<>& l_cursor = CursorContextImpl::builder();
-        llvm::Value* l_ret = l_cursor.CreateInsertElement(m_raw_value, value.native_value(), idx_value, op_name);
+        llvm::Value* l_ret = l_cursor.CreateInsertElement(m_raw_value, value.native_value(), idx_value, "");
         return ValueInfo{type(), m_tag_info, l_ret};
     } else {
         M_mark_error();
@@ -575,14 +535,31 @@ FROM_UCONSTANT_DEF(64)
 
 #undef FROM_UCONSTANT_DEF
 
-ValueInfo ValueInfo::mk_pointer(TypeInfo type, const std::string& name) {
+[[nodiscard]]
+ValueInfo ValueInfo::load_vector_entry(uint32_t i) const {
+    CODEGEN_FN
+    if (has_error()) {
+        return ValueInfo::null();
+    }
+    return M_load_vector_entry(ValueInfo::from_constant((int32_t)i).native_value());
+}
+
+ValueInfo ValueInfo::store_vector_entry(uint32_t i, ValueInfo value) const {
+    CODEGEN_FN
+    if (has_error()) {
+        return ValueInfo::null();
+    }
+    return M_store_vector_entry(ValueInfo::from_constant((int32_t)i).native_value(), value);
+}
+
+ValueInfo ValueInfo::mk_pointer(TypeInfo type) {
     CODEGEN_FN
     if (type.has_error()) {
         CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define pointer for invalid type");
         return ValueInfo::null();
     }
     if (CursorContextImpl::has_value()) {
-        llvm::AllocaInst* l_inst = CursorContextImpl::builder().CreateAlloca(type.native_value(), nullptr, name);
+        llvm::AllocaInst* l_inst = CursorContextImpl::builder().CreateAlloca(type.native_value(), nullptr, "");
         LLVM_BUILDER_ASSERT(l_inst != nullptr);
         [[maybe_unused]] llvm::PointerType* ptr_type = l_inst->getType();
         LLVM_BUILDER_ASSERT(ptr_type != nullptr);
@@ -602,7 +579,7 @@ ValueInfo ValueInfo::mk_null_pointer() {
     return ValueInfo{l_ptr, TagInfo{}, l_null_ptr};
 }
 
-ValueInfo ValueInfo::mk_array(TypeInfo type, const std::string& name) {
+ValueInfo ValueInfo::mk_array(TypeInfo type) {
     CODEGEN_FN
     if (type.has_error()) {
         CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define array for invalid type");
@@ -613,7 +590,7 @@ ValueInfo ValueInfo::mk_array(TypeInfo type, const std::string& name) {
             CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type not a array");
             return ValueInfo::null();
         }
-        llvm::AllocaInst* l_inst = CursorContextImpl::builder().CreateAlloca(type.native_value(), nullptr, name);
+        llvm::AllocaInst* l_inst = CursorContextImpl::builder().CreateAlloca(type.native_value(), nullptr, "");
         LLVM_BUILDER_ASSERT(l_inst != nullptr);
         [[maybe_unused]] llvm::PointerType* ptr_type = l_inst->getType();
         LLVM_BUILDER_ASSERT(ptr_type != nullptr);
@@ -624,7 +601,7 @@ ValueInfo ValueInfo::mk_array(TypeInfo type, const std::string& name) {
     }
 }
 
-ValueInfo ValueInfo::mk_struct(TypeInfo type, const std::string& name) {
+ValueInfo ValueInfo::mk_struct(TypeInfo type) {
     CODEGEN_FN
     if (type.has_error()) {
         CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define struct for invalid type");
@@ -635,7 +612,7 @@ ValueInfo ValueInfo::mk_struct(TypeInfo type, const std::string& name) {
             CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type not a struct");
             return ValueInfo::null();
         }
-        llvm::AllocaInst* l_inst = CursorContextImpl::builder().CreateAlloca(type.native_value(), nullptr, name);
+        llvm::AllocaInst* l_inst = CursorContextImpl::builder().CreateAlloca(type.native_value(), nullptr, "");
         LLVM_BUILDER_ASSERT(l_inst != nullptr);
         [[maybe_unused]] llvm::PointerType* ptr_type = l_inst->getType();
         LLVM_BUILDER_ASSERT(ptr_type != nullptr);
@@ -682,9 +659,9 @@ ValueInfo ValueInfo::calc_struct_field_offset(TypeInfo type, ValueInfo idx) {
         ValueInfo l_offset_result = ValueInfo::from_constant(-1);
         for (int32_t i = 0; i != l_num_fields; ++i) {
             ValueInfo l_curr_iter_idx = ValueInfo::from_constant(i);
-            ValueInfo l_match_idx = l_curr_iter_idx.equal(idx, LLVM_BUILDER_CONCAT << "eq_field_idx_" << i);
+            ValueInfo l_match_idx = l_curr_iter_idx.equal(idx);
             ValueInfo l_offset_curr = ValueInfo::from_constant(static_cast<int32_t>(type[i].offset()));
-            l_offset_result = l_match_idx.cond(l_offset_curr, l_offset_result, LLVM_BUILDER_CONCAT << "field_offset_" << i);
+            l_offset_result = l_match_idx.cond(l_offset_curr, l_offset_result);
         }
         return l_offset_result;
     } else {
@@ -728,23 +705,5 @@ ValueInfo ValuePtrInfo::entry_ptr(const std::string &field) const {
     l_res.m_index_list[1] = ValueInfo::from_constant((int32_t)field_entry.idx());
     return l_res.M_deref();
 }
-
-//
-// ValueInfo
-//
-ValueInfo ValueInfo::load_vector_entry(uint32_t i, const std::string& op_name) const {
-    if (has_error()) {
-        return ValueInfo::null();
-    }
-    return M_load_vector_entry(ValueInfo::from_constant((int32_t)i).native_value(), op_name);
-}
-
-ValueInfo ValueInfo::store_vector_entry(uint32_t i, ValueInfo value, const std::string& op_name) const {
-    if (has_error()) {
-        return ValueInfo::null();
-    }
-    return M_store_vector_entry(ValueInfo::from_constant((int32_t)i).native_value(), value, op_name);
-}
-
 
 LLVM_BUILDER_NS_END

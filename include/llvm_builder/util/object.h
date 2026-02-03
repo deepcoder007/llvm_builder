@@ -6,7 +6,6 @@
 #define LLVM_BUILDER_API_OBJECT_H_
 
 #include "llvm_builder/defines.h"
-#include "llvm_builder/meta/noncopyable.h"
 #include "error.h"
 
 LLVM_BUILDER_NS_BEGIN
@@ -76,12 +75,17 @@ bool NAME::is_in_context() {                         \
 /**/
 
 template <typename T>
-class NonNullPtr : meta::noncopyable {
+class NonNullPtr {
     static_assert(std::is_copy_constructible_v<T>);
     static_assert(std::is_copy_assignable_v<T>);
 private:
     T m_null;
     T m_ptr;
+
+    NonNullPtr(const NonNullPtr&) = delete;
+    NonNullPtr(NonNullPtr&&) = delete;
+    NonNullPtr& operator=(const NonNullPtr&) = delete;
+    NonNullPtr& operator=(NonNullPtr&&) = delete;
 public:
     explicit NonNullPtr()
       : m_null{T::null()}

@@ -126,9 +126,9 @@ public:
     DECL_EQUIV_FN(float)
     DECL_EQUIV_FN(signed_integer)
     DECL_EQUIV_FN(unsigned_integer)
-    ValueInfo type_cast(const ValueInfo& src_value, const std::string& op_name) const;
+    ValueInfo type_cast(const ValueInfo& src_value) const;
 #define MK_BINARY_FN(FN_NAME)                                                                           \
-    ValueInfo FN_NAME(const ValueInfo& lhs, const ValueInfo& rhs, const std::string& op_name) const;    \
+    ValueInfo FN_NAME(const ValueInfo& lhs, const ValueInfo& rhs) const;                                \
 /**/
     FOR_EACH_BINARY_OP(MK_BINARY_FN) 
 #undef MK_BINARY_FN

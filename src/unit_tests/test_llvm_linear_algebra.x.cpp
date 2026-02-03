@@ -20,31 +20,31 @@ using namespace llvm_builder;
 LLVM_BUILDER_NS_BEGIN
 
 template <typename T>
-constexpr runtime_type_t get_runtime_type() {
+constexpr runtime::type_t get_runtime_type() {
     if constexpr (std::is_same_v<T, int32_t>) {
-        return runtime_type_t::int32;
+        return runtime::type_t::int32;
     } else if constexpr (std::is_same_v<T, int64_t>) {
-        return runtime_type_t::int64;
+        return runtime::type_t::int64;
     } else if constexpr (std::is_same_v<T, uint32_t>) {
-        return runtime_type_t::uint32;
+        return runtime::type_t::uint32;
     } else if constexpr (std::is_same_v<T, uint64_t>) {
-        return runtime_type_t::uint64;
+        return runtime::type_t::uint64;
     } else {
         static_assert(sizeof(T) == 0, "Unsupported type");
     }
 }
 
 
-RuntimeObject gen_ctx_object(runtime_type_t rt_type, const RuntimeStruct& ctx_struct) {
+runtime::Object gen_ctx_object(runtime::type_t rt_type, const runtime::Struct& ctx_struct) {
     LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
     constexpr uint32_t ARR_SIZE = 5;
 
-    RuntimeObject ctx_obj = ctx_struct.mk_object();
+    runtime::Object ctx_obj = ctx_struct.mk_object();
     LLVM_BUILDER_ALWAYS_ASSERT(not ctx_obj.has_error());
 
-    RuntimeArray vec1_arr = RuntimeArray::from(rt_type, ARR_SIZE);
-    RuntimeArray vec2_arr = RuntimeArray::from(rt_type, ARR_SIZE);
-    RuntimeArray vec3_arr = RuntimeArray::from(rt_type, ARR_SIZE);
+    runtime::Array vec1_arr = runtime::Array::from(rt_type, ARR_SIZE);
+    runtime::Array vec2_arr = runtime::Array::from(rt_type, ARR_SIZE);
+    runtime::Array vec3_arr = runtime::Array::from(rt_type, ARR_SIZE);
     LLVM_BUILDER_ALWAYS_ASSERT(not vec1_arr.has_error());
     LLVM_BUILDER_ALWAYS_ASSERT(not vec2_arr.has_error());
     LLVM_BUILDER_ALWAYS_ASSERT(not vec3_arr.has_error());
@@ -55,17 +55,17 @@ RuntimeObject gen_ctx_object(runtime_type_t rt_type, const RuntimeStruct& ctx_st
     ctx_obj.set_array("vec2", vec2_arr);
     ctx_obj.set_array("vec3", vec3_arr);
 
-    RuntimeArray mat1_ptr_arr = RuntimeArray::from(runtime_type_t::pointer_array, ARR_SIZE);
-    RuntimeArray mat2_ptr_arr = RuntimeArray::from(runtime_type_t::pointer_array, ARR_SIZE);
-    RuntimeArray mat3_ptr_arr = RuntimeArray::from(runtime_type_t::pointer_array, ARR_SIZE);
+    runtime::Array mat1_ptr_arr = runtime::Array::from(runtime::type_t::pointer_array, ARR_SIZE);
+    runtime::Array mat2_ptr_arr = runtime::Array::from(runtime::type_t::pointer_array, ARR_SIZE);
+    runtime::Array mat3_ptr_arr = runtime::Array::from(runtime::type_t::pointer_array, ARR_SIZE);
     LLVM_BUILDER_ALWAYS_ASSERT(not mat1_ptr_arr.has_error());
     LLVM_BUILDER_ALWAYS_ASSERT(not mat2_ptr_arr.has_error());
     LLVM_BUILDER_ALWAYS_ASSERT(not mat3_ptr_arr.has_error());
 
     for (uint32_t r = 0; r != ARR_SIZE; ++r) {
-        RuntimeArray mat1_row = RuntimeArray::from(rt_type, ARR_SIZE);
-        RuntimeArray mat2_row = RuntimeArray::from(rt_type, ARR_SIZE);
-        RuntimeArray mat3_row = RuntimeArray::from(rt_type, ARR_SIZE);
+        runtime::Array mat1_row = runtime::Array::from(rt_type, ARR_SIZE);
+        runtime::Array mat2_row = runtime::Array::from(rt_type, ARR_SIZE);
+        runtime::Array mat3_row = runtime::Array::from(rt_type, ARR_SIZE);
         LLVM_BUILDER_ALWAYS_ASSERT(not mat1_row.has_error());
         LLVM_BUILDER_ALWAYS_ASSERT(not mat2_row.has_error());
         LLVM_BUILDER_ALWAYS_ASSERT(not mat3_row.has_error());
@@ -118,11 +118,11 @@ void gen_sample_fn(Function &fn) {
     CODEGEN_LINE(ValueInfo output = ctx.field("res"))
     CODEGEN_LINE(ValueInfo c1 = ValueInfo::from_constant<T>(101))
     CODEGEN_LINE(ValueInfo c2 = ValueInfo::from_constant<T>(999))
-    CODEGEN_LINE(ValueInfo res = arg1.add(arg2, "construct_add"))
-    CODEGEN_LINE(ValueInfo res2 = res.add(c1, "add_const1"))
-    CODEGEN_LINE(ValueInfo res3 = res2.add(c2, "add_const1"))
-    CODEGEN_LINE(ValueInfo res4 = res2.add(arg3, "add_arg"))
-    CODEGEN_LINE(ValueInfo res5 = res3.add(res4, "accum_res"))
+    CODEGEN_LINE(ValueInfo res = arg1.add(arg2))
+    CODEGEN_LINE(ValueInfo res2 = res.add(c1))
+    CODEGEN_LINE(ValueInfo res3 = res2.add(c2))
+    CODEGEN_LINE(ValueInfo res4 = res2.add(arg3))
+    CODEGEN_LINE(ValueInfo res5 = res3.add(res4))
     CODEGEN_LINE(output.store(res5));
     CODEGEN_LINE(CodeSectionContext::set_return_value(ValueInfo::from_constant(0)));
     LLVM_BUILDER_ASSERT(not ErrorContext::has_error())
@@ -229,16 +229,16 @@ void gen_for_type(const TypeInfo& int_type, const FnContext int_context) {
 template <typename T>
 void test_for_type(const std::string& suffix, const std::string& ctx_name, JustInTimeRunner& jit_runner) {
     LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
-    const RuntimeNamespace& ns = jit_runner.get_global_namespace();
-    const RuntimeStruct& ctx_struct = ns.struct_info(ctx_name);
+    const runtime::Namespace& ns = jit_runner.get_global_namespace();
+    const runtime::Struct& ctx_struct = ns.struct_info(ctx_name);
     LLVM_BUILDER_ALWAYS_ASSERT(not ctx_struct.has_error());
 
     {
-        const RuntimeEventFn& fn = ns.event_fn_info(LLVM_BUILDER_CONCAT << "sample_fn_name_" << suffix);
+        const runtime::EventFn& fn = ns.event_fn_info(LLVM_BUILDER_CONCAT << "sample_fn_name_" << suffix);
         LLVM_BUILDER_ALWAYS_ASSERT(not fn.has_error());
 
         for (int32_t i = 0; i != 10; ++i) {
-            RuntimeObject ctx_obj = gen_ctx_object(get_runtime_type<T>(), ctx_struct);
+            runtime::Object ctx_obj = gen_ctx_object(get_runtime_type<T>(), ctx_struct);
             LLVM_BUILDER_ALWAYS_ASSERT(not ctx_obj.has_error());
 
             T arg1 = static_cast<T>(i);
@@ -264,16 +264,16 @@ void test_for_type(const std::string& suffix, const std::string& ctx_name, JustI
 
     constexpr uint32_t ARR_SIZE = 5;
     {
-        const RuntimeEventFn& fn = ns.event_fn_info(LLVM_BUILDER_CONCAT << "vector_addition_" << suffix);
+        const runtime::EventFn& fn = ns.event_fn_info(LLVM_BUILDER_CONCAT << "vector_addition_" << suffix);
         LLVM_BUILDER_ALWAYS_ASSERT(not fn.has_error());
 
         for (int32_t i = 0; i != 5; ++i) {
-            RuntimeObject ctx_obj = gen_ctx_object(get_runtime_type<T>(), ctx_struct);
+            runtime::Object ctx_obj = gen_ctx_object(get_runtime_type<T>(), ctx_struct);
             LLVM_BUILDER_ALWAYS_ASSERT(not ctx_obj.has_error());
 
-            RuntimeArray vec1_arr = RuntimeArray::from(get_runtime_type<T>(), ARR_SIZE);
-            RuntimeArray vec2_arr = RuntimeArray::from(get_runtime_type<T>(), ARR_SIZE);
-            RuntimeArray vec3_arr = RuntimeArray::from(get_runtime_type<T>(), ARR_SIZE);
+            runtime::Array vec1_arr = runtime::Array::from(get_runtime_type<T>(), ARR_SIZE);
+            runtime::Array vec2_arr = runtime::Array::from(get_runtime_type<T>(), ARR_SIZE);
+            runtime::Array vec3_arr = runtime::Array::from(get_runtime_type<T>(), ARR_SIZE);
             LLVM_BUILDER_ALWAYS_ASSERT(not vec1_arr.has_error());
             LLVM_BUILDER_ALWAYS_ASSERT(not vec2_arr.has_error());
             LLVM_BUILDER_ALWAYS_ASSERT(not vec3_arr.has_error());
@@ -302,25 +302,25 @@ void test_for_type(const std::string& suffix, const std::string& ctx_name, JustI
     }
 
     {
-        runtime_type_t elem_type = get_runtime_type<T>();
-        const RuntimeEventFn& fn = ns.event_fn_info(LLVM_BUILDER_CONCAT << "matrix_addition_" << suffix);
+        runtime::type_t elem_type = get_runtime_type<T>();
+        const runtime::EventFn& fn = ns.event_fn_info(LLVM_BUILDER_CONCAT << "matrix_addition_" << suffix);
         LLVM_BUILDER_ALWAYS_ASSERT(not fn.has_error());
 
         for (int32_t i = 0; i != 5; ++i) {
-            RuntimeObject ctx_obj = gen_ctx_object(elem_type, ctx_struct);
+            runtime::Object ctx_obj = gen_ctx_object(elem_type, ctx_struct);
             LLVM_BUILDER_ALWAYS_ASSERT(not ctx_obj.has_error());
 
-            RuntimeArray mat1_ptr_arr = RuntimeArray::from(runtime_type_t::pointer_array, ARR_SIZE);
-            RuntimeArray mat2_ptr_arr = RuntimeArray::from(runtime_type_t::pointer_array, ARR_SIZE);
-            RuntimeArray mat3_ptr_arr = RuntimeArray::from(runtime_type_t::pointer_array, ARR_SIZE);
+            runtime::Array mat1_ptr_arr = runtime::Array::from(runtime::type_t::pointer_array, ARR_SIZE);
+            runtime::Array mat2_ptr_arr = runtime::Array::from(runtime::type_t::pointer_array, ARR_SIZE);
+            runtime::Array mat3_ptr_arr = runtime::Array::from(runtime::type_t::pointer_array, ARR_SIZE);
             LLVM_BUILDER_ALWAYS_ASSERT(not mat1_ptr_arr.has_error());
             LLVM_BUILDER_ALWAYS_ASSERT(not mat2_ptr_arr.has_error());
             LLVM_BUILDER_ALWAYS_ASSERT(not mat3_ptr_arr.has_error());
 
             for (uint32_t j = 0; j != ARR_SIZE; ++j) {
-                RuntimeArray mat1_row = RuntimeArray::from(elem_type, ARR_SIZE);
-                RuntimeArray mat2_row = RuntimeArray::from(elem_type, ARR_SIZE);
-                RuntimeArray mat3_row = RuntimeArray::from(elem_type, ARR_SIZE);
+                runtime::Array mat1_row = runtime::Array::from(elem_type, ARR_SIZE);
+                runtime::Array mat2_row = runtime::Array::from(elem_type, ARR_SIZE);
+                runtime::Array mat3_row = runtime::Array::from(elem_type, ARR_SIZE);
                 for (uint32_t k = 0; k != ARR_SIZE; ++k) {
                     mat1_row.set<T>(k, static_cast<T>(k * 100 + j));
                     mat2_row.set<T>(k, static_cast<T>(k * 100 + 10 * j));
@@ -346,9 +346,9 @@ void test_for_type(const std::string& suffix, const std::string& ctx_name, JustI
             fn.on_event(ctx_obj);
 
             for (int j = 0; j != 5; ++j) {
-                RuntimeArray mat1_row = mat1_ptr_arr.get_array(static_cast<uint32_t>(j));
-                RuntimeArray mat2_row = mat2_ptr_arr.get_array(static_cast<uint32_t>(j));
-                RuntimeArray mat3_row = mat3_ptr_arr.get_array(static_cast<uint32_t>(j));
+                runtime::Array mat1_row = mat1_ptr_arr.get_array(static_cast<uint32_t>(j));
+                runtime::Array mat2_row = mat2_ptr_arr.get_array(static_cast<uint32_t>(j));
+                runtime::Array mat3_row = mat3_ptr_arr.get_array(static_cast<uint32_t>(j));
                 for (uint32_t k = 0; k != 5; ++k) {
                     T expected = mat1_row.get<T>(k) + mat2_row.get<T>(k);
                     LLVM_BUILDER_ALWAYS_ASSERT_EQ(mat3_row.get<T>(k), expected);

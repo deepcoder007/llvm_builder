@@ -3,7 +3,7 @@
 //
 
 #include "util/debug.h"
-#include "llvm_builder/util/cstring.h"
+#include "util/cstring.h"
 
 #include <errno.h>
 #include <string.h>

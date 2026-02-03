@@ -75,9 +75,9 @@ TEST(LLVM_CODEGEN_JIT_API, hello_api) {
     jit_runner.bind();
     LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
     {
-        const RuntimeNamespace& l_runtime_module = jit_runner.get_global_namespace();
-        const RuntimeStruct& l_args = l_runtime_module.struct_info("args");
-        const RuntimeEventFn& test_fn = l_runtime_module.event_fn_info("test_fn");
+        const runtime::Namespace& l_runtime_module = jit_runner.get_global_namespace();
+        const runtime::Struct& l_args = l_runtime_module.struct_info("args");
+        const runtime::EventFn& test_fn = l_runtime_module.event_fn_info("test_fn");
         LLVM_BUILDER_ALWAYS_ASSERT(not l_runtime_module.has_error())
         LLVM_BUILDER_ALWAYS_ASSERT(not l_args.has_error())
         LLVM_BUILDER_ALWAYS_ASSERT(not test_fn.has_error())
@@ -85,7 +85,7 @@ TEST(LLVM_CODEGEN_JIT_API, hello_api) {
         LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_args.num_fields(), 5);
 
         for (int32_t i = 0; i != 10; ++i) {
-            CODEGEN_LINE(RuntimeObject l_args_obj = l_args.mk_object())
+            CODEGEN_LINE(runtime::Object l_args_obj = l_args.mk_object())
             LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
 
             CODEGEN_LINE(l_args_obj.set<int32_t>("field_1", i))
@@ -198,12 +198,12 @@ TEST(LLVM_CODEGEN_JIT_API, inner_struct) {
     jit_runner.bind();
     LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
     {
-        const RuntimeNamespace& l_runtime_module = jit_runner.get_global_namespace();
-        const RuntimeStruct& l_args = l_runtime_module.struct_info("args");
-        const RuntimeStruct& l_outer_struct = l_runtime_module.struct_info("outer_struct");
-        const RuntimeStruct& l_inner_struct = l_runtime_module.struct_info("inner_struct");
-        const RuntimeStruct& l_args_struct = l_runtime_module.struct_info("args");
-        const RuntimeEventFn& test_fn = l_runtime_module.event_fn_info("test_fn");
+        const runtime::Namespace& l_runtime_module = jit_runner.get_global_namespace();
+        const runtime::Struct& l_args = l_runtime_module.struct_info("args");
+        const runtime::Struct& l_outer_struct = l_runtime_module.struct_info("outer_struct");
+        const runtime::Struct& l_inner_struct = l_runtime_module.struct_info("inner_struct");
+        const runtime::Struct& l_args_struct = l_runtime_module.struct_info("args");
+        const runtime::EventFn& test_fn = l_runtime_module.event_fn_info("test_fn");
         LLVM_BUILDER_ALWAYS_ASSERT(not l_runtime_module.has_error())
         LLVM_BUILDER_ALWAYS_ASSERT(not l_args.has_error())
         LLVM_BUILDER_ALWAYS_ASSERT(not l_outer_struct.has_error())
@@ -217,9 +217,9 @@ TEST(LLVM_CODEGEN_JIT_API, inner_struct) {
         LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_args_struct.num_fields(), 2);
 
         for (int32_t i = 0; i != 10; ++i) {
-            CODEGEN_LINE(RuntimeObject l_inner_obj = l_inner_struct.mk_object())
-            CODEGEN_LINE(RuntimeObject l_outer_obj = l_outer_struct.mk_object())
-            CODEGEN_LINE(RuntimeObject l_args_obj = l_args.mk_object())
+            CODEGEN_LINE(runtime::Object l_inner_obj = l_inner_struct.mk_object())
+            CODEGEN_LINE(runtime::Object l_outer_obj = l_outer_struct.mk_object())
+            CODEGEN_LINE(runtime::Object l_args_obj = l_args.mk_object())
             LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
 
             CODEGEN_LINE(l_inner_obj.set<int32_t>("field_1", i))
@@ -228,10 +228,10 @@ TEST(LLVM_CODEGEN_JIT_API, inner_struct) {
             CODEGEN_LINE(l_inner_obj.set<int32_t>("field_4", i + 3))
             CODEGEN_LINE(l_inner_obj.try_freeze())
 
-            CODEGEN_LINE(RuntimeObject l_outer_field_6_obj = l_inner_struct.mk_object())
+            CODEGEN_LINE(runtime::Object l_outer_field_6_obj = l_inner_struct.mk_object())
             CODEGEN_LINE(l_outer_field_6_obj.try_freeze());
             CODEGEN_LINE(l_outer_obj.set_object("inner_field_6", l_outer_field_6_obj))
-            CODEGEN_LINE(RuntimeObject l_outer_field_9_obj = l_inner_struct.mk_object())
+            CODEGEN_LINE(runtime::Object l_outer_field_9_obj = l_inner_struct.mk_object())
             CODEGEN_LINE(l_outer_field_9_obj.try_freeze())
             CODEGEN_LINE(l_outer_obj.set_object("inner_field_9", l_outer_field_9_obj))
 
@@ -258,7 +258,7 @@ TEST(LLVM_CODEGEN_JIT_API, inner_struct) {
             }
             LLVM_BUILDER_ALWAYS_ASSERT_EQ(true, l_inner_obj.get<bool>("field_5"));
 
-            RuntimeObject l_outer_field_9_obj_v2 = l_outer_obj.get_object("inner_field_9");
+            runtime::Object l_outer_field_9_obj_v2 = l_outer_obj.get_object("inner_field_9");
             LLVM_BUILDER_ALWAYS_ASSERT(not l_outer_field_9_obj_v2.has_error());
             LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_outer_field_9_obj.struct_def(), l_outer_field_9_obj_v2.struct_def());
             LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_outer_field_9_obj.ref(), l_outer_field_9_obj_v2.ref());
@@ -374,12 +374,12 @@ TEST(LLVM_CODEGEN_JIT_API, array_basic_1d) {
     jit_runner.bind();
     LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
     {
-        const RuntimeNamespace& l_runtime_module = jit_runner.get_global_namespace();
-        const RuntimeStruct& l_args = l_runtime_module.struct_info("args");
-        const RuntimeStruct& l_outer_struct = l_runtime_module.struct_info("outer_struct");
-        const RuntimeStruct& l_inner_struct = l_runtime_module.struct_info("inner_struct");
-        const RuntimeStruct& l_args_struct = l_runtime_module.struct_info("args");
-        const RuntimeEventFn& test_fn = l_runtime_module.event_fn_info("big_struct_test_fn");
+        const runtime::Namespace& l_runtime_module = jit_runner.get_global_namespace();
+        const runtime::Struct& l_args = l_runtime_module.struct_info("args");
+        const runtime::Struct& l_outer_struct = l_runtime_module.struct_info("outer_struct");
+        const runtime::Struct& l_inner_struct = l_runtime_module.struct_info("inner_struct");
+        const runtime::Struct& l_args_struct = l_runtime_module.struct_info("args");
+        const runtime::EventFn& test_fn = l_runtime_module.event_fn_info("big_struct_test_fn");
         LLVM_BUILDER_ALWAYS_ASSERT(not l_runtime_module.has_error())
         LLVM_BUILDER_ALWAYS_ASSERT(not l_args.has_error())
         LLVM_BUILDER_ALWAYS_ASSERT(not l_outer_struct.has_error())
@@ -392,10 +392,10 @@ TEST(LLVM_CODEGEN_JIT_API, array_basic_1d) {
         LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_inner_struct.num_fields(), 5);
         LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_args_struct.num_fields(), 2);
 
-        for (int32_t i = 0; i != 3; ++i) {
-            CODEGEN_LINE(RuntimeObject l_inner_obj = l_inner_struct.mk_object())
-            CODEGEN_LINE(RuntimeObject l_outer_obj = l_outer_struct.mk_object())
-            CODEGEN_LINE(RuntimeObject l_args_obj = l_args.mk_object())
+        for (int32_t i = 0; i != 30; ++i) {
+            CODEGEN_LINE(runtime::Object l_inner_obj = l_inner_struct.mk_object())
+            CODEGEN_LINE(runtime::Object l_outer_obj = l_outer_struct.mk_object())
+            CODEGEN_LINE(runtime::Object l_args_obj = l_args.mk_object())
             LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
 
             CODEGEN_LINE(l_inner_obj.set<int32_t>("field_1", i))
@@ -404,19 +404,19 @@ TEST(LLVM_CODEGEN_JIT_API, array_basic_1d) {
             CODEGEN_LINE(l_inner_obj.set<int32_t>("field_4", i + 3))
             CODEGEN_LINE(l_inner_obj.try_freeze())
 
-            CODEGEN_LINE(RuntimeObject l_outer_field_6_obj = l_inner_struct.mk_object())
+            CODEGEN_LINE(runtime::Object l_outer_field_6_obj = l_inner_struct.mk_object())
             CODEGEN_LINE(l_outer_field_6_obj.try_freeze());
             CODEGEN_LINE(l_outer_obj.set_object("inner_field_6", l_outer_field_6_obj))
-            CODEGEN_LINE(RuntimeObject l_outer_field_9_obj = l_inner_struct.mk_object())
+            CODEGEN_LINE(runtime::Object l_outer_field_9_obj = l_inner_struct.mk_object())
             CODEGEN_LINE(l_outer_field_9_obj.try_freeze())
             CODEGEN_LINE(l_outer_obj.set_object("inner_field_9", l_outer_field_9_obj))
-            CODEGEN_LINE(RuntimeArray l_outer_field_11_obj = RuntimeArray::from(runtime_type_t::int32, 10))
+            CODEGEN_LINE(runtime::Array l_outer_field_11_obj = runtime::Array::from(runtime::type_t::int32, 10))
             for (uint32_t i = 0; i != 10; ++i) {
                 CODEGEN_LINE(l_outer_field_11_obj.set<int32_t>(i, i*10));
             }
             CODEGEN_LINE(l_outer_field_11_obj.try_freeze())
             CODEGEN_LINE(l_outer_obj.set_array("inner_field_11", l_outer_field_11_obj))
-            CODEGEN_LINE(RuntimeArray l_outer_field_12_obj = RuntimeArray::from(runtime_type_t::int32, 10))
+            CODEGEN_LINE(runtime::Array l_outer_field_12_obj = runtime::Array::from(runtime::type_t::int32, 10))
             CODEGEN_LINE(l_outer_field_12_obj.try_freeze())
             CODEGEN_LINE(l_outer_obj.set_array("inner_field_12", l_outer_field_12_obj))
             CODEGEN_LINE(l_outer_obj.try_freeze())
@@ -442,7 +442,7 @@ TEST(LLVM_CODEGEN_JIT_API, array_basic_1d) {
             }
             LLVM_BUILDER_ALWAYS_ASSERT_EQ(true, l_inner_obj.get<bool>("field_5"));
 
-            RuntimeObject l_outer_field_9_obj_v2 = l_outer_obj.get_object("inner_field_9");
+            runtime::Object l_outer_field_9_obj_v2 = l_outer_obj.get_object("inner_field_9");
             LLVM_BUILDER_ALWAYS_ASSERT(not l_outer_field_9_obj_v2.has_error());
             LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_outer_field_9_obj.struct_def(), l_outer_field_9_obj_v2.struct_def());
             LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_outer_field_9_obj.ref(), l_outer_field_9_obj_v2.ref());
@@ -514,25 +514,25 @@ TEST(LLVM_CODEGEN_JIT_API, full_test) {
     jit_runner.bind();
     LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
     {
-        const RuntimeNamespace& l_runtime_module = jit_runner.get_global_namespace();
-        const RuntimeStruct& l_outer_struct = l_runtime_module.struct_info("outer_struct");
-        const RuntimeEventFn& test_fn = l_runtime_module.event_fn_info("test_fn");
+        const runtime::Namespace& l_runtime_module = jit_runner.get_global_namespace();
+        const runtime::Struct& l_outer_struct = l_runtime_module.struct_info("outer_struct");
+        const runtime::EventFn& test_fn = l_runtime_module.event_fn_info("test_fn");
         LLVM_BUILDER_ALWAYS_ASSERT(not l_runtime_module.has_error())
         LLVM_BUILDER_ALWAYS_ASSERT(not l_outer_struct.has_error())
         LLVM_BUILDER_ALWAYS_ASSERT(not test_fn.has_error())
 
         LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_outer_struct.num_fields(), 3);
 
-        for (int32_t i = 0; i != 1; ++i) {
-            CODEGEN_LINE(RuntimeObject l_outer_obj = l_outer_struct.mk_object())
+        for (int32_t i = 0; i != 100; ++i) {
+            CODEGEN_LINE(runtime::Object l_outer_obj = l_outer_struct.mk_object())
             LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
 
-            CODEGEN_LINE(RuntimeArray l_outer_field_2_obj = RuntimeArray::from(runtime_type_t::int32, 10))
+            CODEGEN_LINE(runtime::Array l_outer_field_2_obj = runtime::Array::from(runtime::type_t::int32, 10))
             CODEGEN_LINE(l_outer_field_2_obj.try_freeze())
             CODEGEN_LINE(l_outer_obj.set_array("inner_field_2", l_outer_field_2_obj))
-            CODEGEN_LINE(RuntimeArray l_outer_field_3_obj = RuntimeArray::from(runtime_type_t::pointer_array, 10))
+            CODEGEN_LINE(runtime::Array l_outer_field_3_obj = runtime::Array::from(runtime::type_t::pointer_array, 10))
             for (int i = 0; i != 10; ++i) {
-                CODEGEN_LINE(RuntimeArray l_arr = RuntimeArray::from(runtime_type_t::int32, 10))
+                CODEGEN_LINE(runtime::Array l_arr = runtime::Array::from(runtime::type_t::int32, 10))
                 for (int j = 0; j != 10; ++j) {
                     CODEGEN_LINE(l_arr.set<int32_t>(j, i * j * 10));
                 }
@@ -547,8 +547,8 @@ TEST(LLVM_CODEGEN_JIT_API, full_test) {
             LLVM_BUILDER_ALWAYS_ASSERT(l_outer_obj.is_frozen());
             CODEGEN_LINE(test_fn.on_event(l_outer_obj))
 
-            RuntimeArray src_arr = l_outer_field_3_obj.get_array(1);
-            RuntimeArray dst_arr = l_outer_field_3_obj.get_array(3);
+            runtime::Array src_arr = l_outer_field_3_obj.get_array(1);
+            runtime::Array dst_arr = l_outer_field_3_obj.get_array(3);
             for (uint32_t i = 0; i != 5; ++i) {
                 LLVM_BUILDER_ALWAYS_ASSERT_EQ(src_arr.get<int32_t>(i), l_outer_field_2_obj.get<int32_t>(i));
                 LLVM_BUILDER_ALWAYS_ASSERT_EQ(src_arr.get<int32_t>(i), dst_arr.get<int32_t>(i));

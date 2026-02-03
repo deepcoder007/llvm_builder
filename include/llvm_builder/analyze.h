@@ -7,7 +7,6 @@
 
 #include "llvm_builder/defines.h"
 #include "module.h"
-#include "llvm_builder/meta/noncopyable.h"
 
 #include <ostream>
 #include <string_view>
@@ -179,9 +178,14 @@ public:
     void for_each_inst(std::ostream& os, std::function<void(const Inst&)>&& fn) const;
 };
 
-class ModuleAnalysis : meta::noncopyable {
+class ModuleAnalysis {
     const Module& m_module;
     std::vector<FunctionAnalysis> m_funcs;
+
+    ModuleAnalysis(const ModuleAnalysis&) = delete;
+    ModuleAnalysis(ModuleAnalysis&&) = delete;
+    ModuleAnalysis& operator=(const ModuleAnalysis&) = delete;
+    ModuleAnalysis& operator=(ModuleAnalysis&&) = delete;
 public:
     explicit ModuleAnalysis(const Module& module);
     ~ModuleAnalysis();

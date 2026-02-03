@@ -6,12 +6,11 @@
 #define LLVM_BUILDER_LLVM_VALUE_H_
 
 #include "llvm_builder/defines.h"
-#include "llvm_builder/defines.h"
-#include "llvm_builder/util/cstring.h"
 #include "llvm_builder/util/object.h"
 #include "type.h"
 
 #include <string>
+#include <string_view>
 #include <vector>
 #include <memory>
 #include <unordered_map>
@@ -40,7 +39,7 @@ public:
     TagInfo& operator=(const TagInfo&) = default;
     TagInfo& operator=(TagInfo&&) = default;
 public:
-    bool contains(CString v) const;
+    bool contains(std::string_view v) const;
     void add_entry(const std::string& v);
     TagInfo set_union(const TagInfo& o) const;
 };
@@ -60,8 +59,7 @@ public:
     bool is_valid() const {
         return m_raw_value != nullptr and m_type_info.is_valid();
     }
-    bool has_tag(CString v) const;
-    bool has_tag(const std::string &v) const;
+    bool has_tag(std::string_view v) const;
     void add_tag(const std::string &v);
     void add_tag(const TagInfo &o);
     const TypeInfo& type() const {
@@ -71,52 +69,52 @@ public:
         return m_tag_info;
     }
     [[nodiscard]]
-    ValueInfo cast(TypeInfo target_type, const std::string& op_name) const;
+    ValueInfo cast(TypeInfo target_type) const;
 #define MK_BINARY_FN(FN_NAME)                                              \
     [[nodiscard]]                                                          \
-    ValueInfo FN_NAME(ValueInfo v2, const std::string& op_name) const;     \
+    ValueInfo FN_NAME(ValueInfo v2) const;                                 \
     /**/
     FOR_EACH_BINARY_OP(MK_BINARY_FN) 
 #undef MK_BINARY_FN
     [[nodiscard]]
-    ValueInfo cond(ValueInfo then_value, ValueInfo else_value, const std::string& op_name) const;
-    void push(CString name) const;
+    ValueInfo cond(ValueInfo then_value, ValueInfo else_value) const;
+    void push(std::string_view name) const;
 public:
     [[nodiscard]]
     ValueInfo operator+(const ValueInfo &v2) const {
-        return add(v2,"");
+        return add(v2);
     }
     [[nodiscard]]
     ValueInfo operator-(const ValueInfo &v2) const {
-        return sub(v2,"");
+        return sub(v2);
     }
     [[nodiscard]]
     ValueInfo operator*(const ValueInfo &v2) const {
-        return mult(v2,"");
+        return mult(v2);
     }
     [[nodiscard]]
     ValueInfo operator/(const ValueInfo &v2) const {
-        return div(v2,"");
+        return div(v2);
     }
     [[nodiscard]]
     ValueInfo operator%(const ValueInfo &v2) const {
-        return remainder(v2,"");
+        return remainder(v2);
     }
     [[nodiscard]]
     ValueInfo operator<(const ValueInfo &v2) const {
-        return less_than(v2,"");
+        return less_than(v2);
     }
     [[nodiscard]]
     ValueInfo operator<=(const ValueInfo &v2) const {
-        return less_than_equal(v2,"");
+        return less_than_equal(v2);
     }
     [[nodiscard]]
     ValueInfo operator>(const ValueInfo &v2) const {
-        return greater_than(v2,"");
+        return greater_than(v2);
     }
     [[nodiscard]]
     ValueInfo operator>=(const ValueInfo &v2) const {
-        return greater_than_equal(v2,"");
+        return greater_than_equal(v2);
     }
 public:
     bool equals_type(const ValueInfo& o) const {
@@ -132,7 +130,7 @@ public:
 public:
     void store(const ValueInfo& value) const;
     [[nodiscard]]
-    ValueInfo load(const std::string& op_name = std::string{"underlying"}) const;
+    ValueInfo load() const;
     [[nodiscard]]
     ValueInfo entry(uint32_t i) const;
     [[nodiscard]]
@@ -140,14 +138,8 @@ public:
     [[nodiscard]]
     ValueInfo field(const std::string& s) const;
     [[nodiscard]]
-    ValueInfo load_vector_entry(uint32_t i, const std::string& op_name) const;
-    ValueInfo store_vector_entry(uint32_t i, ValueInfo value, const std::string& op_name) const;
-    [[nodiscard]]
     ValueInfo load_vector_entry(uint32_t i) const;
     ValueInfo store_vector_entry(uint32_t i, ValueInfo value) const;
-    [[nodiscard]]
-    ValueInfo load_vector_entry(const ValueInfo& idx_v, const std::string& op_name) const;
-    ValueInfo store_vector_entry(const ValueInfo& idx_v, ValueInfo value, const std::string& op_name) const;
     [[nodiscard]]
     ValueInfo load_vector_entry(const ValueInfo& idx_v) const;
     ValueInfo store_vector_entry(const ValueInfo& idx_v, ValueInfo value) const;
@@ -157,15 +149,13 @@ public:
     [[nodiscard]]
     static ValueInfo from_constant(T v);
     [[nodiscard]]
-    static ValueInfo mk_type_null(const TypeInfo& type);
-    [[nodiscard]]
-    static ValueInfo mk_pointer(TypeInfo type, const std::string& name = "");
+    static ValueInfo mk_pointer(TypeInfo type);
     [[nodiscard]]
     static ValueInfo mk_null_pointer();
     [[nodiscard]]
-    static ValueInfo mk_array(TypeInfo type, const std::string& name = "");
+    static ValueInfo mk_array(TypeInfo type);
     [[nodiscard]]
-    static ValueInfo mk_struct(TypeInfo type, const std::string& name = "");
+    static ValueInfo mk_struct(TypeInfo type);
     [[nodiscard]]
     static ValueInfo calc_struct_size(TypeInfo type);
     [[nodiscard]]
@@ -173,8 +163,8 @@ public:
     [[nodiscard]]
     static ValueInfo calc_struct_field_offset(TypeInfo type, ValueInfo idx);
 private:
-    ValueInfo M_load_vector_entry(llvm::Value* idx_value, const std::string& op_name) const;
-    ValueInfo M_store_vector_entry(llvm::Value* idx_value, const ValueInfo& value, const std::string& op_name) const;
+    ValueInfo M_load_vector_entry(llvm::Value* idx_value) const;
+    ValueInfo M_store_vector_entry(llvm::Value* idx_value, const ValueInfo& value) const;
 };
 
 

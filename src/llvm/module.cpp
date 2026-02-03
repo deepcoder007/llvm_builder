@@ -7,8 +7,10 @@
 #include "context_impl.h"
 #include "llvm_builder/type.h"
 #include "llvm_builder/analyze.h"
-#include "llvm_builder/ds/fixed_string.h"
+#include "ds/fixed_string.h"
 #include "util/debug.h"
+#include "meta/noncopyable.h"
+#include "util/cstring.h"
 #include "ext_include.h"
 #include "llvm/TargetParser/Host.h"
 
@@ -689,7 +691,7 @@ CONTEXT_DEF(Cursor)
 //  Module::Impl
 //
 class Module::Impl : meta::noncopyable {
-    friend class PackagedModule::Impl;
+    friend class Module;
 private:
     const std::string m_name;
     CursorPtr m_cursor_impl;
@@ -1140,17 +1142,25 @@ void Module::init_standard() {
     }
 }
 
-PackagedModule Module::package() {
+std::unique_ptr<llvm::orc::ThreadSafeModule> Module::take_thread_safe_module() {
     CODEGEN_FN
     if (has_error()) {
-        return PackagedModule::null();
+        return nullptr;
     }
-    if (is_init()) {
-        return PackagedModule::from_module(std::move(*this));
-    } else {
-        CODEGEN_PUSH_ERROR(MODULE, "package can't be created:" << name());
+    if (not is_init()) {
+        CODEGEN_PUSH_ERROR(MODULE, "thread safe module can't be created:" << name());
         M_mark_error();
-        return PackagedModule::null();
+        return nullptr;
+    }
+    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
+        auto tsm = std::make_unique<llvm::orc::ThreadSafeModule>(
+            std::move(ptr->m_raw_module), ptr->m_cursor_impl.thread_safe_context());
+        ptr->m_is_init = false;
+        return tsm;
+    } else {
+        CODEGEN_PUSH_ERROR(MODULE, "module already deleted");
+        M_mark_error();
+        return nullptr;
     }
 }
 
@@ -1270,131 +1280,5 @@ Module Module::null() {
 }
 
 CONTEXT_DEF(Module)
-
-//
-// PackagedModule::Impl
-//
-class PackagedModule::Impl : meta::noncopyable {
-    const std::string m_name;
-    std::unique_ptr<llvm::orc::ThreadSafeModule> m_thread_safe_module;
-    std::vector<LinkSymbol> m_public_symbols;
-    std::unordered_map<std::string, TypeInfo> m_structs;
-public:
-    explicit Impl(Module::Impl&& module)
-        : m_name{module.name()}, m_public_symbols{module.public_symbols()}, m_structs{module.m_structs} {
-        m_thread_safe_module = std::make_unique<llvm::orc::ThreadSafeModule>(std::move(module.m_raw_module), module.m_cursor_impl.thread_safe_context());
-        module.m_is_init = false;
-        object::Counter::singleton().on_new(object::Callback::object_t::PACKAGED_MODULE, (uint64_t)this, m_name);
-    }
-    ~Impl() {
-        object::Counter::singleton().on_delete(object::Callback::object_t::PACKAGED_MODULE, (uint64_t)this, m_name);
-    }
-public:
-    bool is_valid() const {
-        // TODO{vibhanshu}: check if the llvm object is also valid
-        return static_cast<bool>(m_thread_safe_module);
-    }
-    const std::string &name() const {
-        return m_name;
-    }
-    const std::vector<LinkSymbol>& public_symbols() const {
-        return m_public_symbols;
-    }
-    llvm::orc::ThreadSafeModule* native_handle() const {
-        return m_thread_safe_module.get();
-    }
-    const TypeInfo& struct_type(const std::string &name) const {
-        if (name.empty()) {
-            return TypeInfo::null();
-        }
-        if (m_structs.contains(name)) {
-            return m_structs.at(name);
-        } else {
-            return TypeInfo::null();
-        }
-    }
-};
-
-//
-// PackagedModule
-//
-PackagedModule::PackagedModule(Module module)
-    : BaseT{State::VALID} {
-    m_impl = std::make_shared<Impl>(std::move(*module.m_impl.lock()));
-}
-
-PackagedModule::PackagedModule() : BaseT{State::ERROR} {
-}
-
-PackagedModule::~PackagedModule() = default;
-
-bool PackagedModule::is_valid() const {
-    if (has_error()) {
-        return false;
-    }
-    return m_impl->is_valid();
-}
-
-const std::string& PackagedModule::name() const {
-    if (has_error()) {
-        static std::string s_null{};
-        return s_null;
-    }
-    return m_impl->name();
-}
-
-auto PackagedModule::public_symbols() const -> const std::vector<LinkSymbol>& {
-    if (has_error()) {
-        static std::vector<LinkSymbol> s_null{};
-        return s_null;
-    }
-    return m_impl->public_symbols();
-}
-
-llvm::orc::ThreadSafeModule* PackagedModule::native_handle() const {
-    if (has_error()) {
-        return nullptr;
-    }
-    return m_impl->native_handle();
-}
-
-auto PackagedModule::from_module(Module m) -> PackagedModule {
-    if (m.has_error()) {
-        CODEGEN_PUSH_ERROR(MODULE, "Can't package an invalid module");
-        return PackagedModule::null();
-    }
-    if (m.is_init()) {
-        return PackagedModule{m};
-    } else {
-        return PackagedModule{};
-    }
-}
-
-auto PackagedModule::struct_type(const std::string &name) const -> const TypeInfo& {
-    static TypeInfo s_null{};
-    LLVM_BUILDER_ASSERT(s_null.has_error());
-    if (has_error()) {
-        return s_null;
-    }
-    if (name.empty()) {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "Can't get struct_type for empty name");
-        M_mark_error();
-        return s_null;
-    }
-    return m_impl->struct_type(name);
-}
-
-bool PackagedModule::operator==(const PackagedModule &o) const {
-    if (has_error() and o.has_error()) {
-        return true;
-    }
-    return m_impl.get() == o.m_impl.get();
-}
-
-PackagedModule PackagedModule::null() {
-    static PackagedModule s_module;
-    LLVM_BUILDER_ASSERT(s_module.has_error());
-    return s_module;
-}
 
 LLVM_BUILDER_NS_END

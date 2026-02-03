@@ -23,7 +23,7 @@ class JustInTimeRunner::Impl {
     std::vector<std::string> m_public_decl_symbols;
     std::vector<std::string> m_public_def_symbols;
     std::vector<std::string> m_namespace_seq;
-    std::unordered_map<std::string, RuntimeNamespace> m_namespace_map;
+    std::unordered_map<std::string, runtime::Namespace> m_namespace_map;
     std::unique_ptr<llvm::FunctionPassManager> m_fpm;
     std::unique_ptr<llvm::FunctionAnalysisManager> m_fam;
     std::unique_ptr<llvm::ModuleAnalysisManager> m_mam;
@@ -188,18 +188,24 @@ public:
         cursor.for_each_module([this, &parent] (Module module) {
             CODEGEN_FN
             LLVM_BUILDER_ASSERT(module.is_init());
-            M_add_module(parent, module.package());
+            M_add_module(parent, module);
         });
         cursor.cleanup();
     }
-    void M_add_module(JustInTimeRunner& parent, const PackagedModule& module) {
+    void M_add_module(JustInTimeRunner& parent, Module& module) {
         CODEGEN_FN
-        if (module.has_error() or not module.is_valid()) {
+        if (module.has_error() or not module.is_init()) {
             CODEGEN_PUSH_ERROR(JIT, "Invalid module can't be added");
             parent.M_mark_error();
             return;
         }
-        if (llvm::Error err = m_handle->addIRModule(std::move(*module.native_handle()))) {
+        auto tsm = module.take_thread_safe_module();
+        if (not tsm) {
+            CODEGEN_PUSH_ERROR(JIT, "Failed to take thread safe module:" << module.name());
+            parent.M_mark_error();
+            return;
+        }
+        if (llvm::Error err = m_handle->addIRModule(std::move(*tsm))) {
             CODEGEN_PUSH_ERROR(JIT, "Failed to add IR module: " << llvm::toString(std::move(err)));
             parent.M_mark_error();
             return;
@@ -223,8 +229,8 @@ public:
                     return l_sym_name.namespace_name();
                 }
             } ();
-            auto it = m_namespace_map.try_emplace(l_namespace_name, m_parent, l_namespace_name, RuntimeNamespace::construct_t{});
-            RuntimeNamespace& l_namespace = it.first->second;
+            auto it = m_namespace_map.try_emplace(l_namespace_name, m_parent, l_namespace_name, runtime::Namespace::construct_t{});
+            runtime::Namespace& l_namespace = it.first->second;
             if (l_namespace.is_bind()) {
                 CODEGEN_PUSH_ERROR(JIT, "Namespace already frozen, can't add symbol: " << l_namespace.name() << ": " << l_sym_name.full_name());
                 parent.M_mark_error();
@@ -297,7 +303,7 @@ public:
         }
         return r;
     }
-    RuntimeNamespace get_namespace(const std::string &name) const {
+    runtime::Namespace get_namespace(const std::string &name) const {
         CODEGEN_FN
         if (is_bind()) {
             if (m_namespace_map.contains(name)) {
@@ -310,11 +316,11 @@ public:
                 }
                 l_log << "]";
                 CODEGEN_PUSH_ERROR(JIT, l_log.str());
-                return RuntimeNamespace::null();
+                return runtime::Namespace::null();
             }
         } else {
             CODEGEN_PUSH_ERROR(JIT, "JIT not yet ready for namespace lookup, please bind it first:" << name);
-            return RuntimeNamespace::null();
+            return runtime::Namespace::null();
         }
     }
 };
@@ -398,15 +404,15 @@ auto JustInTimeRunner::get_fn(const std::string& symbol) const -> fn_t* {
     }
 }
 
-RuntimeNamespace JustInTimeRunner::get_namespace(const std::string &name) const {
+runtime::Namespace JustInTimeRunner::get_namespace(const std::string &name) const {
     CODEGEN_FN
     if (has_error()) {
-        return RuntimeNamespace::null();
+        return runtime::Namespace::null();
     }
     return m_impl->get_namespace(name);
 }
 
-RuntimeNamespace JustInTimeRunner::get_global_namespace() const {
+runtime::Namespace JustInTimeRunner::get_global_namespace() const {
     CODEGEN_FN
     return get_namespace("");
 }

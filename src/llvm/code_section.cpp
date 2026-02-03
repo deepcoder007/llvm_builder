@@ -4,9 +4,10 @@
 
 #include "llvm_builder/function.h"
 #include "llvm_builder/analyze.h"
-#include "llvm_builder/meta/noncopyable.h"
-#include "llvm_builder/ds/fixed_string.h"
+#include "meta/noncopyable.h"
+#include "ds/fixed_string.h"
 #include "util/debug.h"
+#include "util/cstring.h"
 #include "llvm_builder/module.h"
 #include "llvm/context_impl.h"
 #include "llvm/ext_include.h"
@@ -52,7 +53,7 @@ public:
         LLVM_BUILDER_ASSERT(not type.has_error())
         LLVM_BUILDER_ASSERT(not default_value.has_error())
         LLVM_BUILDER_ASSERT(is_active());
-        ValueInfo l_ptr = ValueInfo::mk_pointer(type, name);
+        ValueInfo l_ptr = ValueInfo::mk_pointer(type);
         m_ptr[name] = l_ptr;
         if (not default_value.is_null()) {
             l_ptr.store(default_value);
@@ -693,37 +694,40 @@ void CodeSectionContext::pop_var_context() {
     VariableContextMgr::singleton().pop_context();
 }
 
-ValueInfo CodeSectionContext::pop(CString name) {
+ValueInfo CodeSectionContext::pop(std::string_view name) {
     CODEGEN_FN
-    if (name.empty()) {
+    CString cname{name};
+    if (cname.empty()) {
         CODEGEN_PUSH_ERROR(CODE_SECTION, "can't pop/read an empty variable name");
         return ValueInfo::null();
     } else {
-        return VariableContextMgr::singleton().try_get_value(name.str());
+        return VariableContextMgr::singleton().try_get_value(cname.str());
     }
 }
 
-void CodeSectionContext::push(CString name, const ValueInfo& v) {
+void CodeSectionContext::push(std::string_view name, const ValueInfo& v) {
     CODEGEN_FN
-    if (name.empty()) {
+    CString cname{name};
+    if (cname.empty()) {
         CODEGEN_PUSH_ERROR(CODE_SECTION, "can't push/store an empty variable name");
     } else if (v.has_error()) {
         CODEGEN_PUSH_ERROR(CODE_SECTION, "can't push/store an invalid value");
     } else {
-        VariableContextMgr::singleton().set(name.str(), v);
+        VariableContextMgr::singleton().set(cname.str(), v);
     }
 }
 
-void CodeSectionContext::mk_ptr(CString name, const TypeInfo& type, const ValueInfo& default_value) {
+void CodeSectionContext::mk_ptr(std::string_view name, const TypeInfo& type, const ValueInfo& default_value) {
     CODEGEN_FN
-    if (name.empty()) {
+    CString cname{name};
+    if (cname.empty()) {
         CODEGEN_PUSH_ERROR(CODE_SECTION, "can't mk an empty variable name");
     } else if (type.has_error()) {
         CODEGEN_PUSH_ERROR(CODE_SECTION, "can't mk a pointer with invalid type variable");
     } else if (default_value.has_error()) {
         CODEGEN_PUSH_ERROR(CODE_SECTION, "can't mk a pointer with invalid default value");
     } else {
-        VariableContextMgr::singleton().mk_ptr(name.str(), type, default_value);
+        VariableContextMgr::singleton().mk_ptr(cname.str(), type, default_value);
     }
 }
 

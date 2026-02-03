@@ -8,9 +8,9 @@
 #include "llvm_builder/defines.h"
 #include "llvm_builder/type.h"
 #include "llvm_builder/value.h"
-#include "llvm_builder/meta/noncopyable.h"
 #include "llvm_builder/defines.h"
 
+#include <string_view>
 #include <vector>
 #include <list>
 #include <optional>
@@ -104,12 +104,11 @@ public:
 public:
     static void push_var_context();
     static void pop_var_context();
-    static ValueInfo pop(CString name);
-    static void push(CString name, const ValueInfo& v);
-    static void mk_ptr(CString name, const TypeInfo& type, const ValueInfo& default_value);
+    static ValueInfo pop(std::string_view name);
+    static void push(std::string_view name, const ValueInfo& v);
+    static void mk_ptr(std::string_view name, const TypeInfo& type, const ValueInfo& default_value);
     static Function function();
     static void set_return_value(ValueInfo value);
-    static void ensure_sealed();
     static CodeSection mk_section(const std::string& name);
     static void define_section(const std::string& name, Function&, std::function<void()>&& defn);
     static void jump_to_section(CodeSection &dst);
@@ -168,6 +167,7 @@ public:
     static Function null();
 };
 
+// TODO{vibhanshu}: do we need function builder now given that everything simplified
 class FunctionBuilder : public _BaseObject<FunctionBuilder> {
     using BaseT = _BaseObject<FunctionBuilder>;
     class Impl;

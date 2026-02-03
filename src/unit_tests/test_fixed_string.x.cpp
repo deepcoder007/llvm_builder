@@ -2,7 +2,7 @@
 // Created by vibhanshu on 2024-08-10
 //
 
-#include "llvm_builder/ds/fixed_string.h"
+#include "ds/fixed_string.h"
 #include "util/debug.h"
 
 #include "gtest/gtest.h"

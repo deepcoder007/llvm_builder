@@ -6,8 +6,8 @@
 #define LLVM_BUILDER_UTIL_ERROR_H_
 
 #include "llvm_builder/defines.h"
-#include "llvm_builder/meta/noncopyable.h"
 
+#include <limits>
 #include <vector>
 #include <functional>
 
@@ -32,7 +32,7 @@
     SourceContext __func__##_source_ctx_val{__FILE__, __LINE__};     \
 /**/                                                                 \
 
-#define CODEGEN_PUSH_ERROR(CODE, str) ErrorContext::push_error(ErrorCode::CODE, LLVM_BUILDER_CONCAT << str, __FILE__, __LINE__);
+#define CODEGEN_PUSH_ERROR(CODE, str) ::llvm_builder::ErrorContext::push_error(::llvm_builder::ErrorCode::CODE, LLVM_BUILDER_CONCAT << str, __FILE__, __LINE__);
 
 #define ERROR_LOG_5   ErrorContext::print(std::cout, 5);
 
@@ -116,10 +116,14 @@ public:
     static void iterate(std::function<void (const SourceLoc&)>&& fn);
 };
 
-class Error : meta::only_move_construct {
+class Error {
     ErrorCode m_code = ErrorCode::NO_ERROR;
     std::string m_msg;
     std::vector<SourceLoc> m_loc;
+
+    Error(const Error&) = delete;
+    Error& operator=(const Error&) = delete;
+    Error& operator=(Error&&) = delete;
 public:
     explicit Error(ErrorCode code, const std::string& msg, const std::vector<SourceLoc>& loc);
     explicit Error() = default;

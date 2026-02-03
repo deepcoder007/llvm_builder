@@ -6,7 +6,7 @@
 #define LLVM_BUILDER_UTIL_STRING_UTIL_H
 
 #include "llvm_builder/defines.h"
-#include "llvm_builder/util/cstring.h"
+#include "util/cstring.h"
 
 LLVM_BUILDER_NS_BEGIN
 
