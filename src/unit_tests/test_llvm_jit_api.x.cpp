@@ -56,7 +56,7 @@ TEST(LLVM_CODEGEN_JIT_API, hello_api) {
             CODEGEN_LINE(l_fn_body.enter())
 
             CODEGEN_LINE(ValueInfo ctx = fn.context().value())
-            LLVM_BUILDER_ALWAYS_ASSERT(l_struct.pointer_type().check_sync(ctx));
+            LLVM_BUILDER_ALWAYS_ASSERT(l_struct.pointer_type() == ctx.type());
             CODEGEN_LINE(ctx.field("field_3").store(ctx.field("field_1").load()))
             CODEGEN_LINE(ctx.field("field_4").store(ctx.field("field_2").load()))
             CODEGEN_LINE(ctx.field("field_5").store(ValueInfo::from_constant(true)))
@@ -162,8 +162,8 @@ TEST(LLVM_CODEGEN_JIT_API, inner_struct) {
             CODEGEN_LINE(ValueInfo ctx = fn.context().value())
             CODEGEN_LINE(ValueInfo arg_inner = ctx.field("arg_inner").load())
             CODEGEN_LINE(ValueInfo arg_outer = ctx.field("arg_outer").load())
-            LLVM_BUILDER_ALWAYS_ASSERT(l_inner_struct.pointer_type().check_sync(arg_inner));
-            LLVM_BUILDER_ALWAYS_ASSERT(l_outer_struct.pointer_type().check_sync(arg_outer));
+            LLVM_BUILDER_ALWAYS_ASSERT(l_inner_struct.pointer_type() == arg_inner.type());
+            LLVM_BUILDER_ALWAYS_ASSERT(l_outer_struct.pointer_type() == arg_outer.type());
 
             CODEGEN_LINE(ValueInfo inner_field_6 = arg_outer.field("inner_field_6").load())
             for (const std::string& fname : std::initializer_list<std::string>{{"field_1", "field_2", "field_3", "field_4"}}) {
@@ -331,8 +331,8 @@ TEST(LLVM_CODEGEN_JIT_API, array_basic_1d) {
             CODEGEN_LINE(ValueInfo ctx = fn.context().value())
             CODEGEN_LINE(ValueInfo arg_inner = ctx.field("arg_inner").load())
             CODEGEN_LINE(ValueInfo arg_outer = ctx.field("arg_outer").load())
-            LLVM_BUILDER_ALWAYS_ASSERT(l_inner_struct.pointer_type().check_sync(arg_inner));
-            LLVM_BUILDER_ALWAYS_ASSERT(l_outer_struct.pointer_type().check_sync(arg_outer));
+            LLVM_BUILDER_ALWAYS_ASSERT(l_inner_struct.pointer_type() == arg_inner.type());
+            LLVM_BUILDER_ALWAYS_ASSERT(l_outer_struct.pointer_type() == arg_outer.type());
 
             CODEGEN_LINE(ValueInfo inner_field_6 = arg_outer.field("inner_field_6").load())
             for (const std::string& fname : std::initializer_list<std::string>{{"field_1", "field_2", "field_3", "field_4"}}) {
@@ -488,7 +488,7 @@ TEST(LLVM_CODEGEN_JIT_API, full_test) {
             CODEGEN_LINE(l_fn_body.enter())
 
             CODEGEN_LINE(ValueInfo arg_outer = fn.context().value())
-            LLVM_BUILDER_ALWAYS_ASSERT(l_outer_struct.pointer_type().check_sync(arg_outer));
+            LLVM_BUILDER_ALWAYS_ASSERT(l_outer_struct.pointer_type() == arg_outer.type());
 
             CODEGEN_LINE(ValueInfo inner_field_2 = arg_outer.field("inner_field_2").load())
             CODEGEN_LINE(ValueInfo inner_field_3 = arg_outer.field("inner_field_3").load())

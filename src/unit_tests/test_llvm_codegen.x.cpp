@@ -237,9 +237,7 @@ TEST(LLVM_CODEGEN, basic_test) {
             CODEGEN_LINE(ValueInfo arg_b = ctx_if_else.field("b").load())
             CODEGEN_LINE(ValueInfo c_5 = ValueInfo::from_constant(5))
             CODEGEN_LINE(ValueInfo compare_1 = arg_b.less_than(c_5))
-            LLVM_BUILDER_ALWAYS_ASSERT(bool_type.check_sync(compare_1));
             CODEGEN_LINE(ValueInfo compare_2 = compare_1.not_equal(ValueInfo::from_constant(false)))
-            LLVM_BUILDER_ALWAYS_ASSERT(bool_type.check_sync(compare_2));
             CODEGEN_LINE(IfElseCond if_else_branch{"cond_block", compare_2})
             CODEGEN_LINE(CodeSectionContext::mk_ptr("test_value_fwd"_cs, int32_type, ValueInfo::from_constant(0)))
             CODEGEN_LINE(CodeSectionContext::mk_ptr("test_value_fwd_2"_cs, int32_type, ValueInfo::from_constant(0)))

@@ -43,8 +43,11 @@ bool FnContext::operator == (const FnContext& rhs) const {
         return true;
     }
     return m_type == rhs.m_type
-      and m_raw_arg == rhs.m_raw_arg
-      and m_value == rhs.m_value;
+      and m_raw_arg == rhs.m_raw_arg;
+}
+
+ValueInfo FnContext::value() const {
+    return ValueInfo::from_context(m_type);
 }
 
 void FnContext::set_value(llvm::Argument* raw_arg) {
@@ -52,13 +55,16 @@ void FnContext::set_value(llvm::Argument* raw_arg) {
         return;
     }
     m_raw_arg = raw_arg;
-    m_value = ValueInfo{m_type, TagInfo{}, (llvm::Value*)m_raw_arg};
 }
 
 auto FnContext::null() -> const FnContext& {
     static FnContext s_null{};
     LLVM_BUILDER_ASSERT(s_null.has_error());
     return s_null;
+}
+
+llvm::Value* FnContext::M_eval() {
+    return m_raw_arg;
 }
 
 //
@@ -156,18 +162,18 @@ public:
     const FnContext& context() const {
         return m_context;
     }
-    ValueInfo call_fn(const Function& parent, const ValueInfo& arg) const {
+    ValueInfo call_fn(const Function& parent, ValueInfo arg) const {
         CODEGEN_FN
         LLVM_BUILDER_ASSERT(is_valid());
         LLVM_BUILDER_ASSERT(not parent.has_error())
         LLVM_BUILDER_ASSERT(not arg.has_error())
         std::vector<llvm::Value*> l_raw_arg_list;
-        if (not m_context.type().check_sync(arg)) {
+        if (m_context.type() != arg.type()) {
             CODEGEN_PUSH_ERROR(FUNCTION, "Expected type:" << m_context.type().short_name() << ", found type:" << arg.type().short_name());
             parent.M_mark_error();
             return ValueInfo::null();
         }
-        l_raw_arg_list.emplace_back(arg.native_value());
+        l_raw_arg_list.emplace_back(arg.M_eval());
         LLVM_BUILDER_ASSERT(Module::Context::has_value());
         Module& l_current_module = Module::Context::value();
         LLVM_BUILDER_ASSERT(not l_current_module.has_error());
@@ -183,7 +189,9 @@ public:
             l_fn_to_call = l_existing;
         }
         llvm::CallInst* l_inst = CursorContextImpl::builder().CreateCall(l_fn_to_call, l_raw_arg_list);
-        return ValueInfo{m_return_type, TagInfo{}, l_inst};
+        ValueInfo l_res{ValueInfo::value_type_t::fn_call, TypeInfo::mk_int32(), std::vector<ValueInfo>{}};
+        l_res.m_const_value_cache = l_inst;
+        return l_res;
     }
     void declare_fn(const Module& src_mod, const Module& dst_mod) const {
         LLVM_BUILDER_ASSERT(is_valid());

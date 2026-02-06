@@ -79,9 +79,9 @@ TEST(LLVM_CODEGEN_OBJECT, complex_struct_definitions) {
                 CODEGEN_LINE(ValueInfo arg1b = ctx.field("arg_inner_struct").load())
                 CODEGEN_LINE(ValueInfo arg2 = ctx.field("arg_outer_struct").load())
                 LLVM_BUILDER_ALWAYS_ASSERT(not l_struct_type.has_error());
-                LLVM_BUILDER_ALWAYS_ASSERT(l_struct_type.pointer_type().check_sync(arg1a));
-                LLVM_BUILDER_ALWAYS_ASSERT(l_inner_struct.pointer_type().check_sync(arg1b));
-                LLVM_BUILDER_ALWAYS_ASSERT(l_outer_struct.pointer_type().check_sync(arg2));
+                LLVM_BUILDER_ALWAYS_ASSERT(l_struct_type.pointer_type() == arg1a.type());
+                LLVM_BUILDER_ALWAYS_ASSERT(l_inner_struct.pointer_type() == arg1b.type());
+                LLVM_BUILDER_ALWAYS_ASSERT(l_outer_struct.pointer_type() == arg2.type());
 
                 // inner_field_4 = inner_field_1
                 // inner_field_5 = inner_field_2

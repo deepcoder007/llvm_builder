@@ -34,10 +34,10 @@ class FunctionImpl;
 
 class FnContext : public _BaseObject<FnContext> {
     using BaseT = _BaseObject<FnContext>;
+    friend class ValueInfo;
 private:
     TypeInfo m_type;
     llvm::Argument* m_raw_arg = nullptr;
-    ValueInfo m_value;
 public:
     explicit FnContext();
     explicit FnContext(const TypeInfo& type);
@@ -45,12 +45,6 @@ public:
 public:
     TypeInfo type() const {
         return m_type;
-    }
-    ValueInfo value() const {
-        return m_value;
-    }
-    bool check_type(const ValueInfo& value) const {
-        return m_type.check_sync(value);
     }
     bool is_valid() const {
         return m_type.is_valid();
@@ -61,6 +55,9 @@ public:
     void set_value(llvm::Argument* raw_arg);
     bool operator == (const FnContext& rhs) const;
     static const FnContext& null();
+    ValueInfo value() const;
+private:
+    llvm::Value* M_eval();
 };
 
 class CodeSection : public _BaseObject<CodeSection>  {

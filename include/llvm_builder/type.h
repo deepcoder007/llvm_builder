@@ -16,6 +16,7 @@
 
 namespace llvm {
     class Type;
+    class Value;
 }
 
 LLVM_BUILDER_NS_BEGIN
@@ -118,7 +119,6 @@ public:
     bool is_valid_pointer_field() const;
     bool is_valid_struct_field() const;
     void dump_llvm_type_info(std::ostream& os) const;
-    bool check_sync(const ValueInfo& value) const;
 public:
     TypeInfo pointer_type() const;
     DECL_EQUIV_FN(boolean)
@@ -126,12 +126,6 @@ public:
     DECL_EQUIV_FN(float)
     DECL_EQUIV_FN(signed_integer)
     DECL_EQUIV_FN(unsigned_integer)
-    ValueInfo type_cast(const ValueInfo& src_value) const;
-#define MK_BINARY_FN(FN_NAME)                                                                           \
-    ValueInfo FN_NAME(const ValueInfo& lhs, const ValueInfo& rhs) const;                                \
-/**/
-    FOR_EACH_BINARY_OP(MK_BINARY_FN) 
-#undef MK_BINARY_FN
 public:
     static TypeInfo& null();
 #define DECL_MK_TYPE(TYPE_NAME)              \
@@ -149,6 +143,14 @@ FOR_EACH_LLVM_TYPE(DECL_MK_TYPE)
     static TypeInfo mk_vector(TypeInfo element_type, uint32_t num_elements);
     static TypeInfo mk_struct(const std::string& name, const std::vector<member_field_entry>& element_list, bool is_packed = true);
     static TypeInfo from_raw(llvm::Type* l_raw_type);
+private:
+    bool M_check_sync(const llvm::Value* value) const;
+    llvm::Value* M_type_cast(const TypeInfo& src_type, llvm::Value* src_value);
+#define MK_BINARY_FN(FN_NAME)                                                                           \
+    llvm::Value* M_##FN_NAME(llvm::Value* lhs, llvm::Value* rhs) const;                                 \
+/**/
+    FOR_EACH_BINARY_OP(MK_BINARY_FN)
+#undef MK_BINARY_FN
 };
 #undef DECL_EQUIV_FN
 

@@ -18,7 +18,6 @@ LLVM_BUILDER_NS_END
 
 int32_t main(int32_t argc, char **argv) {
     using namespace llvm_builder;
-    using namespace llvm_builder;
     (void)argc;
     (void)argv;
 

@@ -23,6 +23,7 @@ LLVM_BUILDER_NS_BEGIN
 
 class Function;
 class CodeSection;
+class ValuePtrInfo;
 
 // TODO{vibhanshu}: build this tag info infra to debug from binary to the source code
 class TagInfo {
@@ -44,21 +45,46 @@ public:
     TagInfo set_union(const TagInfo& o) const;
 };
 
-// TODO{vibhanshu}: attach a value to a code-section and develop benchmarks over it
+// TODO{vibhanshu}: cache M_eval() output per code-section to remove redundant computation
 class ValueInfo : public _BaseObject<ValueInfo> {
     using BaseT = _BaseObject<ValueInfo>;
-private:
-    TypeInfo m_type_info;
-    TagInfo m_tag_info;
-    llvm::Value* m_raw_value = nullptr;
+    friend class CodeSection;
+    friend class Function;
 public:
-    explicit ValueInfo(const TypeInfo& type_info, const TagInfo& tag_info, llvm::Value* raw_value);
+    enum class value_type_t {
+        null,
+        constant,
+        context,
+        binary,
+        conditional,
+        typecast,
+        inner_entry,
+        load,
+        store,
+        load_vector_entry,
+        store_vector_entry,
+        mk_ptr,
+        fn_call,
+    };
+private:
+    value_type_t m_value_type = value_type_t::null;
+    TypeInfo m_type_info;
+    std::vector<ValueInfo> m_parent;
+    TagInfo m_tag_info;
+private:
+    // NOTE: variables to store eval evaluation info
+    using binary_op_fn_t = llvm::Value* (TypeInfo::*) (llvm::Value*, llvm::Value*) const;
+    llvm::Value* m_const_value_cache = nullptr;
+    binary_op_fn_t m_binary_op = nullptr;
+    TypeInfo m_parent_ptr_type;
+private:
+    explicit ValueInfo(value_type_t value_type,
+                       const TypeInfo& type_info,
+                       const std::vector<ValueInfo>& parent);
+public:
     explicit ValueInfo();
     ~ValueInfo();
 public:
-    bool is_valid() const {
-        return m_raw_value != nullptr and m_type_info.is_valid();
-    }
     bool has_tag(std::string_view v) const;
     void add_tag(const std::string &v);
     void add_tag(const TagInfo &o);
@@ -81,39 +107,39 @@ public:
     void push(std::string_view name) const;
 public:
     [[nodiscard]]
-    ValueInfo operator+(const ValueInfo &v2) const {
+    ValueInfo operator+(const ValueInfo& v2) const {
         return add(v2);
     }
     [[nodiscard]]
-    ValueInfo operator-(const ValueInfo &v2) const {
+    ValueInfo operator-(const ValueInfo& v2) const {
         return sub(v2);
     }
     [[nodiscard]]
-    ValueInfo operator*(const ValueInfo &v2) const {
+    ValueInfo operator*(const ValueInfo& v2) const {
         return mult(v2);
     }
     [[nodiscard]]
-    ValueInfo operator/(const ValueInfo &v2) const {
+    ValueInfo operator/(const ValueInfo& v2) const {
         return div(v2);
     }
     [[nodiscard]]
-    ValueInfo operator%(const ValueInfo &v2) const {
+    ValueInfo operator%(const ValueInfo& v2) const {
         return remainder(v2);
     }
     [[nodiscard]]
-    ValueInfo operator<(const ValueInfo &v2) const {
+    ValueInfo operator<(const ValueInfo& v2) const {
         return less_than(v2);
     }
     [[nodiscard]]
-    ValueInfo operator<=(const ValueInfo &v2) const {
+    ValueInfo operator<=(const ValueInfo& v2) const {
         return less_than_equal(v2);
     }
     [[nodiscard]]
-    ValueInfo operator>(const ValueInfo &v2) const {
+    ValueInfo operator>(const ValueInfo& v2) const {
         return greater_than(v2);
     }
     [[nodiscard]]
-    ValueInfo operator>=(const ValueInfo &v2) const {
+    ValueInfo operator>=(const ValueInfo& v2) const {
         return greater_than_equal(v2);
     }
 public:
@@ -122,9 +148,6 @@ public:
     }
     bool equals_type(TypeInfo t) const {
         return m_type_info == t;
-    }
-    llvm::Value* native_value() const {
-        return m_raw_value;
     }
     bool operator == (const ValueInfo& rhs) const;
 public:
@@ -145,13 +168,12 @@ public:
     ValueInfo store_vector_entry(const ValueInfo& idx_v, ValueInfo value) const;
 public:
     static ValueInfo null();
+    static ValueInfo from_context(const TypeInfo& ctx_type);
     template <typename T>
     [[nodiscard]]
     static ValueInfo from_constant(T v);
     [[nodiscard]]
     static ValueInfo mk_pointer(TypeInfo type);
-    [[nodiscard]]
-    static ValueInfo mk_null_pointer();
     [[nodiscard]]
     static ValueInfo mk_array(TypeInfo type);
     [[nodiscard]]
@@ -163,10 +185,8 @@ public:
     [[nodiscard]]
     static ValueInfo calc_struct_field_offset(TypeInfo type, ValueInfo idx);
 private:
-    ValueInfo M_load_vector_entry(llvm::Value* idx_value) const;
-    ValueInfo M_store_vector_entry(llvm::Value* idx_value, const ValueInfo& value) const;
+    llvm::Value* M_eval();
 };
-
 
 LLVM_BUILDER_NS_END
 

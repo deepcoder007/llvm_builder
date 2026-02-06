@@ -292,28 +292,28 @@ auto TypeInfo::field_entry_t::null() -> field_entry_t& {
     /**/                                                                \
                                                                         
 #define BINARY_OP_IMPL_FN(FN_NAME, SIGN_FN, UNSIGNED_FN, FLOAT_FN)      \
-    llvm::Value* FN_NAME (llvm::Value* lhs, llvm::Value* rhs) {        \
+    llvm::Value* FN_NAME (llvm::Value* lhs, llvm::Value* rhs) {         \
         CODEGEN_FN                                                      \
-        LLVM_BUILDER_ASSERT(lhs != nullptr)                                 \
-        LLVM_BUILDER_ASSERT(rhs != nullptr)                                 \
-        if (not is_scalar() and not is_vector())  {                 \
+        LLVM_BUILDER_ASSERT(lhs != nullptr)                             \
+        LLVM_BUILDER_ASSERT(rhs != nullptr)                             \
+        if (not is_scalar() and not is_vector())  {                     \
             CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type needs to be either scalar or vector"); \
-            return nullptr;                                         \
-        }                                                           \
+            return nullptr;                                             \
+        }                                                               \
         llvm::IRBuilder<>& l_builder = m_cursor_impl.builder();         \
         if (is_vector()) {                                              \
             const TypeInfo& l_base_type = base_type();                  \
             if (l_base_type.is_signed_integer()) {                      \
                 return l_builder. SIGN_FN (lhs, rhs, "");               \
             } else {                                                    \
-                LLVM_BUILDER_ASSERT(l_base_type.is_unsigned_integer());         \
+                LLVM_BUILDER_ASSERT(l_base_type.is_unsigned_integer()); \
                 return l_builder. UNSIGNED_FN (lhs, rhs, "");           \
             }                                                           \
         } else if (is_integer()) {                                      \
             if (is_signed_integer()) {                                  \
                 return l_builder. SIGN_FN (lhs, rhs, "");               \
             } else {                                                    \
-                LLVM_BUILDER_ASSERT(is_unsigned_integer());                     \
+                LLVM_BUILDER_ASSERT(is_unsigned_integer());             \
                 return l_builder. UNSIGNED_FN (lhs, rhs, "");           \
             }                                                           \
         } else if (is_boolean()) {                                      \
@@ -631,17 +631,17 @@ public:
         << "    > size in bits:" << m_type->getPrimitiveSizeInBits() << std::endl
         << "    > scalar size in bits:" << m_type -> getScalarSizeInBits() << std::endl;
     }
+    // TODO{vibhanshu}: review this function at priority
     [[gnu::noinline]]
-    bool check_sync(const ValueInfo &value) const {
-        CODEGEN_FN
-        LLVM_BUILDER_ASSERT(not value.has_error());
+    bool check_sync(const llvm::Value* value) const {
+        LLVM_BUILDER_ASSERT(value != nullptr);
         LLVM_BUILDER_ASSERT(m_type != nullptr);
         // TODO{vibhanshu}: this is a WIP fn, implement it correctly using per type statisticas
         // TODO{vibhanshu}: add ability to register callbacks if a type check fails in a global context
         //                  which can be initialized outsie the function at top level
         // TODO{vibhanshu}: this function should be defined recursively to check inner fields also
         bool l_res = is_valid();
-        llvm::Type* l_type = value.native_value()->getType();
+        llvm::Type* l_type = value->getType();
         LLVM_BUILDER_ASSERT(l_type != nullptr);
         if (is_boolean()) {
             l_res &= l_type->getPrimitiveSizeInBits() == 1;
@@ -652,9 +652,9 @@ public:
                 l_res &= l_type->getPrimitiveSizeInBits() >= 8;
                 l_res &= (m_type->getPrimitiveSizeInBits() == l_type->getPrimitiveSizeInBits());
             }
-            if (l_res) {
-                l_res &= (is_signed_integer() == value.type().is_signed_integer());
-            }
+            // if (l_res) {
+            //     l_res &= (is_signed_integer() == value.type().is_signed_integer());
+            // }
             l_res &= (m_type == l_type);
         } else if (is_float()) {
             l_res &= ((l_type->isFloatTy() and m_num_bytes == sizeof(float32_t))
@@ -731,19 +731,11 @@ public:
         }
     }
 public:
-    // NOTE{vibhanshu}: unary operators
-    llvm::Value *M_fixed_point_type_cast(const ValueInfo &src_value) {
-        CODEGEN_FN
-        LLVM_BUILDER_ASSERT(not src_value.has_error());
-        LLVM_BUILDER_ASSERT(m_type != nullptr and not src_value.has_error());
-        llvm::Value* src = src_value.native_value();
-        llvm::IRBuilder<>& l_builder = CursorContextImpl::builder();
-        if (not is_integer()) {
-            return nullptr;
-        }
-        if (not src_value.type().is_integer() and not src_value.type().is_boolean()) {
-            return nullptr;
-        }
+    llvm::Value* M_fixed_point_type_cast(llvm::Value* src) {
+        LLVM_BUILDER_ASSERT(m_type != nullptr);
+        LLVM_BUILDER_ASSERT(src != nullptr);
+        LLVM_BUILDER_ASSERT(is_integer());
+        llvm::IRBuilder<>& l_builder = m_cursor_impl.builder();
         if (not src->getType()->isIntegerTy()) {
             return nullptr;
         }
@@ -754,58 +746,39 @@ public:
             return l_builder.CreateZExtOrTrunc(src, m_type, "");
         }
     }
-    llvm::Value *M_floating_point_type_cast(const ValueInfo &src_value) {
-        CODEGEN_FN
-        LLVM_BUILDER_ASSERT(not src_value.has_error());
-        LLVM_BUILDER_ASSERT(m_type != nullptr and not src_value.has_error());
-        llvm::Value* src = src_value.native_value();
-        llvm::IRBuilder<>& l_builder = CursorContextImpl::builder();
-        if (not is_float()) {
-            return nullptr;
-        }
-        if (not src_value.type().is_float()) {
-            return nullptr;
-        }
+    llvm::Value* M_floating_point_type_cast(llvm::Value* src) {
+        LLVM_BUILDER_ASSERT(m_type != nullptr);
+        LLVM_BUILDER_ASSERT(src != nullptr);
+        LLVM_BUILDER_ASSERT(is_float());
+        llvm::IRBuilder<>& l_builder = m_cursor_impl.builder();
         if (not src->getType()->isFloatTy() and not src->getType()->isDoubleTy()) {
             return nullptr;
         }
         return l_builder.CreateFPCast(src, m_type, "");
     }
-    llvm::Value *M_fixed_to_floating_type_cast(const ValueInfo &src_value) {
-        CODEGEN_FN
-        LLVM_BUILDER_ASSERT(not src_value.has_error());
-        LLVM_BUILDER_ASSERT(m_type != nullptr and not src_value.has_error());
-        llvm::Value* src = src_value.native_value();
-        llvm::IRBuilder<>& l_builder = CursorContextImpl::builder();
-        if (not is_float()) {
-            return nullptr;
-        }
-        if (not src_value.type().is_integer()) {
-            return nullptr;
-        }
+    llvm::Value* M_fixed_to_floating_type_cast(const TypeInfo& src_type, llvm::Value* src) {
+        LLVM_BUILDER_ASSERT(m_type != nullptr);
+        LLVM_BUILDER_ASSERT(not src_type.has_error());
+        LLVM_BUILDER_ASSERT(src != nullptr);
+        LLVM_BUILDER_ASSERT(is_float());
+        llvm::IRBuilder<>& l_builder = m_cursor_impl.builder();
         if (not src->getType()->isIntegerTy()) {
             return nullptr;
         }
-        if (src_value.type().is_signed_integer()) {
+        if (src_type.is_signed_integer()) {
             return l_builder.CreateSIToFP(src, m_type, "");
         } else {
-            LLVM_BUILDER_ASSERT(src_value.type().is_unsigned_integer());
+            LLVM_BUILDER_ASSERT(src_type.is_unsigned_integer());
             return l_builder.CreateUIToFP(src, m_type, "");
         }
     }
-    llvm::Value *M_floating_to_fixed_type_cast(const ValueInfo &src_value) {
-        CODEGEN_FN
-        LLVM_BUILDER_ASSERT(not src_value.has_error());
-        LLVM_BUILDER_ASSERT(m_type != nullptr and not src_value.has_error());
-        llvm::Value* src = src_value.native_value();
-        llvm::IRBuilder<>& l_builder = CursorContextImpl::builder();
-        if (not is_integer()) {
-            return nullptr;
-        }
-        if (not src_value.type().is_float()) {
-            return nullptr;
-        }
-        if (not src->getType()->isFloatTy()) {
+    llvm::Value* M_floating_to_fixed_type_cast(const TypeInfo& src_type, llvm::Value* src) {
+        LLVM_BUILDER_ASSERT(m_type != nullptr);
+        LLVM_BUILDER_ASSERT(not src_type.has_error());
+        LLVM_BUILDER_ASSERT(src != nullptr);
+        LLVM_BUILDER_ASSERT(is_integer());
+        llvm::IRBuilder<>& l_builder = m_cursor_impl.builder();
+        if (not src_type.is_float() or src->getType()->isFloatTy()) {
             return nullptr;
         }
         if (is_signed_integer()) {
@@ -815,26 +788,24 @@ public:
             return l_builder.CreateFPToUI(src, m_type, "");
         }
     }
-    llvm::Value* type_cast(const ValueInfo &src_value) {
-        CODEGEN_FN
-        LLVM_BUILDER_ASSERT(not src_value.has_error());
-        if (m_type == nullptr or src_value.has_error()) {
+    llvm::Value* type_cast(const TypeInfo& src_type, llvm::Value* src_value) {
+        LLVM_BUILDER_ASSERT(not src_type.has_error());
+        LLVM_BUILDER_ASSERT(src_value != nullptr);
+        if (m_type == nullptr) {
             return nullptr;
         }
-        const TypeInfo& src_type = src_value.type();
         if (src_type.is_integer() and is_integer()) {
             return M_fixed_point_type_cast(src_value);
         } else if (src_type.is_float() and is_float()) {
             return M_floating_point_type_cast(src_value);
         } else if (src_type.is_integer() and is_float()) {
-            return M_fixed_to_floating_type_cast(src_value);
+            return M_fixed_to_floating_type_cast(src_type, src_value);
         } else if (src_type.is_float() and is_integer()) {
-            return M_floating_to_fixed_type_cast(src_value);
+            return M_floating_to_fixed_type_cast(src_type, src_value);
         } else if (src_type.is_boolean() and is_integer()) {
-            llvm::Value* src = src_value.native_value();
-            llvm::IRBuilder<>& l_builder = CursorContextImpl::builder();
-            LLVM_BUILDER_ASSERT(src->getType()->isIntegerTy());
-            return l_builder.CreateZExtOrTrunc(src, m_type, "");
+            llvm::IRBuilder<>& l_builder = m_cursor_impl.builder();
+            LLVM_BUILDER_ASSERT(src_value->getType()->isIntegerTy());
+            return l_builder.CreateZExtOrTrunc(src_value, m_type, "");
         } else {
             CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type cast combination not supported");
             return nullptr;
@@ -1037,8 +1008,8 @@ void TypeInfo::dump_llvm_type_info(std::ostream& os) const {
     }
 }
 
-bool TypeInfo::check_sync(const ValueInfo& value) const {
-    if (has_error() or value.has_error()) {
+bool TypeInfo::M_check_sync(const llvm::Value* value) const {
+    if (has_error()) {
         return false;
     }
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
@@ -1205,41 +1176,27 @@ TypeInfo TypeInfo::from_raw(llvm::Type* l_raw_type) {
     }
 }
 
-ValueInfo TypeInfo::type_cast(const ValueInfo& src_value) const {
-    CODEGEN_FN
-    if (has_error()) {
-        return ValueInfo::null();
-    }
-    if (src_value.has_error()) {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "Can't typecast an invalid value");
-        return ValueInfo::null();
-    }
+llvm::Value* TypeInfo::M_type_cast(const TypeInfo& src_type, llvm::Value* src_value) {
+    LLVM_BUILDER_ASSERT(not has_error());
+    LLVM_BUILDER_ASSERT(not src_type.has_error());
+    LLVM_BUILDER_ASSERT(src_value != nullptr);
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
-        llvm::Value* l_res = ptr->type_cast(src_value);
-        return ValueInfo{*this, TagInfo{}, l_res};
+        return ptr->type_cast(src_type, src_value);
     } else {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type already deleted");
-        return ValueInfo::null();
+        return nullptr;
     }
 }
 
 
 #define BINARY_VALUE_OP(OP_NAME)                                                                          \
-  ValueInfo TypeInfo::OP_NAME(const ValueInfo& lhs, const ValueInfo& rhs) const {                         \
-    CODEGEN_FN                                                                                            \
-    if (has_error()) {                                                                                    \
-      return ValueInfo::null();                                                                           \
-    }                                                                                                     \
-    if (lhs.has_error() or rhs.has_error()) {                                                             \
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "Operation can't be applied to invalid values");                   \
-        return ValueInfo::null();                                                                         \
-    }                                                                                                     \
+  llvm::Value* TypeInfo::M_ ##OP_NAME(llvm::Value* lhs, llvm::Value* rhs) const {                         \
+    LLVM_BUILDER_ASSERT(not has_error());                                                                 \
+    LLVM_BUILDER_ASSERT(lhs != nullptr);                                                                  \
+    LLVM_BUILDER_ASSERT(rhs != nullptr);                                                                  \
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {                                                      \
-        llvm::Value* l_res = ptr-> OP_NAME(lhs.native_value(), rhs.native_value());                       \
-        return ValueInfo{*this, TagInfo{}, l_res};                                                        \
+        return ptr-> OP_NAME(lhs, rhs);                                                                   \
     } else {                                                                                              \
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type already deleted");                                           \
-        return ValueInfo::null();                                                                         \
+        return nullptr;                                                                                   \
     }                                                                                                     \
 }                                                                                                         \
 /**/

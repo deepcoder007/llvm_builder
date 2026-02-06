@@ -265,7 +265,7 @@ public:
         LLVM_BUILDER_ASSERT(not is_commit());
         LLVM_BUILDER_ASSERT(value.type() == m_fn.return_type());
         LLVM_BUILDER_ASSERT(not value.has_error());
-        m_cursor_impl.builder().CreateRet(value.native_value());
+        m_cursor_impl.builder().CreateRet(value.M_eval());
         M_force_seal();
     }
     void jump_to_section(Impl& s) {
@@ -277,13 +277,13 @@ public:
         m_cursor_impl.builder().CreateBr(s.m_basic_block);
         M_force_seal();
     }
-    void conditional_jump(const ValueInfo &value, Impl& then_dst,
+    void conditional_jump(ValueInfo value, Impl& then_dst,
                           Impl& else_dst) {
         LLVM_BUILDER_ASSERT(is_open());
         LLVM_BUILDER_ASSERT(not is_sealed());
         LLVM_BUILDER_ASSERT(not is_commit());
         LLVM_BUILDER_ASSERT(not value.has_error());
-        m_cursor_impl.builder().CreateCondBr(value.native_value(),
+        m_cursor_impl.builder().CreateCondBr(value.M_eval(),
                                   then_dst.native_handle(),
                                   else_dst.native_handle());
         M_force_seal();

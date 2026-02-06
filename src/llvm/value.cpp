@@ -67,58 +67,106 @@ TagInfo TagInfo::set_union(const TagInfo& o) const {
 }
 
 //
-// ValuePtrInfo
+// ValueInfo::from_constant
 //
-class ValuePtrInfo {
-    friend class ValueInfo;
-private:
-    const TypeInfo m_orig_type;
-    llvm::Value* const m_raw_value = nullptr;
-    TypeInfo m_type;
-    std::array<ValueInfo, 2u> m_index_list;
-private:
-    explicit ValuePtrInfo() = default;
-    explicit ValuePtrInfo(const ValueInfo& v);
-public:
-    ~ValuePtrInfo() = default;
-public:
-    ValueInfo entry_ptr(uint32_t i) const;
-    ValueInfo entry_ptr(const ValueInfo &idx_v) const {
-        CODEGEN_FN
-        return M_array_entry_ptr(idx_v);
+template <>
+ValueInfo ValueInfo::from_constant<float32_t>(float32_t v) {
+    CODEGEN_FN
+    // TODO{vibhanshu}: having constant inplace have drawback that they can't be transported to any other place
+    //                  in next iteration, store only the raw c++ value in valueInfo and construct llvm::Value
+    //                  object later jsut before using them in M_eval()
+    if (CursorContextImpl::has_value()) {
+        TypeInfo l_type_info = TypeInfo::mk_float32();
+        ValueInfo l_ret{value_type_t::constant, l_type_info, std::vector<ValueInfo>{}};
+        llvm::Constant* l_value = llvm::ConstantFP::get(CursorContextImpl::ctx(), llvm::APFloat(v));
+        l_ret.m_const_value_cache = l_value;
+        return l_ret;
+    } else {
+        return ValueInfo::null();
     }
-    ValueInfo entry_ptr(const std::string &field) const;
-private:
-    ValueInfo M_array_entry_ptr(const ValueInfo &idx_v) const {
-        CODEGEN_FN
-        if (idx_v.has_error()) {
-            CODEGEN_PUSH_ERROR(VALUE_ERROR, "try to access an invalid value index");
-            return ValueInfo::null();
-        }
-        if (not m_type.is_array() and not m_type.is_vector()) {
-            CODEGEN_PUSH_ERROR(VALUE_ERROR, "This is not an array pointer");
-            return ValueInfo::null();
-        }
-        ValuePtrInfo l_res = *this;
-        l_res.m_type = m_type.base_type();
-        l_res.m_index_list[1] = idx_v;
-        return l_res.M_deref();
+}
+
+template <>
+ValueInfo ValueInfo::from_constant<float64_t>(float64_t v) {
+    CODEGEN_FN
+    if (CursorContextImpl::has_value()) {
+        TypeInfo l_type_info = TypeInfo::mk_float64();
+        ValueInfo l_ret{value_type_t::constant, l_type_info, std::vector<ValueInfo>{}};
+        llvm::Constant* l_value = llvm::ConstantFP::get(CursorContextImpl::ctx(), llvm::APFloat(v));
+        l_ret.m_const_value_cache = l_value;
+        return l_ret;
+    } else {
+        return ValueInfo::null();
     }
-    ValueInfo M_deref() const {
-        CODEGEN_FN
-        if (CursorContextImpl::has_value()) {
-            llvm::IRBuilder<>& l_cursor = CursorContextImpl::builder();
-            std::vector<llvm::Value*> l_raw_index_list;
-            for (const ValueInfo& v : m_index_list) {
-                l_raw_index_list.emplace_back(v.native_value());
-            }
-            llvm::Value* l_entry_idx = l_cursor.CreateGEP(m_orig_type.base_type().native_value(), m_raw_value, l_raw_index_list, "_index");
-            return ValueInfo{m_type.pointer_type(), TagInfo{}, l_entry_idx};
+}
+
+template <>
+ValueInfo ValueInfo::from_constant<bool>(bool v) {
+    CODEGEN_FN
+    if (CursorContextImpl::has_value()) {
+        TypeInfo l_type_info = TypeInfo::mk_bool();
+        ValueInfo l_ret{value_type_t::constant, l_type_info, std::vector<ValueInfo>{}};
+        llvm::Constant* l_value = nullptr;
+        if (v) {
+            l_value = llvm::ConstantInt::getTrue(CursorContextImpl::ctx());
         } else {
-            return ValueInfo::null();
+            l_value = llvm::ConstantInt::getFalse(CursorContextImpl::ctx());
         }
+        l_ret.m_const_value_cache = l_value;
+        return l_ret;
+    } else {
+        return ValueInfo::null();
     }
-};
+}
+
+#define FROM_CONSTANT_DEF(NUM_BIT)                                      \
+    template <>                                                         \
+    ValueInfo ValueInfo::from_constant<int##NUM_BIT##_t>(int##NUM_BIT##_t v) { \
+        CODEGEN_FN                                                      \
+        if (CursorContextImpl::has_value()) {                       \
+            TypeInfo l_type_info = TypeInfo::mk_int##NUM_BIT();     \
+            ValueInfo l_ret{value_type_t::constant, l_type_info, std::vector<ValueInfo>{}}; \
+            llvm::IntegerType* l_int_type = llvm::IntegerType::get(CursorContextImpl::ctx(), NUM_BIT##u); \
+            llvm::ConstantInt* l_value = llvm::ConstantInt::getSigned(l_int_type, v); \
+            l_ret.m_const_value_cache = l_value;                    \
+            return l_ret;                                           \
+        } else {                                                    \
+            return ValueInfo::null();                               \
+        }                                                           \
+    }                                                                   \
+/**/
+
+FROM_CONSTANT_DEF(8)
+FROM_CONSTANT_DEF(16)
+FROM_CONSTANT_DEF(32)
+FROM_CONSTANT_DEF(64)
+
+#undef FROM_CONSTANT_DEF
+
+#define FROM_UCONSTANT_DEF(NUM_BIT)                                     \
+    template <>                                                         \
+    ValueInfo ValueInfo::from_constant<uint##NUM_BIT##_t>(uint##NUM_BIT##_t v) { \
+        CODEGEN_FN                                                      \
+        if (CursorContextImpl::has_value()) {                       \
+            TypeInfo l_type_info = TypeInfo::mk_uint##NUM_BIT();    \
+            ValueInfo l_ret{value_type_t::constant, l_type_info, std::vector<ValueInfo>{}}; \
+            llvm::IntegerType* l_int_type = llvm::IntegerType::get(CursorContextImpl::ctx(), NUM_BIT##u); \
+            llvm::ConstantInt* l_value = llvm::ConstantInt::get(l_int_type, v, false); \
+            l_ret.m_const_value_cache = l_value;                        \
+            return l_ret;                                               \
+        } else {                                                    \
+            return ValueInfo::null();                               \
+        }                                                           \
+    }                                                                   \
+/**/
+
+FROM_UCONSTANT_DEF(8)
+FROM_UCONSTANT_DEF(16)
+FROM_UCONSTANT_DEF(32)
+FROM_UCONSTANT_DEF(64)
+
+#undef FROM_UCONSTANT_DEF
+
 
 //
 // ValueInfo
@@ -126,23 +174,18 @@ private:
 ValueInfo::ValueInfo() : BaseT{State::ERROR} {
 }
 
-ValueInfo::ValueInfo(const TypeInfo& type_info,
-                     const TagInfo& tag_info,
-                     llvm::Value* raw_value)
-    : BaseT{State::VALID}, m_type_info{type_info}, m_tag_info{tag_info}, m_raw_value{raw_value} {
-    CODEGEN_FN
-    if (m_raw_value == nullptr) {
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "ValueInfo got null object");
+ValueInfo::ValueInfo(value_type_t value_type,
+                     const TypeInfo& type_info,
+                     const std::vector<ValueInfo>& parent)
+    : BaseT{State::VALID}
+    , m_value_type{value_type}
+    , m_type_info{type_info}
+    , m_parent{parent} {
+    if (value_type == value_type_t::null) {
         M_mark_error();
         return;
     }
     if (m_type_info.has_error()) {
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "Can't define value with invalid type");
-        M_mark_error();
-        return;
-    }
-    if (not m_type_info.check_sync(*this)) {
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "Type:[" << m_type_info.short_name() << "], does not match value:[" << this->type().short_name() << "]");
         M_mark_error();
         return;
     }
@@ -168,27 +211,25 @@ bool ValueInfo::operator == (const ValueInfo& v2) const {
     if (has_error() and v2.has_error()) {
         return true;
     }
-    if (has_error() or v2.has_error()) {
-        return false;
-    }
-    return m_raw_value == v2.m_raw_value and m_type_info == v2.m_type_info;
+    // TODO{vibhanshu}: for simplicity 2 values are never equal,
+    //                  we will want to implement dedup in near future
+    return false;
 }
 
 ValueInfo ValueInfo::cast(TypeInfo target_type) const {
     CODEGEN_FN
-    if (has_error()) {
+    if (has_error() or target_type.has_error()) {
         return ValueInfo::null();
     }
-    return target_type.type_cast(*this);
+    ValueInfo r{value_type_t::typecast, target_type, std::vector<ValueInfo>{{*this}}};
+    r.add_tag(tag_info());
+    return r;
 }
 
 #define _BASE_BINARY_OP_IMPL_FN(FN_NAME, RETURN)                                                 \
     ValueInfo ValueInfo:: FN_NAME (ValueInfo v2) const {                                         \
     CODEGEN_FN                                                                                   \
-    if (has_error()) {                                                                           \
-        return ValueInfo::null();                                                                \
-    }                                                                                            \
-    if (v2.has_error()) {                                                                        \
+    if (has_error() or v2.has_error()) {                                                         \
         return ValueInfo::null();                                                                \
     }                                                                                            \
     if (not equals_type(v2)) {                                                                   \
@@ -198,11 +239,12 @@ ValueInfo ValueInfo::cast(TypeInfo target_type) const {
     }                                                                                            \
     TagInfo l_tag_info = tag_info();                                                             \
     l_tag_info = l_tag_info.set_union(v2.tag_info());                                            \
-    ValueInfo r = RETURN . FN_NAME (*this, v2);                                                  \
+    ValueInfo r{value_type_t::binary, RETURN, std::vector<ValueInfo>{{*this, v2}}};              \
+    r.m_binary_op = &TypeInfo::M_##FN_NAME;                                                      \
     r.add_tag(l_tag_info);                                                                       \
     return r;                                                                                    \
 }                                                                                                \
-/**/
+/**/                                                                                             \
 
 #define BINARY_OP_IMPL_FN(fn_name)     _BASE_BINARY_OP_IMPL_FN(fn_name, type())
 #define BINARY_CMP_OP_IMPL_FN(fn_name)  _BASE_BINARY_OP_IMPL_FN(fn_name, TypeInfo::mk_bool())
@@ -216,33 +258,24 @@ FOR_EACH_LOGICAL_OP(BINARY_CMP_OP_IMPL_FN)
 
 ValueInfo ValueInfo::cond(ValueInfo then_value, ValueInfo else_value) const {
     CODEGEN_FN
-    if (has_error()) {
-        return ValueInfo::null();
-    }
-    if (then_value.has_error() or else_value.has_error()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define cond operation over invalid values");
-        return ValueInfo::null();
-    }
-    if (CursorContextImpl::has_value()) {
-        if (not type().is_boolean()) {
-            M_mark_error();
-            CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define cond operation for non boolean type");
-            return ValueInfo::null();
-        }
-        if (not then_value.equals_type(else_value)) {
-            M_mark_error();
-            CODEGEN_PUSH_ERROR(VALUE_ERROR, "then and else value not of same type");
-            return ValueInfo::null();
-        }
-        TagInfo l_tag_info = tag_info().set_union(then_value.tag_info()).set_union(else_value.tag_info());
-        llvm::IRBuilder<>& l_cursor = CursorContextImpl::builder();
-        llvm::Value* l_entry = l_cursor.CreateSelect(m_raw_value, then_value.m_raw_value, else_value.m_raw_value, "");
-        return ValueInfo{then_value.type(), l_tag_info, l_entry};
-    } else {
+    if (has_error() or then_value.has_error() or else_value.has_error()) {
         M_mark_error();
         return ValueInfo::null();
     }
+    if (not type().is_boolean()) {
+        M_mark_error();
+        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define cond operation for non boolean type");
+        return ValueInfo::null();
+    }
+    if (not then_value.equals_type(else_value)) {
+        M_mark_error();
+        CODEGEN_PUSH_ERROR(VALUE_ERROR, "then and else value not of same type");
+        return ValueInfo::null();
+    }
+    TagInfo l_tag_info = tag_info().set_union(then_value.tag_info()).set_union(else_value.tag_info());
+    ValueInfo v{value_type_t::conditional, then_value.type(), std::vector<ValueInfo>{{*this, then_value, else_value}}};
+    v.add_tag(l_tag_info);
+    return v;
 }
 
 void ValueInfo::push(std::string_view name) const {
@@ -262,18 +295,12 @@ ValueInfo ValueInfo::load() const {
     if (has_error()) {
         return ValueInfo::null();
     }
-    if (CursorContextImpl::has_value()) {
-        if (not this->type().is_pointer()) {
-            M_mark_error();
-            CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define load underlying operation for non pointer type");
-            return ValueInfo::null();
-        }
-        llvm::Value* l_load_value = CursorContextImpl::builder().CreateLoad(type().base_type().native_value(), m_raw_value, "");
-        return ValueInfo{type().base_type(), m_tag_info, l_load_value};
-    } else {
+    if (not this->type().is_pointer()) {
         M_mark_error();
+        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define load underlying operation for non pointer type");
         return ValueInfo::null();
     }
+    return ValueInfo{value_type_t::load, type().base_type(), std::vector<ValueInfo>{{*this}}};
 }
 
 ValueInfo ValueInfo::entry(uint32_t i) const {
@@ -286,17 +313,25 @@ ValueInfo ValueInfo::entry(uint32_t i) const {
         CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define array-entry operation for non-pointer type");
         return ValueInfo::null();
     }
-    if (not type().base_type().is_array()) {
+    const TypeInfo& base_type = type().base_type();
+    if (not base_type.is_array()) {
         M_mark_error();
         CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define array-entry operation for non-array pointer type");
         return ValueInfo::null();
     }
-    return ValuePtrInfo{*this}.entry_ptr(i);
+    if (i >= base_type.num_elements()) {
+        M_mark_error();
+        CODEGEN_PUSH_ERROR(VALUE_ERROR, "Array is of size: " << base_type.num_elements() << ", can't access element:" << i);
+        return ValueInfo::null();
+    }
+    ValueInfo v{value_type_t::inner_entry, base_type.base_type().pointer_type(), std::vector<ValueInfo>{{*this, ValueInfo::from_constant(i)}}};
+    v.m_parent_ptr_type = base_type;
+    return v;
 }
 
 ValueInfo ValueInfo::entry(const ValueInfo& i) const {
     CODEGEN_FN
-    if (has_error()) {
+    if (has_error() or i.has_error()) {
         return ValueInfo::null();
     }
     if (not type().is_pointer()) {
@@ -304,16 +339,16 @@ ValueInfo ValueInfo::entry(const ValueInfo& i) const {
         CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define array-entry operation for non-pointer type");
         return ValueInfo::null();
     }
-    if (i.has_error()) {
-        M_mark_error();
-        return ValueInfo::null();
-    }
-    if (not type().base_type().is_array()) {
+    const TypeInfo& base_type = type().base_type();
+    if (not base_type.is_array()) {
         M_mark_error();
         CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define array-entry operation for non-array pointer type");
         return ValueInfo::null();
     }
-    return ValuePtrInfo{*this}.entry_ptr(i);
+    // TODO{vibhanshu}: check if i is of type integer
+    ValueInfo v{value_type_t::inner_entry, base_type.base_type().pointer_type(), std::vector<ValueInfo>{{*this, i}}};
+    v.m_parent_ptr_type = base_type;
+    return v;
 }
 
 ValueInfo ValueInfo::field(const std::string& s) const {
@@ -331,12 +366,17 @@ ValueInfo ValueInfo::field(const std::string& s) const {
         CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define struct-field access operation for emptry field name");
         return ValueInfo::null();
     }
-    if (not type().base_type().is_struct()) {
+    const TypeInfo& base_type = type().base_type();
+    if (not base_type.is_struct()) {
         M_mark_error();
         CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define struct-field access operation for non-struct pointer type");
         return ValueInfo::null();
     }
-    return ValuePtrInfo{*this}.entry_ptr(s);
+    TypeInfo::field_entry_t field_entry = base_type[s];
+    ValueInfo tgt_idx = ValueInfo::from_constant((int32_t)field_entry.idx());
+    ValueInfo v{value_type_t::inner_entry, field_entry.type().pointer_type(), std::vector<ValueInfo>{{*this, tgt_idx}}};
+    v.m_parent_ptr_type = base_type;
+    return v;
 }
 
 
@@ -348,7 +388,14 @@ ValueInfo ValueInfo::load_vector_entry(const ValueInfo& idx_v) const {
     if (idx_v.has_error()) {
         return ValueInfo::null();
     }
-    return M_load_vector_entry(idx_v.native_value());
+    if (not type().is_vector()) {
+        M_mark_error();
+        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define vector entry access operation for non-vector type");
+        return ValueInfo::null();
+    }
+    ValueInfo v{value_type_t::load_vector_entry, type().base_type(), std::vector<ValueInfo>{{*this, idx_v}}};
+    v.add_tag(tag_info());
+    return v;
 }
 
 ValueInfo ValueInfo::store_vector_entry(const ValueInfo& idx_v, ValueInfo value) const {
@@ -359,56 +406,7 @@ ValueInfo ValueInfo::store_vector_entry(const ValueInfo& idx_v, ValueInfo value)
     if (idx_v.has_error()) {
         return ValueInfo::null();
     }
-    return M_store_vector_entry(idx_v.native_value(), value);
-}
-
-ValueInfo ValueInfo::M_load_vector_entry(llvm::Value* idx_value) const {
-    CODEGEN_FN
-    if (has_error()) {
-        return ValueInfo::null();
-    }
-    if (idx_value == nullptr) {
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't load value from invalid location");
-        return ValueInfo::null();
-    }
-    if (not type().is_vector()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define vector entry access operation for non-vector type");
-        return ValueInfo::null();
-    }
-    if (CursorContextImpl::has_value()) {
-        llvm::IRBuilder<>& l_cursor = CursorContextImpl::builder();
-        llvm::Value* l_entry = l_cursor.CreateExtractElement(m_raw_value, idx_value, "");
-        return ValueInfo{type().base_type(), m_tag_info, l_entry};
-    } else {
-        M_mark_error();
-        return ValueInfo::null();
-    }
-}
-
-ValueInfo ValueInfo::M_store_vector_entry(llvm::Value* idx_value, const ValueInfo& value) const {
-    CODEGEN_FN
-    if (idx_value == nullptr) {
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't store value to invalid location");
-        return ValueInfo::null();
-    }
-    if (value.has_error()) {
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't store invalid value");
-        return ValueInfo::null();
-    }
-    if (not type().is_vector()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define vector entry access operation for non-vector type");
-        return ValueInfo::null();
-    }
-    if (CursorContextImpl::has_value()) {
-        llvm::IRBuilder<>& l_cursor = CursorContextImpl::builder();
-        llvm::Value* l_ret = l_cursor.CreateInsertElement(m_raw_value, value.native_value(), idx_value, "");
-        return ValueInfo{type(), m_tag_info, l_ret};
-    } else {
-        M_mark_error();
-        return ValueInfo::null();
-    }
+    return ValueInfo{value_type_t::store_vector_entry, type(), std::vector<ValueInfo>{{*this, idx_v, value}}};
 }
 
 void ValueInfo::store(const ValueInfo& value) const {
@@ -420,120 +418,34 @@ void ValueInfo::store(const ValueInfo& value) const {
         CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't store invalid value");
         return;
     }
-    if (CursorContextImpl::has_value()) {
-        if (not type().is_pointer()) {
-            M_mark_error();
-            CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define store operation for non pointer type");
-            return;
-        }
-        if (not type().base_type().is_scalar() and not type().base_type().is_vector()) {
-            M_mark_error();
-            CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define store operation for non scalar(bool, int, float) and non-vector object");
-            return;
-        }
-        if (type().base_type() != value.type()) {
-            M_mark_error();
-            CODEGEN_PUSH_ERROR(VALUE_ERROR, "type mis-match between pointer and value type: expected:" << type().base_type().short_name() << " found:" << value.type().short_name());
-            return;
-        }
-        CursorContextImpl::builder().CreateStore(value.m_raw_value, m_raw_value);
-    } else {
+    if (not type().is_pointer()) {
         M_mark_error();
+        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define store operation for non pointer type");
+        return;
     }
+    if (not type().base_type().is_scalar() and not type().base_type().is_vector()) {
+        M_mark_error();
+        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define store operation for non scalar(bool, int, float) and non-vector object");
+        return;
+    }
+    if (type().base_type() != value.type()) {
+        M_mark_error();
+        CODEGEN_PUSH_ERROR(VALUE_ERROR, "type mis-match between pointer and value type: expected:" << type().base_type().short_name() << " found:" << value.type().short_name());
+        return;
+    }
+    // TODO{vibhanshu}: review if store should be called inpace, or we are allowed to delay execution
+    ValueInfo{value_type_t::store, type(), std::vector<ValueInfo>{{*this, value}}}.M_eval();
 }
 
 auto ValueInfo::null() -> ValueInfo {
-    // static ValueInfo s_null_value{};
-    // TODO{vibhanshu}: is using null pointer the right thing to do?
     static ValueInfo s_null_value{};
     LLVM_BUILDER_ASSERT(s_null_value.has_error());
     return s_null_value;
 }
 
-template <>
-ValueInfo ValueInfo::from_constant<float32_t>(float32_t v) {
-    CODEGEN_FN
-    if (CursorContextImpl::has_value()) {
-        TypeInfo l_type_info = TypeInfo::mk_float32();
-        llvm::Constant* l_value = llvm::ConstantFP::get(CursorContextImpl::ctx(), llvm::APFloat(v));
-        return ValueInfo{l_type_info, TagInfo{}, l_value};
-    } else {
-        return ValueInfo::null();
-    }
+auto ValueInfo::from_context(const TypeInfo& ctx_type) -> ValueInfo {
+    return ValueInfo{value_type_t::context, ctx_type, std::vector<ValueInfo>{}};
 }
-
-template <>
-ValueInfo ValueInfo::from_constant<float64_t>(float64_t v) {
-    CODEGEN_FN
-    if (CursorContextImpl::has_value()) {
-        TypeInfo l_type_info = TypeInfo::mk_float64();
-        llvm::Constant* l_value = llvm::ConstantFP::get(CursorContextImpl::ctx(), llvm::APFloat(v));
-        return ValueInfo{l_type_info, TagInfo{}, l_value};
-    } else {
-        return ValueInfo::null();
-    }
-}
-
-template <>
-ValueInfo ValueInfo::from_constant<bool>(bool v) {
-    CODEGEN_FN
-    if (CursorContextImpl::has_value()) {
-        TypeInfo l_type_info = TypeInfo::mk_bool();
-        llvm::Constant* l_value = nullptr;
-        if (v) {
-            l_value = llvm::ConstantInt::getTrue(CursorContextImpl::ctx());
-        } else {
-            l_value = llvm::ConstantInt::getFalse(CursorContextImpl::ctx());
-        }
-        return ValueInfo{l_type_info, TagInfo{}, l_value};
-    } else {
-        return ValueInfo::null();
-    }
-}
-
-#define FROM_CONSTANT_DEF(NUM_BIT)                                                                                           \
-    template <>                                                                                                              \
-    ValueInfo ValueInfo::from_constant<int##NUM_BIT##_t>(int##NUM_BIT##_t v) {                                               \
-        CODEGEN_FN                                                                                                           \
-        if (CursorContextImpl::has_value()) {                                                                                \
-            TypeInfo l_type_info = TypeInfo::mk_int##NUM_BIT();                                                              \
-            llvm::IntegerType* l_int_type = llvm::IntegerType::get(CursorContextImpl::ctx(), NUM_BIT##u);                    \
-            llvm::ConstantInt* l_value = llvm::ConstantInt::getSigned(l_int_type, v);                                        \
-            return ValueInfo{l_type_info, TagInfo{}, l_value};                                                               \
-        } else {                                                                                                             \
-            return ValueInfo::null();                                                                                        \
-        }                                                                                                                    \
-    }                                                                                                                        \
-/**/
-
-FROM_CONSTANT_DEF(8)
-FROM_CONSTANT_DEF(16)
-FROM_CONSTANT_DEF(32)
-FROM_CONSTANT_DEF(64)
-
-#undef FROM_CONSTANT_DEF
-
-#define FROM_UCONSTANT_DEF(NUM_BIT)                                                                                          \
-    template <>                                                                                                              \
-    ValueInfo ValueInfo::from_constant<uint##NUM_BIT##_t>(uint##NUM_BIT##_t v) {                                             \
-        CODEGEN_FN                                                                                                           \
-        if (CursorContextImpl::has_value()) {                                                                                \
-            TypeInfo l_type_info = TypeInfo::mk_uint##NUM_BIT();                                                             \
-            llvm::IntegerType* l_int_type = llvm::IntegerType::get(CursorContextImpl::ctx(), NUM_BIT##u);                    \
-            llvm::ConstantInt* l_value = llvm::ConstantInt::get(l_int_type, v, false);                                       \
-            return ValueInfo{l_type_info, TagInfo{}, l_value};                                                               \
-        } else {                                                                                                             \
-            return ValueInfo::null();                                                                                        \
-        }                                                                                                                    \
-    }                                                                                                                        \
-/**/
-
-FROM_UCONSTANT_DEF(8)
-FROM_UCONSTANT_DEF(16)
-FROM_UCONSTANT_DEF(32)
-FROM_UCONSTANT_DEF(64)
-
-#undef FROM_UCONSTANT_DEF
 
 [[nodiscard]]
 ValueInfo ValueInfo::load_vector_entry(uint32_t i) const {
@@ -541,7 +453,19 @@ ValueInfo ValueInfo::load_vector_entry(uint32_t i) const {
     if (has_error()) {
         return ValueInfo::null();
     }
-    return M_load_vector_entry(ValueInfo::from_constant((int32_t)i).native_value());
+    if (not type().is_vector()) {
+        M_mark_error();
+        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define vector entry access operation for non-vector type");
+        return ValueInfo::null();
+    }
+    if (i > type().num_elements()) {
+        M_mark_error();
+        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't access entry:" << i << ", total elements:" << type().num_elements());
+        return ValueInfo::null();
+    }
+    ValueInfo v{value_type_t::load_vector_entry, type().base_type(), std::vector<ValueInfo>{{*this, ValueInfo::from_constant<int32_t>(i)}}};
+    v.add_tag(tag_info());
+    return v;
 }
 
 ValueInfo ValueInfo::store_vector_entry(uint32_t i, ValueInfo value) const {
@@ -549,78 +473,54 @@ ValueInfo ValueInfo::store_vector_entry(uint32_t i, ValueInfo value) const {
     if (has_error()) {
         return ValueInfo::null();
     }
-    return M_store_vector_entry(ValueInfo::from_constant((int32_t)i).native_value(), value);
+    if (not type().is_vector()) {
+        M_mark_error();
+        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define vector entry access operation for non-vector type");
+        return ValueInfo::null();
+    }
+    if (i > type().num_elements()) {
+        M_mark_error();
+        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't access entry:" << i << ", total elements:" << type().num_elements());
+        return ValueInfo::null();
+    }
+    ValueInfo v{value_type_t::store_vector_entry, type(), std::vector<ValueInfo>{{*this, ValueInfo::from_constant<int32_t>(i), value}}};
+    v.add_tag(tag_info());
+    return v;
 }
 
 ValueInfo ValueInfo::mk_pointer(TypeInfo type) {
     CODEGEN_FN
-    if (type.has_error()) {
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define pointer for invalid type");
+    if (type.has_error() or type.has_error()) {
         return ValueInfo::null();
     }
+    ValueInfo r{value_type_t::mk_ptr, type.pointer_type(), std::vector<ValueInfo>{}};
     if (CursorContextImpl::has_value()) {
         llvm::AllocaInst* l_inst = CursorContextImpl::builder().CreateAlloca(type.native_value(), nullptr, "");
         LLVM_BUILDER_ASSERT(l_inst != nullptr);
         [[maybe_unused]] llvm::PointerType* ptr_type = l_inst->getType();
         LLVM_BUILDER_ASSERT(ptr_type != nullptr);
         LLVM_BUILDER_ASSERT(ptr_type->isLoadableOrStorableType(type.native_value()));
-        return ValueInfo{type.pointer_type(), TagInfo{}, l_inst};
-    } else {
-        return ValueInfo::null();
+        r.m_const_value_cache = l_inst;
     }
-}
-
-ValueInfo ValueInfo::mk_null_pointer() {
-    CODEGEN_FN
-    TypeInfo l_ptr = TypeInfo::mk_void().pointer_type();
-    LLVM_BUILDER_ASSERT(llvm::PointerType::classof(l_ptr.native_value()));
-    llvm::PointerType* l_ptr_type = (llvm::PointerType*)l_ptr.native_value();
-    llvm::Value* l_null_ptr = llvm::ConstantPointerNull::get(l_ptr_type);
-    return ValueInfo{l_ptr, TagInfo{}, l_null_ptr};
+    return r;
 }
 
 ValueInfo ValueInfo::mk_array(TypeInfo type) {
     CODEGEN_FN
     if (type.has_error()) {
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define array for invalid type");
         return ValueInfo::null();
     }
-    if (CursorContextImpl::has_value()) {
-        if (not type.is_array()) {
-            CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type not a array");
-            return ValueInfo::null();
-        }
-        llvm::AllocaInst* l_inst = CursorContextImpl::builder().CreateAlloca(type.native_value(), nullptr, "");
-        LLVM_BUILDER_ASSERT(l_inst != nullptr);
-        [[maybe_unused]] llvm::PointerType* ptr_type = l_inst->getType();
-        LLVM_BUILDER_ASSERT(ptr_type != nullptr);
-        LLVM_BUILDER_ASSERT(ptr_type->isLoadableOrStorableType(type.native_value()));
-        return ValueInfo{type.pointer_type(), TagInfo{}, l_inst};
-    } else {
-        return ValueInfo::null();
-    }
+    LLVM_BUILDER_ABORT("unimplemented");
+    return ValueInfo::null();
 }
 
 ValueInfo ValueInfo::mk_struct(TypeInfo type) {
     CODEGEN_FN
     if (type.has_error()) {
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define struct for invalid type");
         return ValueInfo::null();
     }
-    if (CursorContextImpl::has_value()) {
-        if (not type.is_struct()) {
-            CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type not a struct");
-            return ValueInfo::null();
-        }
-        llvm::AllocaInst* l_inst = CursorContextImpl::builder().CreateAlloca(type.native_value(), nullptr, "");
-        LLVM_BUILDER_ASSERT(l_inst != nullptr);
-        [[maybe_unused]] llvm::PointerType* ptr_type = l_inst->getType();
-        LLVM_BUILDER_ASSERT(ptr_type != nullptr);
-        LLVM_BUILDER_ASSERT(ptr_type->isLoadableOrStorableType(type.native_value()));
-        return ValueInfo{type.pointer_type(), TagInfo{}, l_inst};
-    } else {
-        return ValueInfo::null();
-    }
+    LLVM_BUILDER_ABORT("unimplemented");
+    return ValueInfo::null();
 }
 
 ValueInfo ValueInfo::calc_struct_size(TypeInfo type) {
@@ -669,41 +569,155 @@ ValueInfo ValueInfo::calc_struct_field_offset(TypeInfo type, ValueInfo idx) {
     }
 }
 
-//
-// ValuePtrInfo
-//
-ValuePtrInfo::ValuePtrInfo(const ValueInfo& v)
-    : m_orig_type{v.type()}, m_raw_value{v.native_value()} {
-    LLVM_BUILDER_ASSERT(not v.has_error());
-    LLVM_BUILDER_ASSERT(m_raw_value != nullptr);
-    LLVM_BUILDER_ASSERT(m_orig_type.is_pointer());
-    m_type = m_orig_type.base_type();
-    m_index_list[0] = ValueInfo::from_constant(0);
-}
-
-ValueInfo ValuePtrInfo::entry_ptr(uint32_t i) const {
+llvm::Value* ValueInfo::M_eval() {
     CODEGEN_FN
-    if (i >= m_type.num_elements()) {
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "Array is of size: " << m_type.num_elements() << ", can't access element:" << i);
+    switch (m_value_type) {
+        case value_type_t::null: {
+            LLVM_BUILDER_ASSERT(m_parent.size() == 0);
+            LLVM_BUILDER_ASSERT(m_const_value_cache == nullptr);
+            return nullptr;
+            break;
+        }
+        case value_type_t::constant: {
+            LLVM_BUILDER_ASSERT(m_parent.size() == 0);
+            LLVM_BUILDER_ASSERT(m_const_value_cache != nullptr);
+            return m_const_value_cache;
+            break;
+        }
+        case value_type_t::context: {
+            LLVM_BUILDER_ASSERT(m_parent.size() == 0);
+            if (CursorContextImpl::has_value()) {
+                Function fn = CodeSectionContext::current_function();
+                return meta::remove_const(fn.context()).M_eval();
+            } else {
+                return nullptr;
+            }
+            break;
+        }
+        case value_type_t::binary: {
+            LLVM_BUILDER_ASSERT(m_parent.size() == 2);
+            LLVM_BUILDER_ASSERT(m_binary_op != nullptr);
+            llvm::Value* l_arg1 = m_parent[0].M_eval();
+            llvm::Value* l_arg2 = m_parent[1].M_eval();
+            if (l_arg1 == nullptr or l_arg2 == nullptr) {
+                return nullptr;
+            } else {
+                LLVM_BUILDER_ASSERT(l_arg1 != nullptr);
+                LLVM_BUILDER_ASSERT(l_arg2 != nullptr);
+                return (m_type_info.*m_binary_op)(l_arg1, l_arg2);
+            }
+            break;
+        }
+        case value_type_t::conditional: {
+            LLVM_BUILDER_ASSERT(m_parent.size() == 3);
+            llvm::Value* l_cond = m_parent[0].M_eval();
+            llvm::Value* l_arg1 = m_parent[1].M_eval();
+            llvm::Value* l_arg2 = m_parent[2].M_eval();
+            if (l_cond == nullptr or l_arg1 == nullptr or l_arg2 == nullptr) {
+                return nullptr;
+            } else {
+                LLVM_BUILDER_ASSERT(l_cond != nullptr);
+                LLVM_BUILDER_ASSERT(l_arg1 != nullptr);
+                LLVM_BUILDER_ASSERT(l_arg2 != nullptr);
+                if (CursorContextImpl::has_value()) {
+                    llvm::IRBuilder<>& l_cursor = CursorContextImpl::builder();
+                    llvm::Value* l_entry = l_cursor.CreateSelect(l_cond, l_arg1, l_arg2, "");
+                    return l_entry;
+                } else {
+                    return nullptr;
+                }
+            }
+            break;
+        }
+        case value_type_t::typecast: {
+            LLVM_BUILDER_ASSERT(m_parent.size() == 1);
+            llvm::Value* l_src = m_parent[0].M_eval();
+            if (l_src == nullptr) {
+                return nullptr;
+            } else {
+                return m_type_info.M_type_cast(m_parent[0].type(), l_src);
+            }
+            break;
+        }
+        case value_type_t::inner_entry: {
+            LLVM_BUILDER_ASSERT(m_parent.size() == 2);
+            LLVM_BUILDER_ASSERT(not m_parent_ptr_type.has_error());
+            std::array<llvm::Value*, 2u> index_list;
+            index_list[0] = ValueInfo::from_constant(0).M_eval();
+            index_list[1] = m_parent[1].M_eval();
+            llvm::Value* l_src = m_parent[0].M_eval();
+            if (CursorContextImpl::has_value() and l_src != nullptr) {
+                llvm::IRBuilder<>& l_cursor = CursorContextImpl::builder();
+                llvm::Value* l_entry_idx = l_cursor.CreateGEP(m_parent_ptr_type.native_value(), l_src, index_list, "_index");
+                return l_entry_idx;
+            } else {
+                return nullptr;
+            }
+            break;
+        }
+        case value_type_t::load: {
+            LLVM_BUILDER_ASSERT(m_parent.size() == 1);
+            llvm::Value* l_src = m_parent[0].M_eval();
+            if (CursorContextImpl::has_value() and l_src != nullptr) {
+                return CursorContextImpl::builder().CreateLoad(type().native_value(), l_src, "");
+            } else {
+                return nullptr;
+            }
+            break;
+        }
+        case value_type_t::store: {
+            LLVM_BUILDER_ASSERT(m_parent.size() == 2);
+            llvm::Value* l_dst = m_parent[0].M_eval();
+            llvm::Value* l_src = m_parent[1].M_eval();
+            if (CursorContextImpl::has_value()) {
+                CursorContextImpl::builder().CreateStore(l_src, l_dst);
+                return l_src;
+            } else {
+                CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't store value outside cursor context");
+                return nullptr;
+            }
+            break;
+        }
+        case value_type_t::load_vector_entry: {
+            LLVM_BUILDER_ASSERT(m_parent.size() == 2);
+            llvm::Value* l_vec = m_parent[0].M_eval();
+            llvm::Value* l_idx = m_parent[1].M_eval();
+            if (CursorContextImpl::has_value()) {
+                llvm::IRBuilder<>& l_cursor = CursorContextImpl::builder();
+                return l_cursor.CreateExtractElement(l_vec, l_idx, "");
+            } else {
+                return nullptr;
+            }
+            break;
+        }
+        case value_type_t::store_vector_entry: {
+            LLVM_BUILDER_ASSERT(m_parent.size() == 3);
+            llvm::Value* l_vec = m_parent[0].M_eval();
+            llvm::Value* l_idx = m_parent[1].M_eval();
+            llvm::Value* l_v = m_parent[2].M_eval();
+            if (CursorContextImpl::has_value()) {
+                llvm::IRBuilder<>& l_cursor = CursorContextImpl::builder();
+                return l_cursor.CreateInsertElement(l_vec, l_v, l_idx, "");
+            } else {
+                return nullptr;
+            }
+            break;
+        }
+        case value_type_t::mk_ptr: {
+            LLVM_BUILDER_ASSERT(m_parent.size() == 0);
+            LLVM_BUILDER_ASSERT(m_const_value_cache != nullptr);
+            return m_const_value_cache;
+            break;
+        }
+        case value_type_t::fn_call: {
+            LLVM_BUILDER_ASSERT(m_parent.size() == 0);
+            LLVM_BUILDER_ASSERT(m_const_value_cache != nullptr);
+            return m_const_value_cache;
+            break;
+        }
     }
-    return M_array_entry_ptr(ValueInfo::from_constant(i));
-}
-
-ValueInfo ValuePtrInfo::entry_ptr(const std::string &field) const {
-    CODEGEN_FN
-    if (field.empty()) {
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't access an empty name field");
-        return ValueInfo::null();
-    }
-    if (not m_type.is_struct()) {
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "This is not a struct");
-        return ValueInfo::null();
-    }
-    TypeInfo::field_entry_t field_entry = m_type[field];
-    ValuePtrInfo l_res = *this;
-    l_res.m_type = field_entry.type();
-    l_res.m_index_list[1] = ValueInfo::from_constant((int32_t)field_entry.idx());
-    return l_res.M_deref();
+    LLVM_BUILDER_ABORT("value_type not handled");
+    return nullptr;
 }
 
 LLVM_BUILDER_NS_END

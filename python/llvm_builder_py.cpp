@@ -114,20 +114,6 @@ void bind_types(nb::module_& m) {
         // Field access
         .def("__getitem__", nb::overload_cast<uint32_t>(&TypeInfo::operator[], nb::const_), "i"_a)
         .def("__getitem__", nb::overload_cast<const std::string&>(&TypeInfo::operator[], nb::const_), "name"_a)
-        // Type operations
-        .def("type_cast", &TypeInfo::type_cast, "src_value"_a)
-        // Binary operations
-        .def("add", &TypeInfo::add, "lhs"_a, "rhs"_a)
-        .def("sub", &TypeInfo::sub, "lhs"_a, "rhs"_a)
-        .def("mult", &TypeInfo::mult, "lhs"_a, "rhs"_a)
-        .def("div", &TypeInfo::div, "lhs"_a, "rhs"_a)
-        .def("remainder", &TypeInfo::remainder, "lhs"_a, "rhs"_a)
-        .def("less_than", &TypeInfo::less_than, "lhs"_a, "rhs"_a)
-        .def("less_than_equal", &TypeInfo::less_than_equal, "lhs"_a, "rhs"_a)
-        .def("greater_than", &TypeInfo::greater_than, "lhs"_a, "rhs"_a)
-        .def("greater_than_equal", &TypeInfo::greater_than_equal, "lhs"_a, "rhs"_a)
-        .def("equal", &TypeInfo::equal, "lhs"_a, "rhs"_a)
-        .def("not_equal", &TypeInfo::not_equal, "lhs"_a, "rhs"_a)
         // Comparison
         .def("__eq__", &TypeInfo::operator==)
         // Static factory methods
@@ -195,7 +181,6 @@ void bind_values(nb::module_& m) {
     nb::class_<ValueInfo>(m, "ValueInfo")
         .def(nb::init<>())
         // Queries
-        .def("is_valid", &ValueInfo::is_valid)
         .def("type", &ValueInfo::type)
         .def("tag_info", &ValueInfo::tag_info)
         .def("has_tag", &ValueInfo::has_tag, "v"_a)
@@ -246,7 +231,6 @@ void bind_values(nb::module_& m) {
         // Static factories
         .def_static("null", &ValueInfo::null)
         .def_static("mk_pointer", &ValueInfo::mk_pointer, "type"_a)
-        .def_static("mk_null_pointer", &ValueInfo::mk_null_pointer)
         .def_static("mk_array", &ValueInfo::mk_array, "type"_a)
         .def_static("mk_struct", &ValueInfo::mk_struct, "type"_a)
         .def_static("calc_struct_size", &ValueInfo::calc_struct_size, "type"_a)
@@ -276,7 +260,6 @@ void bind_functions(nb::module_& m) {
         .def(nb::init<const TypeInfo&>(), "type"_a)
         .def("type", &FnContext::type)
         .def("value", &FnContext::value)
-        .def("check_type", &FnContext::check_type, "value"_a)
         .def("is_valid", &FnContext::is_valid)
         .def("is_init", &FnContext::is_init)
         .def("__eq__", &FnContext::operator==)
