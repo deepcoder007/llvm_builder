@@ -190,7 +190,7 @@ public:
         }
         llvm::CallInst* l_inst = CursorContextImpl::builder().CreateCall(l_fn_to_call, l_raw_arg_list);
         ValueInfo l_res{ValueInfo::value_type_t::fn_call, TypeInfo::mk_int32(), std::vector<ValueInfo>{}};
-        l_res.m_const_value_cache = l_inst;
+        l_res.M_set_const_value_cache(l_inst);
         return l_res;
     }
     void declare_fn(const Module& src_mod, const Module& dst_mod) const {

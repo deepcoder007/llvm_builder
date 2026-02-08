@@ -209,6 +209,8 @@ private:
     bool m_is_open = false;
     bool m_is_commit  = false;
     bool m_is_sealed = false;
+    std::unordered_set<ValueInfo, ValueHash> m_interned_values;
+    std::unordered_map<ValueInfo, llvm::Value*, ValueHash> m_eval_values;
 public:
     explicit Impl(const std::string& name, const Function& fn)
         : m_name{name}, m_cursor_impl{Cursor::Context::value()}, m_fn{fn}
@@ -288,6 +290,23 @@ public:
                                   else_dst.native_handle());
         M_force_seal();
     }
+    ValueInfo intern(const ValueInfo& v) {
+        auto it = m_interned_values.emplace(v);
+        return *it.first;
+    }
+    void add_eval(const ValueInfo& key, llvm::Value* value) {
+        if (value != nullptr) {
+            m_eval_values.try_emplace(key, value);
+        }
+    }
+    llvm::Value* get_eval(const ValueInfo& key) const {
+        auto it = m_eval_values.find(key);
+        if (it != m_eval_values.end()) {
+            return it->second;
+        } else {
+            return nullptr;
+        }
+    }
     basic_block_t* native_handle() const {
         return m_basic_block;
     }
@@ -340,7 +359,6 @@ bool CodeSection::is_open() const {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->is_open();
     } else {
-        CODEGEN_PUSH_ERROR(CODE_SECTION, "CodeSection already deleted");
         M_mark_error();
         return false;
     }
@@ -354,7 +372,6 @@ bool CodeSection::is_commit() const {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->is_commit();
     } else {
-        CODEGEN_PUSH_ERROR(CODE_SECTION, "CodeSection already deleted");
         M_mark_error();
         return false;
     }
@@ -389,7 +406,6 @@ void CodeSection::enter() {
             var_mgr.set("context", l_value);
         }
     } else {
-        CODEGEN_PUSH_ERROR(CODE_SECTION, "CodeSection already deleted");
         M_mark_error();
         return;
     }
@@ -419,7 +435,6 @@ void CodeSection::M_exit() {
         ptr->exit();
         CodeSectionContext::M_pop_section(*this);
     } else {
-        CODEGEN_PUSH_ERROR(CODE_SECTION, "CodeSection already deleted");
         M_mark_error();
         return;
     }
@@ -433,7 +448,6 @@ auto CodeSection::detach() -> CodeSection {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return CodeSectionContext::M_detach(*this);
     } else {
-        CODEGEN_PUSH_ERROR(CODE_SECTION, "CodeSection already deleted");
         M_mark_error();
         return CodeSection::null();
     }
@@ -447,7 +461,6 @@ bool CodeSection::is_sealed() const {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->is_sealed();
     } else {
-        CODEGEN_PUSH_ERROR(CODE_SECTION, "CodeSection already deleted");
         M_mark_error();
         return false;
     }
@@ -461,7 +474,6 @@ Function CodeSection::function() {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->function();
     } else {
-        CODEGEN_PUSH_ERROR(CODE_SECTION, "CodeSection already deleted");
         M_mark_error();
         return Function::null();
     }
@@ -498,7 +510,6 @@ void CodeSection::M_set_return_value(ValueInfo value) {
         ptr->set_return_value(value);
         M_exit();
     } else {
-        CODEGEN_PUSH_ERROR(CODE_SECTION, "CodeSection already deleted");
         M_mark_error();
         return;
     }
@@ -530,7 +541,6 @@ void CodeSection::jump_to_section(CodeSection dst) {
         ptr1->jump_to_section(*ptr2);
         M_exit();
     } else {
-        CODEGEN_PUSH_ERROR(CODE_SECTION, "CodeSection already deleted");
         M_mark_error();
         return;
     }
@@ -543,18 +553,8 @@ void CodeSection::conditional_jump(const ValueInfo &value,
     if (has_error()) {
         return;
     }
-    if (value.has_error()) {
-        CODEGEN_PUSH_ERROR(CODE_SECTION, "Can't jump based on invalid condition value");
-        M_mark_error();
-        return;
-    }
-    if (then_dst.has_error()) {
-        CODEGEN_PUSH_ERROR(CODE_SECTION, "Can't jump based on invalid then branch code");
-        M_mark_error();
-        return;
-    }
-    if (else_dst.has_error()) {
-        CODEGEN_PUSH_ERROR(CODE_SECTION, "Can't jump based on invalid else branch code");
+    if (value.has_error() or then_dst.has_error() or else_dst.has_error()) {
+        CODEGEN_PUSH_ERROR(CODE_SECTION, "Can't jump based on invalid condition or branches value");
         M_mark_error();
         return;
     }
@@ -575,9 +575,47 @@ void CodeSection::conditional_jump(const ValueInfo &value,
         ptr1->conditional_jump(value, *ptr2, *ptr3);
         M_exit();
     } else {
-        CODEGEN_PUSH_ERROR(CODE_SECTION, "CodeSection already deleted");
         M_mark_error();
         return;
+    }
+}
+
+ValueInfo CodeSection::intern(const ValueInfo& v) {
+    CODEGEN_FN
+    if (has_error()) {
+        return ValueInfo::null();
+    }
+    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
+        return ptr->intern(v);
+    } else {
+        M_mark_error();
+        return ValueInfo::null();
+    }
+}
+
+void CodeSection::add_eval(const ValueInfo& key, llvm::Value* value) {
+    CODEGEN_FN
+    if (has_error()) {
+        return;
+    }
+    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
+        ptr->add_eval(key, value);
+    } else {
+        M_mark_error();
+        return;
+    }
+}
+
+llvm::Value* CodeSection::get_eval(const ValueInfo& key) const {
+    CODEGEN_FN
+    if (has_error()) {
+        return nullptr;
+    }
+    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
+        return ptr->get_eval(key);
+    } else {
+        M_mark_error();
+        return nullptr;
     }
 }
 
@@ -589,7 +627,6 @@ llvm::BasicBlock* CodeSection::native_handle() const {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->native_handle();
     } else {
-        CODEGEN_PUSH_ERROR(CODE_SECTION, "CodeSection already deleted");
         M_mark_error();
         return nullptr;
     }

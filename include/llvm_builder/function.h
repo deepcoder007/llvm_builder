@@ -83,6 +83,9 @@ public:
     Function function();
     void jump_to_section(CodeSection dst);
     void conditional_jump(const ValueInfo& value, CodeSection then_dst, CodeSection else_dst);
+    ValueInfo intern(const ValueInfo& v);
+    void add_eval(const ValueInfo& key, llvm::Value* value);
+    llvm::Value* get_eval(const ValueInfo& key) const;
     llvm::BasicBlock* native_handle() const;
     bool operator == (const CodeSection& o) const;
     static CodeSection null();

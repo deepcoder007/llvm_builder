@@ -48,8 +48,12 @@ public:
 // TODO{vibhanshu}: cache M_eval() output per code-section to remove redundant computation
 class ValueInfo : public _BaseObject<ValueInfo> {
     using BaseT = _BaseObject<ValueInfo>;
+    using binary_op_fn_t = llvm::Value* (TypeInfo::*) (llvm::Value*, llvm::Value*) const;
     friend class CodeSection;
     friend class Function;
+    struct construct_const_t{};
+    struct construct_entry_t{};
+    struct construct_binary_op_t{};
 public:
     enum class value_type_t {
         null,
@@ -66,21 +70,17 @@ public:
         mk_ptr,
         fn_call,
     };
+    struct Impl;
 private:
-    value_type_t m_value_type = value_type_t::null;
-    TypeInfo m_type_info;
-    std::vector<ValueInfo> m_parent;
-    TagInfo m_tag_info;
-private:
-    // NOTE: variables to store eval evaluation info
-    using binary_op_fn_t = llvm::Value* (TypeInfo::*) (llvm::Value*, llvm::Value*) const;
-    llvm::Value* m_const_value_cache = nullptr;
-    binary_op_fn_t m_binary_op = nullptr;
-    TypeInfo m_parent_ptr_type;
+    std::shared_ptr<Impl> m_impl;
+    void M_set_const_value_cache(llvm::Value* v);
 private:
     explicit ValueInfo(value_type_t value_type,
                        const TypeInfo& type_info,
                        const std::vector<ValueInfo>& parent);
+    explicit ValueInfo(const TypeInfo& type_info, llvm::Value* v, construct_const_t);
+    explicit ValueInfo(const ValueInfo& parent, const TypeInfo& entry_type, const ValueInfo& entry_idx, construct_entry_t);
+    explicit ValueInfo(const TypeInfo& res_type, const ValueInfo& v1, const ValueInfo& v2, binary_op_fn_t fn, construct_binary_op_t);
 public:
     explicit ValueInfo();
     ~ValueInfo();
@@ -88,19 +88,15 @@ public:
     bool has_tag(std::string_view v) const;
     void add_tag(const std::string &v);
     void add_tag(const TagInfo &o);
-    const TypeInfo& type() const {
-        return m_type_info;
-    }
-    const TagInfo& tag_info() const {
-        return m_tag_info;
-    }
+    const TypeInfo& type() const;
+    const TagInfo& tag_info() const;
     [[nodiscard]]
     ValueInfo cast(TypeInfo target_type) const;
 #define MK_BINARY_FN(FN_NAME)                                              \
     [[nodiscard]]                                                          \
     ValueInfo FN_NAME(ValueInfo v2) const;                                 \
     /**/
-    FOR_EACH_BINARY_OP(MK_BINARY_FN) 
+    FOR_EACH_BINARY_OP(MK_BINARY_FN)
 #undef MK_BINARY_FN
     [[nodiscard]]
     ValueInfo cond(ValueInfo then_value, ValueInfo else_value) const;
@@ -143,12 +139,8 @@ public:
         return greater_than_equal(v2);
     }
 public:
-    bool equals_type(const ValueInfo& o) const {
-        return m_type_info == o.m_type_info;
-    }
-    bool equals_type(TypeInfo t) const {
-        return m_type_info == t;
-    }
+    bool equals_type(const ValueInfo& o) const;
+    bool equals_type(TypeInfo t) const;
     bool operator == (const ValueInfo& rhs) const;
 public:
     void store(const ValueInfo& value) const;
@@ -186,6 +178,14 @@ public:
     static ValueInfo calc_struct_field_offset(TypeInfo type, ValueInfo idx);
 private:
     llvm::Value* M_eval();
+    void M_self_intern();
+};
+
+struct ValueHash {
+    size_t operator() (const ValueInfo& o) const {
+        // TODO{vibhanshu}: fix the hash function
+        return 1;
+    }
 };
 
 LLVM_BUILDER_NS_END
