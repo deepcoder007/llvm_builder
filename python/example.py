@@ -44,7 +44,7 @@ def main():
     body.enter()
 
     # Get the function parameter
-    param = fn.context().value()
+    param = CodeSectionContext.current_context()
 
     # Access fields: p->x and p->y
     x_ptr = param.field("x")
@@ -117,7 +117,7 @@ def arithmetic_example():
     body = fn.mk_section("body")
     body.enter()
 
-    param = fn.context().value()
+    param = CodeSectionContext.current_context()
     a = param.field("a").load()
     b = param.field("b").load()
 
@@ -179,7 +179,7 @@ def conditional_example():
     body = fn.mk_section("body")
     body.enter()
 
-    param = fn.context().value()
+    param = CodeSectionContext.current_context()
     cond = param.field("cond").load()
     a = param.field("a").load()
     b = param.field("b").load()

@@ -299,6 +299,7 @@ void bind_functions(nb::module_& m) {
         .def_static("current_section", &CodeSectionContext::current_section)
         .def_static("is_current_section", &CodeSectionContext::is_current_section, "code"_a)
         .def_static("current_function", &CodeSectionContext::current_function)
+        .def_static("current_context", &CodeSectionContext::current_context)
         .def_static("clean_sealed_context", &CodeSectionContext::clean_sealed_context)
         .def_static("assert_no_context", &CodeSectionContext::assert_no_context);
 
@@ -310,7 +311,6 @@ void bind_functions(nb::module_& m) {
         .def("name", &Function::name)
         .def("is_external", &Function::is_external)
         .def("return_type", &Function::return_type)
-        .def("context", &Function::context)
         .def("call_fn", &Function::call_fn, "context"_a)
         .def("declare_fn", &Function::declare_fn, "src_mod"_a, "dst_mod"_a)
         .def("mk_section", &Function::mk_section, "name"_a)

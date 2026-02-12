@@ -240,8 +240,8 @@ public:
     }
     llvm::Value* M_eval_store() {
         LLVM_BUILDER_ASSERT(m_parent.size() == 2);
-        llvm::Value* l_dst = m_parent[0].M_eval();
         llvm::Value* l_src = m_parent[1].M_eval();
+        llvm::Value* l_dst = m_parent[0].M_eval();
         LLVM_BUILDER_ASSERT(l_dst != nullptr);
         LLVM_BUILDER_ASSERT(l_src != nullptr);
         if (CursorContextImpl::has_value()) {
@@ -443,6 +443,7 @@ ValueInfo::ValueInfo(const TypeInfo& res_type, const ValueInfo& v1, const ValueI
     LLVM_BUILDER_ASSERT(not res_type.has_error());
     LLVM_BUILDER_ASSERT(not v1.has_error());
     LLVM_BUILDER_ASSERT(not v2.has_error());
+    m_impl->add_parent(std::vector<ValueInfo>{{v1, v2}});
     m_impl->set_binary_op(fn);
     M_self_intern();
     object::Counter::singleton().on_new(object::Callback::object_t::VALUE, (uint64_t)this, "");
@@ -561,8 +562,7 @@ ValueInfo ValueInfo::cast(TypeInfo target_type) const {
     }                                                                                            \
     TagInfo l_tag_info = tag_info();                                                             \
     l_tag_info = l_tag_info.set_union(v2.tag_info());                                            \
-    ValueInfo r{value_type_t::binary, RETURN, std::vector<ValueInfo>{{*this, v2}}};              \
-    r.m_impl->set_binary_op(&TypeInfo::M_##FN_NAME);                                             \
+    ValueInfo r{RETURN, *this, v2, &TypeInfo::M_##FN_NAME, construct_binary_op_t{}};             \
     r.add_tag(l_tag_info);                                                                       \
     return r;                                                                                    \
 }                                                                                                \
@@ -759,6 +759,9 @@ auto ValueInfo::null() -> ValueInfo {
 }
 
 auto ValueInfo::from_context(const TypeInfo& ctx_type) -> ValueInfo {
+    if (ctx_type.has_error()) {
+        return ValueInfo::null();
+    }
     return ValueInfo{value_type_t::context, ctx_type, std::vector<ValueInfo>{}};
 }
 

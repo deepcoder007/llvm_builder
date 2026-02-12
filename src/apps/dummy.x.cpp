@@ -11,6 +11,7 @@
 #include "llvm_builder/function.h"
 #include "llvm_builder/control_flow.h"
 
+#include <format>
 
 LLVM_BUILDER_NS_BEGIN
 

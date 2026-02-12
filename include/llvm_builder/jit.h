@@ -46,7 +46,6 @@ enum class type_t {
 class Object : public _BaseObject<Field> {
     using BaseT = _BaseObject<Field>;
     friend class Struct;
-    friend class Field;
     friend class EventFn;
     class Impl;
 private:
@@ -126,7 +125,6 @@ class Field : public _BaseObject<Field> {
     class Impl;
     struct construct_t {};
     friend class Struct;
-    friend class Object;
 private:
     std::shared_ptr<Impl> m_impl;
 public:
@@ -167,7 +165,6 @@ class Struct : public _BaseObject<Struct> {
     class Impl;
     friend class Namespace;
     friend class Object;
-    friend class Array;
     friend class Field;
     struct construct_t {};
 private:

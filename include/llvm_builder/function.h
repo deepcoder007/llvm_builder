@@ -64,7 +64,6 @@ class CodeSection : public _BaseObject<CodeSection>  {
     using BaseT = _BaseObject<CodeSection>;
 public:
     class Impl;
-    friend class Function;
     friend class CodeSectionContext;
 private:
     std::weak_ptr<Impl> m_impl;
@@ -116,6 +115,7 @@ public:
     static CodeSection current_section();
     static bool is_current_section(CodeSection& code);
     static Function current_function();
+    static ValueInfo current_context();
     static size_t clean_sealed_context();
     static void assert_no_context();
     static void print_section_stack(std::ostream& os);
@@ -137,10 +137,9 @@ class Function : public _BaseObject<Function> {
     };
     friend class FunctionBuilder;
     friend class Module;
-    friend class CodeSectionContext;
-    friend class CodeSection;
-    friend class IfElseCond;
     friend class FunctionImpl;
+    friend class CodeSectionContext;
+    friend class ValueInfo;
 public:
     class Impl;
 private:
@@ -155,7 +154,6 @@ public:
     const std::string &name() const;
     bool is_external() const;
     const TypeInfo& return_type() const;
-    const FnContext& context() const;
     ValueInfo call_fn(const ValueInfo& context) const;
     void declare_fn(Module& src_mod, Module& dst_mod);
     CodeSection mk_section(const std::string& name);
@@ -165,6 +163,8 @@ public:
     void write_to_ostream() const;
     bool operator == (const Function& o) const;
     static Function null();
+private:
+    const FnContext& context() const;
 };
 
 // TODO{vibhanshu}: do we need function builder now given that everything simplified

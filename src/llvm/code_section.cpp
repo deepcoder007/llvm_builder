@@ -194,6 +194,14 @@ public:
     }
 };
 
+struct ValueHash {
+    size_t operator() (const ValueInfo& /*o*/) const {
+        // TODO{vibhanshu}: fix the hash function to avoid collision
+        //     in hasmap buckets, currently it leads to linear search
+        return 1;
+    }
+};
+
 //
 // CodeSection::Impl
 //
@@ -400,7 +408,7 @@ void CodeSection::enter() {
         VariableContextMgr& var_mgr = VariableContextMgr::singleton();
         Function fn = function();
         if (not has_error()) {
-            ValueInfo l_value = fn.context().value();
+            ValueInfo l_value = CodeSectionContext::current_context();
             TypeInfo l_type_info = l_value.type();
             LLVM_BUILDER_ASSERT(l_type_info.is_pointer() or l_type_info.is_scalar());
             var_mgr.set("context", l_value);
@@ -873,6 +881,10 @@ bool CodeSectionContext::is_current_section(CodeSection &code) {
     } else {
         return false;
     }
+}
+
+ValueInfo CodeSectionContext::current_context() {
+    return current_function().context().value();
 }
 
 size_t CodeSectionContext::clean_sealed_context() {

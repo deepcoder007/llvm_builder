@@ -839,7 +839,7 @@ public:
                 CodeSection l_fn_body = l_size_fn.mk_section("fn_body");
                 l_fn_body.enter();
                 ValueInfo struct_size = ValueInfo::calc_struct_size(struct_type);
-                ValueInfo ctx = l_size_fn.context().value();
+                ValueInfo ctx = CodeSectionContext::current_context();
                 ctx.field("result").store(struct_size);
                 CodeSectionContext::set_return_value(ValueInfo::from_constant(0));
             }
@@ -856,7 +856,7 @@ public:
                 CodeSection l_fn_body = l_field_count_fn.mk_section("fn_body");
                 l_fn_body.enter();
                 ValueInfo field_count = ValueInfo::calc_struct_field_count(struct_type);
-                ValueInfo ctx = l_field_count_fn.context().value();
+                ValueInfo ctx = CodeSectionContext::current_context();
                 ctx.field("result").store(field_count);
                 CodeSectionContext::set_return_value(ValueInfo::from_constant(0));
             }

@@ -291,7 +291,6 @@ bool Function::is_valid() const {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->is_valid();
     } else {
-        CODEGEN_PUSH_ERROR(FUNCTION, "function already deleted");
         M_mark_error();
         return false;
     }
@@ -305,7 +304,6 @@ const Module& Function::parent_module() const {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->parent_module();
     } else {
-        CODEGEN_PUSH_ERROR(FUNCTION, "function already deleted");
         M_mark_error();
         return s_null;
     }
@@ -318,7 +316,6 @@ const std::string& Function::name() const {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->name();
     } else {
-        CODEGEN_PUSH_ERROR(FUNCTION, "function already deleted");
         M_mark_error();
         return StringManager::null();
     }
@@ -331,7 +328,6 @@ bool Function::is_external() const {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->is_external();
     } else {
-        CODEGEN_PUSH_ERROR(FUNCTION, "function already deleted");
         M_mark_error();
         return false;
     }
@@ -344,7 +340,6 @@ const TypeInfo& Function::return_type() const {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->return_type();
     } else {
-        CODEGEN_PUSH_ERROR(FUNCTION, "function already deleted");
         M_mark_error();
         return TypeInfo::null(); 
     }
@@ -357,7 +352,6 @@ auto Function::context() const -> const FnContext& {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->context();
     } else {
-        CODEGEN_PUSH_ERROR(FUNCTION, "function already deleted");
         M_mark_error();
         return FnContext::null();
     }
@@ -375,7 +369,6 @@ ValueInfo Function::call_fn(const ValueInfo& context) const {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->call_fn(*this, context);
     } else {
-        CODEGEN_PUSH_ERROR(FUNCTION, "function already deleted");
         M_mark_error();
         return ValueInfo::null();
     }
@@ -396,7 +389,6 @@ void Function::declare_fn(Module& src_mod, Module& dst_mod) {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->declare_fn(src_mod, dst_mod);
     } else {
-        CODEGEN_PUSH_ERROR(FUNCTION, "function already deleted");
         M_mark_error();
     }
 }
@@ -413,7 +405,6 @@ CodeSection Function::mk_section(const std::string& name) {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->mk_section(name, *this);
     } else {
-        CODEGEN_PUSH_ERROR(FUNCTION, "function already deleted");
         M_mark_error();
         return CodeSection::null();
     }
@@ -426,7 +417,6 @@ llvm::Function *Function::native_handle() const {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->native_handle();
     } else {
-        CODEGEN_PUSH_ERROR(FUNCTION, "function already deleted");
         M_mark_error();
         return nullptr;
     }
@@ -442,7 +432,6 @@ void Function::verify() {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         ptr->verify();
     } else {
-        CODEGEN_PUSH_ERROR(FUNCTION, "function already deleted");
         M_mark_error();
         LLVM_BUILDER_ABORT("function is a null object");
     }
@@ -455,7 +444,6 @@ void Function::remove_from_module() {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         ptr->remove_from_module();
     } else {
-        CODEGEN_PUSH_ERROR(FUNCTION, "function already deleted");
         M_mark_error();
     }
 }
@@ -467,7 +455,6 @@ void Function::write_to_ostream() const {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         ptr->write_to_ostream();
     } else {
-        CODEGEN_PUSH_ERROR(FUNCTION, "function already deleted");
         M_mark_error();
     }
 }

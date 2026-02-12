@@ -88,7 +88,6 @@ public:
 
 class SourceContext {
     using vec_t = std::vector<SourceLoc>;
-    friend class Error;
     friend class ErrorContext;
 private:
     uint32_t m_line_num = std::numeric_limits<uint32_t>::max();

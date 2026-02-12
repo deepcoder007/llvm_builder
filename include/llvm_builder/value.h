@@ -181,13 +181,6 @@ private:
     void M_self_intern();
 };
 
-struct ValueHash {
-    size_t operator() (const ValueInfo& o) const {
-        // TODO{vibhanshu}: fix the hash function
-        return 1;
-    }
-};
-
 LLVM_BUILDER_NS_END
 
 #endif // LLVM_BUILDER_LLVM_VALUE_H_

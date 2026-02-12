@@ -17,8 +17,6 @@
 #include "common_llvm_test.h"
 
 using namespace llvm_builder;
-using namespace llvm_builder;
-
 
 TEST(LLVM_CODEGEN, type_test) {
     CODEGEN_LINE(Cursor l_cursor{"type_test"})
@@ -203,8 +201,8 @@ TEST(LLVM_CODEGEN, basic_test) {
         {
             CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
             CODEGEN_LINE(l_fn_body.enter())
-            CODEGEN_LINE(ValueInfo ctx = fn.context().value())
-            LLVM_BUILDER_ALWAYS_ASSERT(ctx == fn.context().value());
+            CODEGEN_LINE(ValueInfo ctx = CodeSectionContext::current_context())
+            LLVM_BUILDER_ALWAYS_ASSERT(ctx == CodeSectionContext::current_context());
             CODEGEN_LINE(ValueInfo arg1 = ctx.field("arg1").load())
             LLVM_BUILDER_ALWAYS_ASSERT(ctx.field("arg1").load() == ctx.field("arg1").load())
             LLVM_BUILDER_ALWAYS_ASSERT(ctx.field("arg3").load() != ctx.field("arg1").load())
@@ -248,7 +246,7 @@ TEST(LLVM_CODEGEN, basic_test) {
         {
             CODEGEN_LINE(CodeSection l_fn_body = fn_if_else.mk_section("if_else_fn_begin"))
             CODEGEN_LINE(l_fn_body.enter())
-            CODEGEN_LINE(ValueInfo ctx_if_else = fn_if_else.context().value())
+            CODEGEN_LINE(ValueInfo ctx_if_else = CodeSectionContext::current_context())
             CODEGEN_LINE(ValueInfo arg_a = ctx_if_else.field("a").load())
             CODEGEN_LINE(ValueInfo arg_b = ctx_if_else.field("b").load())
             CODEGEN_LINE(ValueInfo c_5 = ValueInfo::from_constant(5))
@@ -291,7 +289,7 @@ TEST(LLVM_CODEGEN, basic_test) {
         {
             CODEGEN_LINE(CodeSection l_fn_body = fn_load.mk_section("fn_load_begin"))
             CODEGEN_LINE(l_fn_body.enter())
-            CODEGEN_LINE(ValueInfo ctx_load = fn_load.context().value())
+            CODEGEN_LINE(ValueInfo ctx_load = CodeSectionContext::current_context())
             CODEGEN_LINE(ValueInfo arg_a = ctx_load.field("a").load())
             CODEGEN_LINE(ValueInfo arg_b = ctx_load.field("b").load())
             CODEGEN_LINE(ValueInfo arr_entry_value = arg_b.entry(2).load())
@@ -388,7 +386,7 @@ TEST(LLVM_CODEGEN, lexical_context) {
         {
             CodeSection l_fn_body = fn.mk_section("test_fn_body");
             l_fn_body.enter();
-            ValueInfo ctx = fn.context().value();
+            ValueInfo ctx = CodeSectionContext::current_context();
             ValueInfo arg1 = ctx.field("arg1").load();
             ValueInfo arg2 = ctx.field("arg2").load();
             ValueInfo arg3 = ctx.field("arg3").load();
@@ -495,7 +493,7 @@ TEST(LLVM_CODEGEN, struct_type_test) {
             {
                 CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
                 CODEGEN_LINE(l_fn_body.enter())
-                CODEGEN_LINE(ValueInfo ctx = fn.context().value())
+                CODEGEN_LINE(ValueInfo ctx = CodeSectionContext::current_context())
                 CODEGEN_LINE(ValueInfo arg1 = ctx.field("arg1").load())
                 CODEGEN_LINE(ValueInfo arg2 = ctx.field("arg2").load())
                 CODEGEN_LINE(ValueInfo arg3 = ctx.field("arg3").load())
@@ -639,7 +637,7 @@ TEST(LLVM_CODEGEN, multi_type) {
             {
                 CodeSection l_fn_body = fn.mk_section("test_fn_body");
                 l_fn_body.enter();
-                ValueInfo ctx = fn.context().value();
+                ValueInfo ctx = CodeSectionContext::current_context();
                 ValueInfo arg1 = ctx.field("arg1").load();
                 ValueInfo arg1_neg = ctx.field("arg1_neg").load();
                 ValueInfo arg2 = ctx.field("arg2").load();
@@ -760,7 +758,7 @@ TEST(LLVM_CODEGEN, array_type_test) {
         {
             CodeSection l_fn_body = fn_load.mk_section("fn_load_begin");
             l_fn_body.enter();
-            ValueInfo ctx = fn_load.context().value();
+            ValueInfo ctx = CodeSectionContext::current_context();
             ValueInfo arg_a = ctx.field("a").load();
             ValueInfo arg_b = ctx.field("b").load();
             ValueInfo arr_entry_value = arg_b.entry(arg_a).load();
@@ -769,7 +767,7 @@ TEST(LLVM_CODEGEN, array_type_test) {
         {
             CodeSection l_fn_body = fn_load_lazy.mk_section("fn_load_begin");
             l_fn_body.enter();
-            ValueInfo ctx_lazy = fn_load_lazy.context().value();
+            ValueInfo ctx_lazy = CodeSectionContext::current_context();
             ValueInfo arg_a = ctx_lazy.field("a").load();
             ValueInfo arg_b = ctx_lazy.field("b").load();
             ValueInfo arr_entry_ptr = arg_b.entry(arg_a);
@@ -786,7 +784,7 @@ TEST(LLVM_CODEGEN, array_type_test) {
         {
             CodeSection l_fn_body = fn_assign.mk_section("fn_assign_begin");
             l_fn_body.enter();
-            ValueInfo ctx = fn_assign.context().value();
+            ValueInfo ctx = CodeSectionContext::current_context();
             ValueInfo arg_idx = ctx.field("idx").load();
             ValueInfo arg_arr = ctx.field("arr").load();
             ValueInfo arg_value = ctx.field("value").load();
@@ -801,7 +799,7 @@ TEST(LLVM_CODEGEN, array_type_test) {
         {
             CodeSection l_fn_body = fn_assign_lazy.mk_section("fn_assign_begin");
             l_fn_body.enter();
-            ValueInfo ctx_lazy = fn_assign_lazy.context().value();
+            ValueInfo ctx_lazy = CodeSectionContext::current_context();
             ValueInfo arg_idx = ctx_lazy.field("idx").load();
             ValueInfo arg_arr = ctx_lazy.field("arr").load();
             ValueInfo arg_value = ctx_lazy.field("value").load();
@@ -819,7 +817,7 @@ TEST(LLVM_CODEGEN, array_type_test) {
         {
             CodeSection l_fn_body = fn_load.mk_section("fn_load_begin");
             l_fn_body.enter();
-            ValueInfo ctx = fn_load.context().value();
+            ValueInfo ctx = CodeSectionContext::current_context();
             ValueInfo arg_a = ctx.field("a").load();
             ValueInfo arg_b = ctx.field("b").load().load();
             ValueInfo vec_entry_value = arg_b.load_vector_entry(arg_a);
@@ -835,7 +833,7 @@ TEST(LLVM_CODEGEN, array_type_test) {
         {
             CodeSection l_fn_body = fn_assign.mk_section("fn_assign_begin");
             l_fn_body.enter();
-            ValueInfo ctx = fn_assign.context().value();
+            ValueInfo ctx = CodeSectionContext::current_context();
             ValueInfo arg_idx = ctx.field("idx").load();
             ValueInfo arg_vec_ptr = ctx.field("vec").load();
             ValueInfo arg_vec = arg_vec_ptr.load();
@@ -1003,7 +1001,7 @@ TEST(LLVM_CODEGEN, vector_type_test) {
             {
                 CodeSection l_fn_body = fn.mk_section("test_fn_body");
                 l_fn_body.enter();
-                ValueInfo ctx = fn.context().value();
+                ValueInfo ctx = CodeSectionContext::current_context();
                 ValueInfo arg1 = ctx.field("arg1").load().load();
                 ValueInfo arg2 = ctx.field("arg2").load().load();
                 ValueInfo arg3 = ctx.field("arg3").load();
@@ -1027,7 +1025,7 @@ TEST(LLVM_CODEGEN, vector_type_test) {
             {
                 CodeSection l_fn_body = fn.mk_section("test_fn_body");
                 l_fn_body.enter();
-                ValueInfo ctx = fn.context().value();
+                ValueInfo ctx = CodeSectionContext::current_context();
                 ValueInfo arg1_ptr = ctx.field("arg1").load();
                 ValueInfo arg1 = arg1_ptr.load();
                 ValueInfo v = ctx.field("v").load();
@@ -1045,7 +1043,7 @@ TEST(LLVM_CODEGEN, vector_type_test) {
             {
                 CodeSection l_fn_body = fn.mk_section("test_fn_body");
                 l_fn_body.enter();
-                ValueInfo ctx = fn.context().value();
+                ValueInfo ctx = CodeSectionContext::current_context();
                 ValueInfo arg1 = ctx.field("arg1").load().load();
                 ValueInfo r = arg1.load_vector_entry(1);
                 CodeSectionContext::set_return_value(r);
@@ -1169,7 +1167,7 @@ TEST(LLVM_CODEGEN, multi_module) {
             {
                 CodeSection l_fn_body = fn.mk_section("test_fn_body");
                 l_fn_body.enter();
-                ValueInfo ctx = fn.context().value();
+                ValueInfo ctx = CodeSectionContext::current_context();
                 ValueInfo arg1 = ctx.field("arg1").load();
                 ValueInfo arg2 = ctx.field("arg2").load();
                 ValueInfo c1 = ValueInfo::from_constant(101);
@@ -1205,7 +1203,7 @@ TEST(LLVM_CODEGEN, multi_module) {
             {
                 CodeSection l_fn_body = fn.mk_section("test_fn_body");
                 l_fn_body.enter();
-                ValueInfo arg = fn.context().value();
+                ValueInfo arg = CodeSectionContext::current_context();
                 ValueInfo res = arg.add(arg);
                 CodeSectionContext::set_return_value(res);
             }
@@ -1225,7 +1223,7 @@ TEST(LLVM_CODEGEN, multi_module) {
             {
                 CodeSection l_fn_body = fn.mk_section("test_fn_body");
                 l_fn_body.enter();
-                ValueInfo arg = fn.context().value();
+                ValueInfo arg = CodeSectionContext::current_context();
                 ValueInfo res = arg.add(arg);
                 CodeSectionContext::set_return_value(res);
             }
@@ -1278,7 +1276,7 @@ TEST(LLVM_CODEGEN, resilient_api) {
         {
             CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
             CODEGEN_LINE(l_fn_body.enter())
-            CODEGEN_LINE(ValueInfo ctx = fn.context().value())
+            CODEGEN_LINE(ValueInfo ctx = CodeSectionContext::current_context())
             CODEGEN_LINE(ValueInfo arg1 = ctx.field("arg1").load())
             CODEGEN_LINE(ValueInfo arg2 = ctx.field("arg2").load())
             CODEGEN_LINE(ValueInfo arg3 = ctx.field("arg3").load())

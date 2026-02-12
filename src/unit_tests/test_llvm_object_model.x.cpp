@@ -74,7 +74,7 @@ TEST(LLVM_CODEGEN_OBJECT, complex_struct_definitions) {
                 CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
                 CODEGEN_LINE(l_fn_body.enter())
 
-                CODEGEN_LINE(ValueInfo ctx = fn.context().value())
+                CODEGEN_LINE(ValueInfo ctx = CodeSectionContext::current_context())
                 CODEGEN_LINE(ValueInfo arg1a = ctx.field("arg_struct_type").load())
                 CODEGEN_LINE(ValueInfo arg1b = ctx.field("arg_inner_struct").load())
                 CODEGEN_LINE(ValueInfo arg2 = ctx.field("arg_outer_struct").load())
@@ -435,7 +435,7 @@ TEST(LLVM_CODEGEN_OBJECT, complex_struct_definitions_v2) {
             {
                 CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
                 CODEGEN_LINE(l_fn_body.enter())
-                CODEGEN_LINE(ValueInfo ctx = fn.context().value())
+                CODEGEN_LINE(ValueInfo ctx = CodeSectionContext::current_context())
                 CODEGEN_LINE(ValueInfo arg1 = ctx.field("arg1").load())
                 CODEGEN_LINE(ValueInfo field_1 = arg1.field("field_1"))
                 CODEGEN_LINE(ValueInfo field_2 = arg1.field("field_2"))
@@ -474,7 +474,7 @@ TEST(LLVM_CODEGEN_OBJECT, complex_struct_definitions_v2) {
             {
                 CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
                 CODEGEN_LINE(l_fn_body.enter())
-                CODEGEN_LINE(ValueInfo outer_ctx = fn.context().value())
+                CODEGEN_LINE(ValueInfo outer_ctx = CodeSectionContext::current_context())
                 CODEGEN_LINE(ValueInfo arg1 = outer_ctx.field("arg1").load())
                 LLVM_BUILDER_ALWAYS_ASSERT(arg1.type().is_pointer())
                 // ValueInfo copy_inner_struct = arg1.struct_field("struct_field_1");

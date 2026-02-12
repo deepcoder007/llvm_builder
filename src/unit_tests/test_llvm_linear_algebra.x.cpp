@@ -111,7 +111,7 @@ template <typename T>
 void gen_sample_fn(Function &fn) {
     CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
     CODEGEN_LINE(l_fn_body.enter())
-    CODEGEN_LINE(ValueInfo ctx = fn.context().value())
+    CODEGEN_LINE(ValueInfo ctx = CodeSectionContext::current_context())
     CODEGEN_LINE(ValueInfo arg1 = ctx.field("arg1").load())
     CODEGEN_LINE(ValueInfo arg2 = ctx.field("arg2").load())
     CODEGEN_LINE(ValueInfo arg3 = ctx.field("arg3").load())
@@ -131,7 +131,7 @@ void gen_sample_fn(Function &fn) {
 void vector_add(Function &fn) {
     CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
     CODEGEN_LINE(l_fn_body.enter())
-    CODEGEN_LINE(ValueInfo ctx = fn.context().value())
+    CODEGEN_LINE(ValueInfo ctx = CodeSectionContext::current_context())
     CODEGEN_LINE(ValueInfo vec1 = ctx.field("vec1").load())
     CODEGEN_LINE(ValueInfo vec2 = ctx.field("vec2").load())
     CODEGEN_LINE(ValueInfo vec3 = ctx.field("vec3").load())
@@ -157,7 +157,7 @@ void vector_add(Function &fn) {
 void matrix_add(Function &fn) {
     CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
     CODEGEN_LINE(l_fn_body.enter())
-    CODEGEN_LINE(ValueInfo ctx = fn.context().value())
+    CODEGEN_LINE(ValueInfo ctx = CodeSectionContext::current_context())
     CODEGEN_LINE(ValueInfo mat1 = ctx.field("mat1").load())
     CODEGEN_LINE(ValueInfo mat2 = ctx.field("mat2").load())
     CODEGEN_LINE(ValueInfo mat3 = ctx.field("mat3").load())

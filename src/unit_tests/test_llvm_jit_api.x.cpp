@@ -55,7 +55,7 @@ TEST(LLVM_CODEGEN_JIT_API, hello_api) {
             CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
             CODEGEN_LINE(l_fn_body.enter())
 
-            CODEGEN_LINE(ValueInfo ctx = fn.context().value())
+            CODEGEN_LINE(ValueInfo ctx = CodeSectionContext::current_context())
             LLVM_BUILDER_ALWAYS_ASSERT(l_struct.pointer_type() == ctx.type());
             CODEGEN_LINE(ctx.field("field_3").store(ctx.field("field_1").load()))
             CODEGEN_LINE(ctx.field("field_4").store(ctx.field("field_2").load()))
@@ -159,7 +159,7 @@ TEST(LLVM_CODEGEN_JIT_API, inner_struct) {
             CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
             CODEGEN_LINE(l_fn_body.enter())
 
-            CODEGEN_LINE(ValueInfo ctx = fn.context().value())
+            CODEGEN_LINE(ValueInfo ctx = CodeSectionContext::current_context())
             CODEGEN_LINE(ValueInfo arg_inner = ctx.field("arg_inner").load())
             CODEGEN_LINE(ValueInfo arg_outer = ctx.field("arg_outer").load())
             LLVM_BUILDER_ALWAYS_ASSERT(l_inner_struct.pointer_type() == arg_inner.type());
@@ -328,7 +328,7 @@ TEST(LLVM_CODEGEN_JIT_API, array_basic_1d) {
             CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
             CODEGEN_LINE(l_fn_body.enter())
 
-            CODEGEN_LINE(ValueInfo ctx = fn.context().value())
+            CODEGEN_LINE(ValueInfo ctx = CodeSectionContext::current_context())
             CODEGEN_LINE(ValueInfo arg_inner = ctx.field("arg_inner").load())
             CODEGEN_LINE(ValueInfo arg_outer = ctx.field("arg_outer").load())
             LLVM_BUILDER_ALWAYS_ASSERT(l_inner_struct.pointer_type() == arg_inner.type());
@@ -487,7 +487,7 @@ TEST(LLVM_CODEGEN_JIT_API, full_test) {
             CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
             CODEGEN_LINE(l_fn_body.enter())
 
-            CODEGEN_LINE(ValueInfo arg_outer = fn.context().value())
+            CODEGEN_LINE(ValueInfo arg_outer = CodeSectionContext::current_context())
             LLVM_BUILDER_ALWAYS_ASSERT(l_outer_struct.pointer_type() == arg_outer.type());
 
             CODEGEN_LINE(ValueInfo inner_field_2 = arg_outer.field("inner_field_2").load())

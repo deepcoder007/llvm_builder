@@ -884,7 +884,7 @@ auto TypeInfo::FN_NAME() const -> TYPE {                        \
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {            \
         return ptr-> FN_NAME ();                                \
     } else {                                                    \
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type already deleted"); \
+        M_mark_error();                                         \
         return DEFAULT_VALUE;                                   \
     }                                                           \
 }                                                               \
@@ -938,7 +938,6 @@ bool TypeInfo::is_valid_pointer_field() const {
             return false;
         }
     } else {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type already deleted");
         M_mark_error();
         return false;
     }
@@ -958,7 +957,6 @@ bool TypeInfo::is_valid_struct_field() const {
             return false;
         }
     } else {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type already deleted");
         M_mark_error();
         return false;
     }
@@ -972,7 +970,6 @@ auto TypeInfo::operator[] (uint32_t i) const -> field_entry_t {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->operator [](i);
     } else {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type already deleted");
         M_mark_error();
         return field_entry_t::null();
     }
@@ -991,7 +988,6 @@ auto TypeInfo::operator[] (const std::string& s) const -> field_entry_t {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->operator [](s);
     } else {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type already deleted");
         M_mark_error();
         return field_entry_t::null();
     }
@@ -1004,7 +1000,7 @@ void TypeInfo::dump_llvm_type_info(std::ostream& os) const {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         ptr->dump_llvm_type_info(os);
     } else {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type already deleted");
+        M_mark_error();
     }
 }
 
@@ -1015,7 +1011,7 @@ bool TypeInfo::M_check_sync(const llvm::Value* value) const {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->check_sync(value);
     } else {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type already deleted");
+        M_mark_error();
         return false;
     }
 }
@@ -1027,7 +1023,7 @@ TypeInfo TypeInfo::pointer_type() const {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->pointer_type(*this);
     } else {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type already deleted");
+        M_mark_error();
         return TypeInfo::null();
     }
 }
