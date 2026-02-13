@@ -1,0 +1,7 @@
+#+title: Tasks
+
+* Priority list of tasks[0/4]
+** [ ] if-else condition redesign, nested and inplace expansion 
+** [ ] function call to internal functions
+** [ ] function call to external C functions
+** [ ] cross language integration

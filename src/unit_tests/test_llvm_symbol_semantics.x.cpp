@@ -121,7 +121,7 @@ TEST(LLVM_CODEGEN, basic_graph_test) {
                 l_args_obj.set<int32_t>("arg1", i);
                 l_args_obj.set<int32_t>("arg2", i + 1);
                 l_args_obj.set<int32_t>("arg3", i + 2);
-                l_args_obj.try_freeze();
+                l_args_obj.freeze();
 
                 int32_t c1 = 101;
                 int32_t c2 = 999;
@@ -132,11 +132,6 @@ TEST(LLVM_CODEGEN, basic_graph_test) {
                 int32_t res5 = res3 + res4;
 
                 CODEGEN_LINE(int32_t result = sample_fn.on_event(l_args_obj))
-                std::cout << " iter: " << i << ": arg[";
-                for (int i = 1; i != 10; ++i) {
-                    std::cout << i << ":" << l_args_obj.get<int32_t>(std::format("arg{}",i)) << ", ";
-                }
-                std::cout << "]" << std::endl;
                 LLVM_BUILDER_ALWAYS_ASSERT_EQ(res5, result);
                 LLVM_BUILDER_ALWAYS_ASSERT_EQ(res5, l_args_obj.get<int32_t>("arg4"));
                 LLVM_BUILDER_ALWAYS_ASSERT_EQ(res5*2, l_args_obj.get<int32_t>("arg5"));

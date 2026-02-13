@@ -91,6 +91,7 @@ public:
 private:
     void M_set_return_value(ValueInfo value);
     void M_exit();
+    void M_re_enter();
 };
 
 class CodeSectionContext {
@@ -105,7 +106,7 @@ public:
     static void pop_var_context();
     static ValueInfo pop(std::string_view name);
     static void push(std::string_view name, const ValueInfo& v);
-    static void mk_ptr(std::string_view name, const TypeInfo& type, const ValueInfo& default_value);
+    static ValueInfo mk_ptr(std::string_view name, const TypeInfo& type, const ValueInfo& default_value);
     static Function function();
     static void set_return_value(ValueInfo value);
     static CodeSection mk_section(const std::string& name);
@@ -128,6 +129,7 @@ private:
     //     memory allocator with garbage collector for that
     static void M_push_section(CodeSection& code);
     static void M_pop_section(CodeSection& code);
+    static void M_re_enter_top();
     static CodeSection M_detach(CodeSection& code);
 };
 
