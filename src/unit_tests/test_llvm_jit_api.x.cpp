@@ -92,7 +92,7 @@ TEST(LLVM_CODEGEN_JIT_API, hello_api) {
             CODEGEN_LINE(l_args_obj.set<int32_t>("field_2", i + 1))
             CODEGEN_LINE(l_args_obj.set<int32_t>("field_3", i + 2))
             CODEGEN_LINE(l_args_obj.set<int32_t>("field_4", i + 3))
-            CODEGEN_LINE(l_args_obj.try_freeze())
+            CODEGEN_LINE(l_args_obj.freeze())
 
             CODEGEN_LINE(test_fn.on_event(l_args_obj))
 
@@ -218,6 +218,7 @@ TEST(LLVM_CODEGEN_JIT_API, inner_struct) {
 
         for (int32_t i = 0; i != 10; ++i) {
             CODEGEN_LINE(runtime::Object l_inner_obj = l_inner_struct.mk_object())
+            CODEGEN_LINE(runtime::Object l_inner_obj_pre = l_inner_struct.mk_object())
             CODEGEN_LINE(runtime::Object l_outer_obj = l_outer_struct.mk_object())
             CODEGEN_LINE(runtime::Object l_args_obj = l_args.mk_object())
             LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
@@ -226,21 +227,27 @@ TEST(LLVM_CODEGEN_JIT_API, inner_struct) {
             CODEGEN_LINE(l_inner_obj.set<int32_t>("field_2", i + 1))
             CODEGEN_LINE(l_inner_obj.set<int32_t>("field_3", i + 2))
             CODEGEN_LINE(l_inner_obj.set<int32_t>("field_4", i + 3))
-            CODEGEN_LINE(l_inner_obj.try_freeze())
+            CODEGEN_LINE(l_inner_obj.freeze())
+            CODEGEN_LINE(l_inner_obj_pre.set<int32_t>("field_1", i))
+            CODEGEN_LINE(l_inner_obj_pre.set<int32_t>("field_2", i + 1))
+            CODEGEN_LINE(l_inner_obj_pre.set<int32_t>("field_3", i + 2))
+            CODEGEN_LINE(l_inner_obj_pre.set<int32_t>("field_4", i + 3))
+            CODEGEN_LINE(l_inner_obj_pre.freeze())
+
 
             CODEGEN_LINE(runtime::Object l_outer_field_6_obj = l_inner_struct.mk_object())
-            CODEGEN_LINE(l_outer_field_6_obj.try_freeze());
+            CODEGEN_LINE(l_outer_field_6_obj.freeze());
             CODEGEN_LINE(l_outer_obj.set_object("inner_field_6", l_outer_field_6_obj))
             CODEGEN_LINE(runtime::Object l_outer_field_9_obj = l_inner_struct.mk_object())
-            CODEGEN_LINE(l_outer_field_9_obj.try_freeze())
+            CODEGEN_LINE(l_outer_field_9_obj.freeze())
             CODEGEN_LINE(l_outer_obj.set_object("inner_field_9", l_outer_field_9_obj))
 
-            CODEGEN_LINE(l_outer_obj.try_freeze())
+            CODEGEN_LINE(l_outer_obj.freeze())
             LLVM_BUILDER_ALWAYS_ASSERT(l_inner_obj.is_frozen());
             LLVM_BUILDER_ALWAYS_ASSERT(l_outer_obj.is_frozen());
             CODEGEN_LINE(l_args_obj.set_object("arg_inner", l_inner_obj))
             CODEGEN_LINE(l_args_obj.set_object("arg_outer", l_outer_obj))
-            CODEGEN_LINE(l_args_obj.try_freeze())
+            CODEGEN_LINE(l_args_obj.freeze())
 
             CODEGEN_LINE(test_fn.on_event(l_args_obj))
             LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_inner_obj.get<int32_t>("field_1"), l_inner_obj.get<int32_t>("field_3"))
@@ -248,13 +255,11 @@ TEST(LLVM_CODEGEN_JIT_API, inner_struct) {
             std::vector<std::string> field_list;
             field_list.emplace_back("field_1");
             field_list.emplace_back("field_2");
-            for (const std::string& fname : field_list) {
-                LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_inner_obj.get<int32_t>(fname), l_outer_field_6_obj.get<int32_t>(fname))
-            }
             field_list.emplace_back("field_3");
             field_list.emplace_back("field_4");
             for (const std::string& fname : field_list) {
-                LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_inner_obj.get<int32_t>(fname), l_outer_field_9_obj.get<int32_t>(fname))
+                LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_inner_obj_pre.get<int32_t>(fname), l_outer_field_6_obj.get<int32_t>(fname))
+                LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_inner_obj_pre.get<int32_t>(fname), l_outer_field_9_obj.get<int32_t>(fname))
             }
             LLVM_BUILDER_ALWAYS_ASSERT_EQ(true, l_inner_obj.get<bool>("field_5"));
 
@@ -394,6 +399,7 @@ TEST(LLVM_CODEGEN_JIT_API, array_basic_1d) {
 
         for (int32_t i = 0; i != 30; ++i) {
             CODEGEN_LINE(runtime::Object l_inner_obj = l_inner_struct.mk_object())
+            CODEGEN_LINE(runtime::Object l_inner_obj_pre = l_inner_struct.mk_object())
             CODEGEN_LINE(runtime::Object l_outer_obj = l_outer_struct.mk_object())
             CODEGEN_LINE(runtime::Object l_args_obj = l_args.mk_object())
             LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
@@ -402,43 +408,46 @@ TEST(LLVM_CODEGEN_JIT_API, array_basic_1d) {
             CODEGEN_LINE(l_inner_obj.set<int32_t>("field_2", i + 1))
             CODEGEN_LINE(l_inner_obj.set<int32_t>("field_3", i + 2))
             CODEGEN_LINE(l_inner_obj.set<int32_t>("field_4", i + 3))
-            CODEGEN_LINE(l_inner_obj.try_freeze())
+            CODEGEN_LINE(l_inner_obj.freeze())
+            CODEGEN_LINE(l_inner_obj_pre.set<int32_t>("field_1", i))
+            CODEGEN_LINE(l_inner_obj_pre.set<int32_t>("field_2", i + 1))
+            CODEGEN_LINE(l_inner_obj_pre.set<int32_t>("field_3", i + 2))
+            CODEGEN_LINE(l_inner_obj_pre.set<int32_t>("field_4", i + 3))
+            CODEGEN_LINE(l_inner_obj_pre.freeze())
 
             CODEGEN_LINE(runtime::Object l_outer_field_6_obj = l_inner_struct.mk_object())
-            CODEGEN_LINE(l_outer_field_6_obj.try_freeze());
+            CODEGEN_LINE(l_outer_field_6_obj.freeze());
             CODEGEN_LINE(l_outer_obj.set_object("inner_field_6", l_outer_field_6_obj))
             CODEGEN_LINE(runtime::Object l_outer_field_9_obj = l_inner_struct.mk_object())
-            CODEGEN_LINE(l_outer_field_9_obj.try_freeze())
+            CODEGEN_LINE(l_outer_field_9_obj.freeze())
             CODEGEN_LINE(l_outer_obj.set_object("inner_field_9", l_outer_field_9_obj))
             CODEGEN_LINE(runtime::Array l_outer_field_11_obj = runtime::Array::from(runtime::type_t::int32, 10))
             for (uint32_t i = 0; i != 10; ++i) {
                 CODEGEN_LINE(l_outer_field_11_obj.set<int32_t>(i, i*10));
             }
-            CODEGEN_LINE(l_outer_field_11_obj.try_freeze())
+            CODEGEN_LINE(l_outer_field_11_obj.freeze())
             CODEGEN_LINE(l_outer_obj.set_array("inner_field_11", l_outer_field_11_obj))
             CODEGEN_LINE(runtime::Array l_outer_field_12_obj = runtime::Array::from(runtime::type_t::int32, 10))
-            CODEGEN_LINE(l_outer_field_12_obj.try_freeze())
+            CODEGEN_LINE(l_outer_field_12_obj.freeze())
             CODEGEN_LINE(l_outer_obj.set_array("inner_field_12", l_outer_field_12_obj))
-            CODEGEN_LINE(l_outer_obj.try_freeze())
+            CODEGEN_LINE(l_outer_obj.freeze())
 
             LLVM_BUILDER_ALWAYS_ASSERT(l_inner_obj.is_frozen());
             LLVM_BUILDER_ALWAYS_ASSERT(l_outer_obj.is_frozen());
             CODEGEN_LINE(l_args_obj.set_object("arg_inner", l_inner_obj))
             CODEGEN_LINE(l_args_obj.set_object("arg_outer", l_outer_obj))
-            CODEGEN_LINE(l_args_obj.try_freeze())
+            CODEGEN_LINE(l_args_obj.freeze())
             CODEGEN_LINE(test_fn.on_event(l_args_obj))
             LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_inner_obj.get<int32_t>("field_1"), l_inner_obj.get<int32_t>("field_3"))
             LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_inner_obj.get<int32_t>("field_2"), l_inner_obj.get<int32_t>("field_4"))
             std::vector<std::string> field_list;
             field_list.emplace_back("field_1");
             field_list.emplace_back("field_2");
-            for (const std::string& fname : field_list) {
-                LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_inner_obj.get<int32_t>(fname), l_outer_field_6_obj.get<int32_t>(fname))
-            }
             field_list.emplace_back("field_3");
             field_list.emplace_back("field_4");
             for (const std::string& fname : field_list) {
-                LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_inner_obj.get<int32_t>(fname), l_outer_field_9_obj.get<int32_t>(fname))
+                LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_inner_obj_pre.get<int32_t>(fname), l_outer_field_6_obj.get<int32_t>(fname))
+                LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_inner_obj_pre.get<int32_t>(fname), l_outer_field_9_obj.get<int32_t>(fname))
             }
             LLVM_BUILDER_ALWAYS_ASSERT_EQ(true, l_inner_obj.get<bool>("field_5"));
 
@@ -528,7 +537,7 @@ TEST(LLVM_CODEGEN_JIT_API, full_test) {
             LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
 
             CODEGEN_LINE(runtime::Array l_outer_field_2_obj = runtime::Array::from(runtime::type_t::int32, 10))
-            CODEGEN_LINE(l_outer_field_2_obj.try_freeze())
+            CODEGEN_LINE(l_outer_field_2_obj.freeze())
             CODEGEN_LINE(l_outer_obj.set_array("inner_field_2", l_outer_field_2_obj))
             CODEGEN_LINE(runtime::Array l_outer_field_3_obj = runtime::Array::from(runtime::type_t::pointer_array, 10))
             for (int i = 0; i != 10; ++i) {
@@ -536,13 +545,13 @@ TEST(LLVM_CODEGEN_JIT_API, full_test) {
                 for (int j = 0; j != 10; ++j) {
                     CODEGEN_LINE(l_arr.set<int32_t>(j, i * j * 10));
                 }
-                CODEGEN_LINE(l_arr.try_freeze())
+                CODEGEN_LINE(l_arr.freeze())
                 CODEGEN_LINE(l_outer_field_3_obj.set_array(i, l_arr))
             }
-            CODEGEN_LINE(l_outer_field_3_obj.try_freeze())
+            CODEGEN_LINE(l_outer_field_3_obj.freeze())
             LLVM_BUILDER_ALWAYS_ASSERT(l_outer_field_3_obj.is_frozen())
             CODEGEN_LINE(l_outer_obj.set_array("inner_field_3", l_outer_field_3_obj))
-            CODEGEN_LINE(l_outer_obj.try_freeze())
+            CODEGEN_LINE(l_outer_obj.freeze())
 
             LLVM_BUILDER_ALWAYS_ASSERT(l_outer_obj.is_frozen());
             CODEGEN_LINE(test_fn.on_event(l_outer_obj))

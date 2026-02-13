@@ -55,7 +55,7 @@ public:
     bool is_frozen() const {
         return m_is_frozen;
     }
-    bool try_freeze() {
+    bool freeze() {
         LLVM_BUILDER_ASSERT(not is_frozen());
         for (const std::string& fname : m_parent.field_names()) {
             if (m_parent[fname].is_struct_pointer()) {
@@ -191,7 +191,7 @@ bool Object::is_frozen() const {
     return m_impl->is_frozen();
 }
 
-bool Object::try_freeze() {
+bool Object::freeze() {
     CODEGEN_FN;
     if (has_error()) {
         return false;
@@ -201,7 +201,7 @@ bool Object::try_freeze() {
         CODEGEN_PUSH_ERROR(JIT, "Trying to re-freeze a object")
         return false;
     }
-    return m_impl->try_freeze();
+    return m_impl->freeze();
 }
 
 auto Object::null_fields() const -> std::vector<Field> {
@@ -465,7 +465,7 @@ public:
     bool is_frozen() const {
         return m_is_frozen;
     }
-    bool try_freeze() {
+    bool freeze() {
         LLVM_BUILDER_ASSERT(not is_frozen());
         if (is_pointer()) {
             if (m_element_type == type_t::pointer_struct) {
@@ -646,7 +646,7 @@ bool Array::is_frozen() const {
     return m_impl->is_frozen();
 }
 
-bool Array::try_freeze() {
+bool Array::freeze() {
     CODEGEN_FN;
     if (has_error()) {
         return false;
@@ -656,7 +656,7 @@ bool Array::try_freeze() {
         CODEGEN_PUSH_ERROR(JIT, "Trying to re-freeze array")
         return false;
     }
-    return m_impl->try_freeze();
+    return m_impl->freeze();
 }
 
 uint32_t Array::num_elements() const {

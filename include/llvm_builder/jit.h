@@ -61,7 +61,7 @@ public:
     ~Object();
 public:
     bool is_frozen() const;
-    bool try_freeze();
+    bool freeze();
     std::vector<Field> null_fields() const;
     bool is_instance_of(const Struct &o) const;
     const Struct& struct_def() const;
@@ -100,7 +100,7 @@ public:
     bool is_scalar() const;
     bool is_pointer() const;
     bool is_frozen() const;
-    bool try_freeze();
+    bool freeze();
     uint32_t num_elements() const;
     type_t element_type() const;
     uint32_t element_size() const;

@@ -47,7 +47,7 @@ public:
     std::unique_ptr<VariableContext>& parent() {
         return m_parent;
     }
-    void mk_ptr(const std::string& name, const TypeInfo& type, const ValueInfo& default_value) {
+    ValueInfo mk_ptr(const std::string& name, const TypeInfo& type, const ValueInfo& default_value) {
         CODEGEN_FN
         LLVM_BUILDER_ASSERT(not name.empty())
         LLVM_BUILDER_ASSERT(not type.has_error())
@@ -58,6 +58,7 @@ public:
         if (not default_value.is_null()) {
             l_ptr.store(default_value);
         }
+        return l_ptr;
     }
     void set(const std::string& name, const ValueInfo& v) {
         CODEGEN_FN
@@ -146,12 +147,14 @@ public:
             LLVM_BUILDER_ASSERT(not m_ctx_head);
         }
     }
-    void mk_ptr(const std::string& name, const TypeInfo& type, const ValueInfo& default_value) {
+    ValueInfo mk_ptr(const std::string& name, const TypeInfo& type, const ValueInfo& default_value) {
         LLVM_BUILDER_ASSERT(not name.empty())
         LLVM_BUILDER_ASSERT(not type.has_error())
         LLVM_BUILDER_ASSERT(not default_value.has_error())
         if (m_ctx_head) {
-            m_ctx_head->mk_ptr(name, type, default_value);
+            return m_ctx_head->mk_ptr(name, type, default_value);
+        } else {
+            return ValueInfo::null();
         }
     }
     void set(const std::string& name, const ValueInfo& v) {
@@ -252,6 +255,12 @@ public:
         LLVM_BUILDER_ASSERT(not is_commit());
         m_cursor_impl.builder().SetInsertPoint(m_basic_block);
         m_is_open = true;
+    }
+    void re_enter() {
+        LLVM_BUILDER_ASSERT(is_open());
+        LLVM_BUILDER_ASSERT(not is_sealed());
+        LLVM_BUILDER_ASSERT(not is_commit());
+        m_cursor_impl.builder().SetInsertPoint(m_basic_block);
     }
     void exit() {
         LLVM_BUILDER_ASSERT(is_open());
@@ -419,6 +428,32 @@ void CodeSection::enter() {
     }
 }
 
+void CodeSection::M_re_enter() {
+    CODEGEN_FN
+    if (has_error()) {
+        return;
+    }
+    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
+        if (ptr->is_sealed() or ptr->is_commit()) {
+            CODEGEN_PUSH_ERROR(CODE_SECTION, "CodeSection already closed:" << name());
+            M_mark_error();
+            return;
+        }
+        ptr->re_enter();
+        VariableContextMgr& var_mgr = VariableContextMgr::singleton();
+        Function fn = function();
+        if (not has_error()) {
+            ValueInfo l_value = CodeSectionContext::current_context();
+            TypeInfo l_type_info = l_value.type();
+            LLVM_BUILDER_ASSERT(l_type_info.is_pointer() or l_type_info.is_scalar());
+            var_mgr.set("context", l_value);
+        }
+    } else {
+        M_mark_error();
+        return;
+    }
+}
+
 void CodeSection::M_exit() {
     CODEGEN_FN
     if (has_error()) {
@@ -442,6 +477,7 @@ void CodeSection::M_exit() {
         }
         ptr->exit();
         CodeSectionContext::M_pop_section(*this);
+        CodeSectionContext::M_re_enter_top();
     } else {
         M_mark_error();
         return;
@@ -686,7 +722,7 @@ void CodeSectionContext::M_push_section(CodeSection& code) {
             return;
         }
         if ((l_sec.function()) != (code.function())) {
-            CODEGEN_PUSH_ERROR(CODE_SECTION, "CodeSection function mis-match, something is wrong");
+            CODEGEN_PUSH_ERROR(CODE_SECTION, "CodeSection function mis-match, something is wrong, probably previous section of previous function was not closed");
             code.M_mark_error();
             return;
         }
@@ -711,6 +747,15 @@ void CodeSectionContext::M_pop_section(CodeSection& code) {
         return;
     }
     l_vec.pop_back();
+}
+
+void CodeSectionContext::M_re_enter_top() {
+    CODEGEN_FN
+    vec_t& l_vec = M_sections();
+    if (l_vec.size() != 0) {
+        CodeSection& l_code = l_vec.back();
+        l_code.M_re_enter();
+    }
 }
 
 auto CodeSectionContext::M_detach(CodeSection &code) -> CodeSection {
@@ -762,7 +807,7 @@ void CodeSectionContext::push(std::string_view name, const ValueInfo& v) {
     }
 }
 
-void CodeSectionContext::mk_ptr(std::string_view name, const TypeInfo& type, const ValueInfo& default_value) {
+ValueInfo CodeSectionContext::mk_ptr(std::string_view name, const TypeInfo& type, const ValueInfo& default_value) {
     CODEGEN_FN
     CString cname{name};
     if (cname.empty()) {
@@ -772,8 +817,9 @@ void CodeSectionContext::mk_ptr(std::string_view name, const TypeInfo& type, con
     } else if (default_value.has_error()) {
         CODEGEN_PUSH_ERROR(CODE_SECTION, "can't mk a pointer with invalid default value");
     } else {
-        VariableContextMgr::singleton().mk_ptr(cname.str(), type, default_value);
+        return VariableContextMgr::singleton().mk_ptr(cname.str(), type, default_value);
     }
+    return ValueInfo::null();
 }
 
 Function CodeSectionContext::function() {

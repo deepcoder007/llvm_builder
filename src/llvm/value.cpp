@@ -896,8 +896,7 @@ llvm::Value* ValueInfo::M_eval() {
     }
     LLVM_BUILDER_ASSERT(m_impl != nullptr);
     const value_type_t l_vtype = m_impl->value_type();
-    const bool l_cacheable = l_vtype != value_type_t::load
-                          and l_vtype != value_type_t::store
+    const bool l_cacheable = l_vtype != value_type_t::store
                           and l_vtype != value_type_t::fn_call;
     if (l_cacheable) {
         CodeSection l_curr_section = CodeSectionContext::current_section();

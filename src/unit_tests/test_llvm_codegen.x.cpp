@@ -320,7 +320,7 @@ TEST(LLVM_CODEGEN, basic_test) {
                 l_args_obj.set<int32_t>("arg1", i);
                 l_args_obj.set<int32_t>("arg2", i + 1);
                 l_args_obj.set<int32_t>("arg3", i + 2);
-                l_args_obj.try_freeze();
+                l_args_obj.freeze();
 
                 int32_t c1 = 101;
                 int32_t c2 = 999;
@@ -341,7 +341,7 @@ TEST(LLVM_CODEGEN, basic_test) {
                 l_abc_obj.set<int32_t>("a", i);
                 l_abc_obj.set<int32_t>("b", i + 1);
                 l_abc_obj.set<int32_t>("c", i + 2);
-                l_abc_obj.try_freeze();
+                l_abc_obj.freeze();
 
                 int32_t c_5 = 5;
                 bool compare_1 = (i + 1) < c_5;
@@ -446,7 +446,7 @@ TEST(LLVM_CODEGEN, lexical_context) {
             l_args_obj.set<int32_t>("arg1", i);
             l_args_obj.set<int32_t>("arg2", i + 1);
             l_args_obj.set<int32_t>("arg3", i + 2);
-            l_args_obj.try_freeze();
+            l_args_obj.freeze();
 
             LLVM_BUILDER_ALWAYS_ASSERT_EQ(i + 2, fn1.on_event(l_args_obj));
             LLVM_BUILDER_ALWAYS_ASSERT_EQ(i + 2, fn2.on_event(l_args_obj));
@@ -549,7 +549,7 @@ TEST(LLVM_CODEGEN, struct_type_test) {
         l_test_object.set<int32_t>("field_2", 200);
         l_test_object.set<int32_t>("field_3", 300);
         l_test_object.set<int32_t>("field_4", 400);
-        l_test_object.try_freeze();
+        l_test_object.freeze();
 
         LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_test_object.get<int32_t>("field_1"), 100);
         LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_test_object.get<int32_t>("field_2"), 200);
@@ -559,7 +559,7 @@ TEST(LLVM_CODEGEN, struct_type_test) {
     {
         for (int32_t i = 0; i != 10; ++i) {
             CODEGEN_LINE(runtime::Object l_test_obj = l_test_struct_rt.mk_object())
-            l_test_obj.try_freeze();
+            l_test_obj.freeze();
             CODEGEN_LINE(runtime::Object l_args_obj = l_args_struct.mk_object())
             LLVM_BUILDER_ALWAYS_ASSERT(not l_test_obj.has_error());
             LLVM_BUILDER_ALWAYS_ASSERT(l_test_obj.is_instance_of(l_test_struct_rt));
@@ -570,7 +570,7 @@ TEST(LLVM_CODEGEN, struct_type_test) {
                 l_args_obj.set<int32_t>("arg3", i + 4);
                 l_args_obj.set<int32_t>("arg4", i + 6);
                 l_args_obj.set_object("arg5", l_test_obj);
-                l_args_obj.try_freeze();
+                l_args_obj.freeze();
                 CODEGEN_LINE(result = struct_fn.on_event(l_args_obj))
             }
             {
@@ -679,7 +679,7 @@ TEST(LLVM_CODEGEN, multi_type) {
     {
         for (int32_t i = 0; i != 10; ++i) {
             CODEGEN_LINE(runtime::Object l_output_obj = l_output_struct.mk_object())
-            l_output_obj.try_freeze();
+            l_output_obj.freeze();
             CODEGEN_LINE(runtime::Object l_args_obj = l_args_struct.mk_object())
             {
                 l_args_obj.set<int32_t>("arg1", i);
@@ -688,7 +688,7 @@ TEST(LLVM_CODEGEN, multi_type) {
                 l_args_obj.set<float32_t>("arg3", (float32_t)(i + 4));
                 l_args_obj.set<float64_t>("arg4", (float64_t)(i + 6));
                 l_args_obj.set_object("output", l_output_obj);
-                l_args_obj.try_freeze();
+                l_args_obj.freeze();
 
                 CODEGEN_LINE(multi_type_fn.on_event(l_args_obj))
             }
@@ -875,12 +875,12 @@ TEST(LLVM_CODEGEN, array_type_test) {
             for (uint32_t i = 0; i != 10; ++i) {
                 arr_obj.set<int32_t>(i, (int32_t)(i+1) * 10);
             }
-            arr_obj.try_freeze();
+            arr_obj.freeze();
             for (int32_t i = 0; i != 5; ++i) {
                 CODEGEN_LINE(runtime::Object l_args_obj = l_arr_load_struct.mk_object())
                 l_args_obj.set<int32_t>("a", i);
                 l_args_obj.set_array("b", arr_obj);
-                l_args_obj.try_freeze();
+                l_args_obj.freeze();
                 CODEGEN_LINE(int32_t result = arr_idx_load_fn.on_event(l_args_obj))
                 LLVM_BUILDER_ALWAYS_ASSERT_EQ(result, arr_obj.get<int32_t>(i));
             }
@@ -890,25 +890,25 @@ TEST(LLVM_CODEGEN, array_type_test) {
             for (uint32_t i = 0; i != 10; ++i) {
                 arr_obj.set<int32_t>(i, (int32_t)(i+1) * 10);
             }
-            arr_obj.try_freeze();
+            arr_obj.freeze();
             for (int32_t i = 0; i != 5; ++i) {
                 CODEGEN_LINE(runtime::Object l_args_obj = l_arr_load_struct.mk_object())
                 l_args_obj.set<int32_t>("a", i);
                 l_args_obj.set_array("b", arr_obj);
-                l_args_obj.try_freeze();
+                l_args_obj.freeze();
                 CODEGEN_LINE(int32_t result = arr_idx_load_lazy_fn.on_event(l_args_obj))
                 LLVM_BUILDER_ALWAYS_ASSERT_EQ(result, arr_obj.get<int32_t>(i));
             }
         }
         {
             CODEGEN_LINE(runtime::Array arr_obj = runtime::Array::from(runtime::type_t::int32, 10))
-            arr_obj.try_freeze();
+            arr_obj.freeze();
             for (int32_t i = 0; i != 5; ++i) {
                 CODEGEN_LINE(runtime::Object l_args_obj = l_arr_assign_struct.mk_object())
                 l_args_obj.set<int32_t>("idx", i);
                 l_args_obj.set_array("arr", arr_obj);
                 l_args_obj.set<int32_t>("value", i * 100);
-                l_args_obj.try_freeze();
+                l_args_obj.freeze();
                 CODEGEN_LINE(arr_idx_assign_fn.on_event(l_args_obj))
             }
             for (int32_t i = 0; i != 5; ++i) {
@@ -917,13 +917,13 @@ TEST(LLVM_CODEGEN, array_type_test) {
         }
         {
             CODEGEN_LINE(runtime::Array arr_obj = runtime::Array::from(runtime::type_t::int32, 10))
-            arr_obj.try_freeze();
+            arr_obj.freeze();
             for (int32_t i = 0; i != 5; ++i) {
                 CODEGEN_LINE(runtime::Object l_args_obj = l_arr_assign_struct.mk_object())
                 l_args_obj.set<int32_t>("idx", i);
                 l_args_obj.set_array("arr", arr_obj);
                 l_args_obj.set<int32_t>("value", i * 100);
-                l_args_obj.try_freeze();
+                l_args_obj.freeze();
                 CODEGEN_LINE(arr_idx_assign_lazy_fn.on_event(l_args_obj))
             }
             for (int32_t i = 0; i != 5; ++i) {
@@ -935,12 +935,12 @@ TEST(LLVM_CODEGEN, array_type_test) {
             for (int i = 0; i != 10; ++i) {
                 arr_obj.set<int32_t>(static_cast<uint32_t>(i), (i+1) * 10);
             }
-            arr_obj.try_freeze();
+            arr_obj.freeze();
             for (int32_t i = 0; i != 5; ++i) {
                 CODEGEN_LINE(runtime::Object l_args_obj = l_vec_load_struct.mk_object())
                 l_args_obj.set<int32_t>("a", i);
                 l_args_obj.set_array("b", arr_obj);
-                l_args_obj.try_freeze();
+                l_args_obj.freeze();
                 // TODO{vibhanshu}: enable and debug this test on vector
                 CODEGEN_LINE(int32_t result = vec_idx_load_fn.on_event(l_args_obj))
                 LLVM_BUILDER_ALWAYS_ASSERT_EQ(result, arr_obj.get<int32_t>(static_cast<uint32_t>(i)));
@@ -948,13 +948,13 @@ TEST(LLVM_CODEGEN, array_type_test) {
         }
         {
             CODEGEN_LINE(runtime::Array arr_obj = runtime::Array::from(runtime::type_t::int32, 10))
-            arr_obj.try_freeze();
+            arr_obj.freeze();
             for (int32_t i = 0; i != 5; ++i) {
                 CODEGEN_LINE(runtime::Object l_args_obj = l_vec_assign_struct.mk_object())
                 l_args_obj.set<int32_t>("idx", i);
                 l_args_obj.set_array("vec", arr_obj);
                 l_args_obj.set<int32_t>("value", i * 100);
-                l_args_obj.try_freeze();
+                l_args_obj.freeze();
                 CODEGEN_LINE(vec_idx_assign_fn.on_event(l_args_obj))
             }
             for (int32_t i = 0; i != 5; ++i) {
@@ -1076,14 +1076,14 @@ TEST(LLVM_CODEGEN, vector_type_test) {
                 CODEGEN_LINE(arr2_obj.set<int32_t>(static_cast<uint32_t>(j), i + j + 6))
                 CODEGEN_LINE(arr3_obj.set<int32_t>(static_cast<uint32_t>(j), 0))
             }
-            CODEGEN_LINE(arr1_obj.try_freeze())
-            CODEGEN_LINE(arr2_obj.try_freeze())
-            CODEGEN_LINE(arr3_obj.try_freeze())
+            CODEGEN_LINE(arr1_obj.freeze())
+            CODEGEN_LINE(arr2_obj.freeze())
+            CODEGEN_LINE(arr3_obj.freeze())
             CODEGEN_LINE(runtime::Object l_args_obj = l_vec_add_struct.mk_object())
             CODEGEN_LINE(l_args_obj.set_array("arg1", arr1_obj))
             CODEGEN_LINE(l_args_obj.set_array("arg2", arr2_obj))
             CODEGEN_LINE(l_args_obj.set_array("arg3", arr3_obj))
-            CODEGEN_LINE(l_args_obj.try_freeze())
+            CODEGEN_LINE(l_args_obj.freeze())
             CODEGEN_LINE(vec_add_fn.on_event(l_args_obj))
             LLVM_BUILDER_ALWAYS_ASSERT_EQ(arr3_obj.get<int32_t>(0), (4 * (i + 0) + 12));
             LLVM_BUILDER_ALWAYS_ASSERT(arr3_obj.get<int32_t>(1) == (4 * (i + 1) + 12));
@@ -1103,11 +1103,11 @@ TEST(LLVM_CODEGEN, vector_type_test) {
             for (int32_t j = 0; j != 10; ++j) {
                 arr_obj.set<int32_t>(static_cast<uint32_t>(j), 0);
             }
-            arr_obj.try_freeze();
+            arr_obj.freeze();
             CODEGEN_LINE(runtime::Object l_args_obj = l_vec_set_struct.mk_object())
             l_args_obj.set_array("arg1", arr_obj);
             l_args_obj.set<int32_t>("v", i * 10);
-            l_args_obj.try_freeze();
+            l_args_obj.freeze();
             CODEGEN_LINE(vec_set_fn.on_event(l_args_obj))
             LLVM_BUILDER_ALWAYS_ASSERT(arr_obj.get<int32_t>(1) == i * 10);
         }
@@ -1118,10 +1118,10 @@ TEST(LLVM_CODEGEN, vector_type_test) {
             for (int32_t j = 0; j != 10; ++j) {
                 arr_obj.set<int32_t>(static_cast<uint32_t>(j), i * 100 + j);
             }
-            arr_obj.try_freeze();
+            arr_obj.freeze();
             CODEGEN_LINE(runtime::Object l_args_obj = l_vec_load_struct.mk_object())
             l_args_obj.set_array("arg1", arr_obj);
-            l_args_obj.try_freeze();
+            l_args_obj.freeze();
             CODEGEN_LINE(int32_t result = vec_load_fn.on_event(l_args_obj))
             LLVM_BUILDER_ALWAYS_ASSERT_EQ(result, i * 100 + 1);
         }
@@ -1254,7 +1254,7 @@ TEST(LLVM_CODEGEN, multi_module) {
             l_args_obj.set<int32_t>("arg1", i);
             l_args_obj.set<int32_t>("arg2", i + 1);
             l_args_obj.set<int32_t>("arg3", i + 2);
-            l_args_obj.try_freeze();
+            l_args_obj.freeze();
             CODEGEN_LINE(int32_t result = fn1_fn.on_event(l_args_obj))
             LLVM_BUILDER_ALWAYS_ASSERT_EQ(golden_set[i] * 2, result);
         }
@@ -1365,7 +1365,7 @@ TEST(LLVM_CODEGEN, resilient_api) {
         l_args_obj.set<int32_t>("arg1", i);
         l_args_obj.set<int32_t>("arg2", i + 1);
         l_args_obj.set<int32_t>("arg3", i + 2);
-        l_args_obj.try_freeze();
+        l_args_obj.freeze();
 
         LLVM_BUILDER_ALWAYS_ASSERT_EQ(i + 2, fn1_fn.on_event(l_args_obj));
         LLVM_BUILDER_ALWAYS_ASSERT_EQ(i + 2, fn2_fn.on_event(l_args_obj));

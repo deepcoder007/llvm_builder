@@ -48,9 +48,9 @@ runtime::Object gen_ctx_object(runtime::type_t rt_type, const runtime::Struct& c
     LLVM_BUILDER_ALWAYS_ASSERT(not vec1_arr.has_error());
     LLVM_BUILDER_ALWAYS_ASSERT(not vec2_arr.has_error());
     LLVM_BUILDER_ALWAYS_ASSERT(not vec3_arr.has_error());
-    vec1_arr.try_freeze();
-    vec2_arr.try_freeze();
-    vec3_arr.try_freeze();
+    vec1_arr.freeze();
+    vec2_arr.freeze();
+    vec3_arr.freeze();
     ctx_obj.set_array("vec1", vec1_arr);
     ctx_obj.set_array("vec2", vec2_arr);
     ctx_obj.set_array("vec3", vec3_arr);
@@ -69,16 +69,16 @@ runtime::Object gen_ctx_object(runtime::type_t rt_type, const runtime::Struct& c
         LLVM_BUILDER_ALWAYS_ASSERT(not mat1_row.has_error());
         LLVM_BUILDER_ALWAYS_ASSERT(not mat2_row.has_error());
         LLVM_BUILDER_ALWAYS_ASSERT(not mat3_row.has_error());
-        mat1_row.try_freeze();
-        mat2_row.try_freeze();
-        mat3_row.try_freeze();
+        mat1_row.freeze();
+        mat2_row.freeze();
+        mat3_row.freeze();
         mat1_ptr_arr.set_array(r, mat1_row);
         mat2_ptr_arr.set_array(r, mat2_row);
         mat3_ptr_arr.set_array(r, mat3_row);
     }
-    mat1_ptr_arr.try_freeze();
-    mat2_ptr_arr.try_freeze();
-    mat3_ptr_arr.try_freeze();
+    mat1_ptr_arr.freeze();
+    mat2_ptr_arr.freeze();
+    mat3_ptr_arr.freeze();
 
     ctx_obj.set_array("mat1", mat1_ptr_arr);
     ctx_obj.set_array("mat2", mat2_ptr_arr);
@@ -255,7 +255,7 @@ void test_for_type(const std::string& suffix, const std::string& ctx_name, JustI
             CODEGEN_LINE(ctx_obj.set<T>("arg1", arg1))
             CODEGEN_LINE(ctx_obj.set<T>("arg2", arg2))
             CODEGEN_LINE(ctx_obj.set<T>("arg3", arg3))
-            CODEGEN_LINE(ctx_obj.try_freeze())
+            CODEGEN_LINE(ctx_obj.freeze())
             CODEGEN_LINE(fn.on_event(ctx_obj))
             T result = ctx_obj.get<T>("res");
             LLVM_BUILDER_ALWAYS_ASSERT_EQ(res5, result);
@@ -283,14 +283,14 @@ void test_for_type(const std::string& suffix, const std::string& ctx_name, JustI
                 vec2_arr.set<T>(j, static_cast<T>(i * 100 + 10 * j));
                 vec3_arr.set<T>(j, static_cast<T>(0));
             }
-            vec1_arr.try_freeze();
-            vec2_arr.try_freeze();
-            vec3_arr.try_freeze();
+            vec1_arr.freeze();
+            vec2_arr.freeze();
+            vec3_arr.freeze();
 
             ctx_obj.set_array("vec1", vec1_arr);
             ctx_obj.set_array("vec2", vec2_arr);
             ctx_obj.set_array("vec3", vec3_arr);
-            ctx_obj.try_freeze();
+            ctx_obj.freeze();
 
             fn.on_event(ctx_obj);
 
@@ -326,22 +326,22 @@ void test_for_type(const std::string& suffix, const std::string& ctx_name, JustI
                     mat2_row.set<T>(k, static_cast<T>(k * 100 + 10 * j));
                     mat3_row.set<T>(k, static_cast<T>(0));
                 }
-                mat1_row.try_freeze();
-                mat2_row.try_freeze();
-                mat3_row.try_freeze();
+                mat1_row.freeze();
+                mat2_row.freeze();
+                mat3_row.freeze();
                 mat1_ptr_arr.set_array(j, mat1_row);
                 mat2_ptr_arr.set_array(j, mat2_row);
                 mat3_ptr_arr.set_array(j, mat3_row);
             }
 
-            mat1_ptr_arr.try_freeze();
-            mat2_ptr_arr.try_freeze();
-            mat3_ptr_arr.try_freeze();
+            mat1_ptr_arr.freeze();
+            mat2_ptr_arr.freeze();
+            mat3_ptr_arr.freeze();
 
             ctx_obj.set_array("mat1", mat1_ptr_arr);
             ctx_obj.set_array("mat2", mat2_ptr_arr);
             ctx_obj.set_array("mat3", mat3_ptr_arr);
-            ctx_obj.try_freeze();
+            ctx_obj.freeze();
 
             fn.on_event(ctx_obj);
 
