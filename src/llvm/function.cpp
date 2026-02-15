@@ -282,6 +282,69 @@ Function::Function(FunctionImpl& impl)
     }
 }
 
+Function::Function(const std::string& name, const FnContext& context, Module& mod)
+  : BaseT{State::VALID} {
+    CODEGEN_FN
+    if (not CursorContextImpl::has_value()) {
+        CODEGEN_PUSH_ERROR(CONTEXT, "function can't be compiled as context not found");
+        M_mark_error();
+        return;
+    }
+    if (name.empty()) {
+        CODEGEN_PUSH_ERROR(FUNCTION, "Function name not set");
+        M_mark_error();
+        return;
+    }
+    if (context.has_error() or not context.is_valid()) {
+        CODEGEN_PUSH_ERROR(FUNCTION, "invalid function argument");
+        M_mark_error();
+        return;
+    }
+    if (mod.has_error()) {
+        CODEGEN_PUSH_ERROR(FUNCTION, "module not valid");
+        M_mark_error();
+        return;
+    }
+    TypeInfo return_type = TypeInfo::mk_int32();
+    FunctionImpl impl(mod, name, return_type, context, c_construct{});
+    Function fn = CursorContextImpl::mk_function(std::move(impl));
+    LLVM_BUILDER_ASSERT(not impl.is_valid());
+    if (fn.has_error()) {
+        M_mark_error();
+        return;
+    }
+    m_impl = fn.m_impl;
+}
+
+Function::Function(const std::string& name, const FnContext& context)
+  : BaseT{State::VALID} {
+    CODEGEN_FN
+    if (not CursorContextImpl::has_value()) {
+        CODEGEN_PUSH_ERROR(CONTEXT, "function can't be compiled as context not found");
+        M_mark_error();
+        return;
+    }
+    if (name.empty()) {
+        CODEGEN_PUSH_ERROR(FUNCTION, "Function name not set");
+        M_mark_error();
+        return;
+    }
+    if (context.has_error() or not context.is_valid()) {
+        CODEGEN_PUSH_ERROR(FUNCTION, "invalid function argument");
+        M_mark_error();
+        return;
+    }
+    TypeInfo return_type = TypeInfo::mk_int32();
+    FunctionImpl impl(name, return_type, context, c_construct{});
+    Function fn = CursorContextImpl::mk_function(std::move(impl));
+    LLVM_BUILDER_ASSERT(not impl.is_valid());
+    if (fn.has_error()) {
+        M_mark_error();
+        return;
+    }
+    m_impl = fn.m_impl;
+}
+
 Function::~Function() = default;
 
 bool Function::is_valid() const {

@@ -193,33 +193,21 @@ void gen_for_type(const TypeInfo& int_type, const FnContext int_context) {
     CODEGEN_LINE(Module l_module = Module::Context::value());
     {
         const std::string fn_name{LLVM_BUILDER_CONCAT << "sample_fn_name_" << type_name};
-        CODEGEN_LINE(FunctionBuilder fn_builder)
-        CODEGEN_LINE(fn_builder.set_context(int_context)
-            .set_module(l_module)
-            .set_name(fn_name))
-        CODEGEN_LINE(Function fn = fn_builder.compile())
+        CODEGEN_LINE(Function fn(fn_name, int_context, l_module))
         gen_sample_fn<T>(fn);
         Function f2 = l_module.get_function(fn_name);
         f2.verify();
     }
     {
         const std::string fn_name{LLVM_BUILDER_CONCAT << "vector_addition_" << type_name};
-        CODEGEN_LINE(FunctionBuilder fn_builder)
-        CODEGEN_LINE(fn_builder.set_context(int_context)
-            .set_module(l_module)
-            .set_name(fn_name))
-        CODEGEN_LINE(Function fn = fn_builder.compile())
+        CODEGEN_LINE(Function fn(fn_name, int_context, l_module))
         vector_add(fn);
         Function f2 = l_module.get_function(fn_name);
         f2.verify();
     }
     {
         const std::string fn_name{LLVM_BUILDER_CONCAT << "matrix_addition_" << type_name};
-        CODEGEN_LINE(FunctionBuilder fn_builder)
-        CODEGEN_LINE(fn_builder.set_context(int_context)
-            .set_module(l_module)
-            .set_name(fn_name))
-        CODEGEN_LINE(Function fn = fn_builder.compile())
+        CODEGEN_LINE(Function fn(fn_name, int_context, l_module))
         matrix_add(fn);
         Function f2 = l_module.get_function(fn_name);
         f2.verify();

@@ -192,11 +192,7 @@ TEST(LLVM_CODEGEN, basic_test) {
     CODEGEN_LINE(Module l_module = l_cursor.main_module())
     CODEGEN_LINE(Module::Context l_module_ctx{l_module})
     {
-        CODEGEN_LINE(FunctionBuilder fn_builder)
-        CODEGEN_LINE(fn_builder.set_context(FnContext{args3_type.pointer_type()})
-            .set_module(l_module)
-            .set_name("sample_fn_name"))
-        CODEGEN_LINE(Function fn = fn_builder.compile())
+        CODEGEN_LINE(Function fn("sample_fn_name", FnContext{args3_type.pointer_type()}, l_module))
 
         {
             CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
@@ -236,11 +232,7 @@ TEST(LLVM_CODEGEN, basic_test) {
         }
     }
     {
-        CODEGEN_LINE(FunctionBuilder fn_builder_if_else)
-        CODEGEN_LINE(fn_builder_if_else.set_context(FnContext{abc_type.pointer_type()})
-            .set_module(l_module)
-            .set_name("foo_if_else"))
-        CODEGEN_LINE(Function fn_if_else = fn_builder_if_else.compile())
+        CODEGEN_LINE(Function fn_if_else("foo_if_else", FnContext{abc_type.pointer_type()}, l_module))
 
         LLVM_BUILDER_ASSERT(not int32_type.has_error());
         {
@@ -280,11 +272,7 @@ TEST(LLVM_CODEGEN, basic_test) {
         }
     }
     {
-        CODEGEN_LINE(FunctionBuilder fn_builder_load)
-        CODEGEN_LINE(fn_builder_load.set_context(FnContext{arr_args_type.pointer_type()})
-            .set_module(l_module)
-            .set_name("foo_loop_v2"))
-        CODEGEN_LINE(Function fn_load = fn_builder_load.compile())
+        CODEGEN_LINE(Function fn_load("foo_loop_v2", FnContext{arr_args_type.pointer_type()}, l_module))
 
         {
             CODEGEN_LINE(CodeSection l_fn_body = fn_load.mk_section("fn_load_begin"))
@@ -378,11 +366,7 @@ TEST(LLVM_CODEGEN, lexical_context) {
     Module l_module = Cursor::Context::value().main_module();
     Module::Context l_module_ctx{l_module};
     auto gen_fn = [&lexical_args_type, &int32_type] (const std::string& fn_name, Module& mod, int version) -> Function {
-        FunctionBuilder fn_builder;
-        fn_builder.set_context(FnContext{lexical_args_type.pointer_type()})
-            .set_module(mod)
-            .set_name(fn_name);
-        Function fn = fn_builder.compile();
+        Function fn(fn_name, FnContext{lexical_args_type.pointer_type()}, mod);
         {
             CodeSection l_fn_body = fn.mk_section("test_fn_body");
             l_fn_body.enter();
@@ -485,11 +469,7 @@ TEST(LLVM_CODEGEN, struct_type_test) {
         CODEGEN_LINE(Module l_module = l_cursor.main_module())
         CODEGEN_LINE(Module::Context l_module_ctx{l_module})
         {
-            CODEGEN_LINE(FunctionBuilder fn_builder)
-            CODEGEN_LINE(fn_builder.set_context(FnContext{struct_test_args_type.pointer_type()})
-                .set_module(l_module)
-                .set_name("struct_fn"))
-            CODEGEN_LINE(Function fn = fn_builder.compile())
+            CODEGEN_LINE(Function fn("struct_fn", FnContext{struct_test_args_type.pointer_type()}, l_module))
             {
                 CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
                 CODEGEN_LINE(l_fn_body.enter())
@@ -629,11 +609,7 @@ TEST(LLVM_CODEGEN, multi_type) {
         Module l_module = l_cursor.main_module();
         Module::Context l_module_ctx{l_module};
         {
-            FunctionBuilder fn_builder;
-            fn_builder.set_context(FnContext{multi_type_args_type.pointer_type()})
-                .set_module(l_module)
-                .set_name("basic_multi_type_test");
-            Function fn = fn_builder.compile();
+            Function fn("basic_multi_type_test", FnContext{multi_type_args_type.pointer_type()}, l_module);
             {
                 CodeSection l_fn_body = fn.mk_section("test_fn_body");
                 l_fn_body.enter();
@@ -744,17 +720,9 @@ TEST(LLVM_CODEGEN, array_type_test) {
     Module::Context l_module_ctx{l_module};
 
     {
-        FunctionBuilder fn_builder_load;
-        fn_builder_load.set_context(FnContext{arr_load_args_type.pointer_type()})
-            .set_module(l_module)
-            .set_name("array_idx_load");
-        Function fn_load = fn_builder_load.compile();
+        Function fn_load("array_idx_load", FnContext{arr_load_args_type.pointer_type()}, l_module);
 
-        FunctionBuilder fn_builder_load_lazy;
-        fn_builder_load_lazy.set_context(FnContext{arr_load_args_type.pointer_type()})
-            .set_module(l_module)
-            .set_name("array_idx_load_lazy");
-        Function fn_load_lazy = fn_builder_load_lazy.compile();
+        Function fn_load_lazy("array_idx_load_lazy", FnContext{arr_load_args_type.pointer_type()}, l_module);
         {
             CodeSection l_fn_body = fn_load.mk_section("fn_load_begin");
             l_fn_body.enter();
@@ -776,11 +744,7 @@ TEST(LLVM_CODEGEN, array_type_test) {
         }
     }
     {
-        FunctionBuilder fn_builder_assign;
-        fn_builder_assign.set_context(FnContext{arr_assign_args_type.pointer_type()})
-            .set_module(l_module)
-            .set_name("array_idx_assign");
-        Function fn_assign = fn_builder_assign.compile();
+        Function fn_assign("array_idx_assign", FnContext{arr_assign_args_type.pointer_type()}, l_module);
         {
             CodeSection l_fn_body = fn_assign.mk_section("fn_assign_begin");
             l_fn_body.enter();
@@ -791,11 +755,7 @@ TEST(LLVM_CODEGEN, array_type_test) {
             arg_arr.entry(arg_idx).store(arg_value);
             CodeSectionContext::set_return_value(ValueInfo::from_constant(0));
         }
-        FunctionBuilder fn_builder_assign_lazy;
-        fn_builder_assign_lazy.set_context(FnContext{arr_assign_args_type.pointer_type()})
-            .set_module(l_module)
-            .set_name("array_idx_assign_lazy");
-        Function fn_assign_lazy = fn_builder_assign_lazy.compile();
+        Function fn_assign_lazy("array_idx_assign_lazy", FnContext{arr_assign_args_type.pointer_type()}, l_module);
         {
             CodeSection l_fn_body = fn_assign_lazy.mk_section("fn_assign_begin");
             l_fn_body.enter();
@@ -809,11 +769,7 @@ TEST(LLVM_CODEGEN, array_type_test) {
         }
     }
     {
-        FunctionBuilder fn_builder_load;
-        fn_builder_load.set_context(FnContext{vec_load_args_type.pointer_type()})
-            .set_module(l_module)
-            .set_name("vector_idx_load");
-        Function fn_load = fn_builder_load.compile();
+        Function fn_load("vector_idx_load", FnContext{vec_load_args_type.pointer_type()}, l_module);
         {
             CodeSection l_fn_body = fn_load.mk_section("fn_load_begin");
             l_fn_body.enter();
@@ -825,11 +781,7 @@ TEST(LLVM_CODEGEN, array_type_test) {
         }
     }
     {
-        FunctionBuilder fn_builder_assign;
-        fn_builder_assign.set_context(FnContext{vec_assign_args_type.pointer_type()})
-            .set_module(l_module)
-            .set_name("vector_idx_assign");
-        Function fn_assign = fn_builder_assign.compile();
+        Function fn_assign("vector_idx_assign", FnContext{vec_assign_args_type.pointer_type()}, l_module);
         {
             CodeSection l_fn_body = fn_assign.mk_section("fn_assign_begin");
             l_fn_body.enter();
@@ -992,11 +944,7 @@ TEST(LLVM_CODEGEN, vector_type_test) {
         Module l_module = l_cursor.main_module();
         Module::Context l_module_ctx{l_module};
         {
-            FunctionBuilder fn_builder;
-            fn_builder.set_context(FnContext{vec_add_args_type.pointer_type()})
-                .set_module(l_module)
-                .set_name("sample_vec_add_op");
-            Function fn = fn_builder.compile();
+            Function fn("sample_vec_add_op", FnContext{vec_add_args_type.pointer_type()}, l_module);
 
             {
                 CodeSection l_fn_body = fn.mk_section("test_fn_body");
@@ -1017,11 +965,7 @@ TEST(LLVM_CODEGEN, vector_type_test) {
             }
         }
         {
-            FunctionBuilder fn_builder;
-            fn_builder.set_context(FnContext{vec_set_args_type.pointer_type()})
-                .set_module(l_module)
-                .set_name("set_vector_value_idx1");
-            Function fn = fn_builder.compile();
+            Function fn("set_vector_value_idx1", FnContext{vec_set_args_type.pointer_type()}, l_module);
             {
                 CodeSection l_fn_body = fn.mk_section("test_fn_body");
                 l_fn_body.enter();
@@ -1035,11 +979,7 @@ TEST(LLVM_CODEGEN, vector_type_test) {
             }
         }
         {
-            FunctionBuilder fn_builder;
-            fn_builder.set_context(FnContext{vec_load_args_type.pointer_type()})
-                .set_module(l_module)
-                .set_name("load_vector_value_idx1");
-            Function fn = fn_builder.compile();
+            Function fn("load_vector_value_idx1", FnContext{vec_load_args_type.pointer_type()}, l_module);
             {
                 CodeSection l_fn_body = fn.mk_section("test_fn_body");
                 l_fn_body.enter();
@@ -1145,25 +1085,11 @@ TEST(LLVM_CODEGEN, multi_module) {
         Module l_module = l_cursor.gen_module();
         Module::Context l_module_ctx{l_module};
         {
-            FunctionBuilder fn_builder_ext;
-            fn_builder_ext.set_context(FnContext{int32_type})
-                .set_module(l_module)
-                .mark_external()
-                .set_name("fn2");
-            Function fn_ext = fn_builder_ext.compile();
+            Function fn_ext("fn2", FnContext{int32_type}, l_module);
 
-            FunctionBuilder fn_builder_local_ext;
-            fn_builder_local_ext.set_context(FnContext{int32_type})
-                .set_module(l_module)
-                .mark_external()
-                .set_name("fn2_local");
-            Function fn_local_ext = fn_builder_local_ext.compile();
+            Function fn_local_ext("fn2_local", FnContext{int32_type}, l_module);
 
-            FunctionBuilder fn_builder;
-            fn_builder.set_context(FnContext{multi_args_type.pointer_type()})
-                .set_module(l_module)
-                .set_name("fn1");
-            Function fn = fn_builder.compile();
+            Function fn("fn1", FnContext{multi_args_type.pointer_type()}, l_module);
             {
                 CodeSection l_fn_body = fn.mk_section("test_fn_body");
                 l_fn_body.enter();
@@ -1195,11 +1121,7 @@ TEST(LLVM_CODEGEN, multi_module) {
         Module::Context l_module_ctx{l_module};
         TypeInfo float32_type = TypeInfo::mk_float32();
         {
-            FunctionBuilder fn_builder;
-            fn_builder.set_context(FnContext{int32_type})
-                .set_module(l_module)
-                .set_name("fn2");
-            Function fn = fn_builder.compile();
+            Function fn("fn2", FnContext{int32_type}, l_module);
             {
                 CodeSection l_fn_body = fn.mk_section("test_fn_body");
                 l_fn_body.enter();
@@ -1215,11 +1137,7 @@ TEST(LLVM_CODEGEN, multi_module) {
             }
         }
         {
-            FunctionBuilder fn_builder;
-            fn_builder.set_context(FnContext{int32_type})
-                .set_module(l_module)
-                .set_name("fn2_local");
-            Function fn = fn_builder.compile();
+            Function fn("fn2_local", FnContext{int32_type}, l_module);
             {
                 CodeSection l_fn_body = fn.mk_section("test_fn_body");
                 l_fn_body.enter();
@@ -1268,11 +1186,7 @@ TEST(LLVM_CODEGEN, resilient_api) {
     CODEGEN_LINE(TypeInfo int32_type = TypeInfo::mk_int32())
 
     auto gen_fn = [&int32_type] (const FnContext& fn_context, const std::string& fn_name, Module& mod, int version) -> Function {
-        CODEGEN_LINE(FunctionBuilder fn_builder)
-        CODEGEN_LINE(fn_builder.set_context(fn_context)
-            .set_module(mod)
-            .set_name(fn_name))
-        CODEGEN_LINE(Function fn = fn_builder.compile())
+        CODEGEN_LINE(Function fn(fn_name, fn_context, mod))
         {
             CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
             CODEGEN_LINE(l_fn_body.enter())

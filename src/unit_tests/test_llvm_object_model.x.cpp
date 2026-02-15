@@ -64,11 +64,7 @@ TEST(LLVM_CODEGEN_OBJECT, complex_struct_definitions) {
     {
         CODEGEN_LINE(Function fn)
         {
-            CODEGEN_LINE(FunctionBuilder fn_builder)
-            CODEGEN_LINE(fn_builder.set_context(FnContext{big_struct_args_type.pointer_type()})
-                .set_module(l_module)
-                .set_name("big_struct_test_fn"))
-            CODEGEN_LINE(fn = fn_builder.compile())
+            CODEGEN_LINE(fn = Function("big_struct_test_fn", FnContext{big_struct_args_type.pointer_type()}, l_module))
 
             {
                 CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
@@ -427,11 +423,7 @@ TEST(LLVM_CODEGEN_OBJECT, complex_struct_definitions_v2) {
         CODEGEN_LINE(Module l_module = l_cursor.main_module())
         CODEGEN_LINE(Module::Context l_module_ctx{l_module})
         {
-            CODEGEN_LINE(FunctionBuilder fn_builder)
-            CODEGEN_LINE(fn_builder.set_context(FnContext{inner_copy_args_type.pointer_type()})
-                .set_module(l_module)
-                .set_name("test_inner_field_copy"))
-            CODEGEN_LINE(Function fn = fn_builder.compile())
+            CODEGEN_LINE(Function fn("test_inner_field_copy", FnContext{inner_copy_args_type.pointer_type()}, l_module))
             {
                 CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
                 CODEGEN_LINE(l_fn_body.enter())
@@ -466,11 +458,7 @@ TEST(LLVM_CODEGEN_OBJECT, complex_struct_definitions_v2) {
             }
         }
         {
-            CODEGEN_LINE(FunctionBuilder fn_builder)
-            CODEGEN_LINE(fn_builder.set_context(FnContext{outer_copy_args_type.pointer_type()})
-                .set_module(l_module)
-                .set_name("test_outer_field_copy"))
-            CODEGEN_LINE(Function fn = fn_builder.compile())
+            CODEGEN_LINE(Function fn("test_outer_field_copy", FnContext{outer_copy_args_type.pointer_type()}, l_module))
             {
                 CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
                 CODEGEN_LINE(l_fn_body.enter())

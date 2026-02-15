@@ -830,11 +830,7 @@ public:
         std::vector<Function> r_fn_defs;
         const std::string l_struct_full_name = struct_type.struct_name();
         {
-            FunctionBuilder fn_builder;
-            fn_builder.set_context(FnContext{arg_type.pointer_type()})
-                .set_module(parent)
-                .set_name(LinkSymbolName{l_struct_full_name, "size"}.full_name());
-            Function l_size_fn = fn_builder.compile();
+            Function l_size_fn(LinkSymbolName{l_struct_full_name, "size"}.full_name(), FnContext{arg_type.pointer_type()}, parent);
             {
                 CodeSection l_fn_body = l_size_fn.mk_section("fn_body");
                 l_fn_body.enter();
@@ -847,11 +843,7 @@ public:
             r_fn_defs.emplace_back(l_size_fn);
         }
         {
-            FunctionBuilder fn_builder;
-            fn_builder.set_context(FnContext{arg_type.pointer_type()})
-                .set_module(parent)
-                .set_name(LinkSymbolName{l_struct_full_name, "field_count"}.full_name());
-            Function l_field_count_fn = fn_builder.compile();
+            Function l_field_count_fn(LinkSymbolName{l_struct_full_name, "field_count"}.full_name(), FnContext{arg_type.pointer_type()}, parent);
             {
                 CodeSection l_fn_body = l_field_count_fn.mk_section("fn_body");
                 l_fn_body.enter();
@@ -864,11 +856,7 @@ public:
             r_fn_defs.emplace_back(l_field_count_fn);
         }
         {
-            FunctionBuilder fn_builder;
-            fn_builder.set_context(FnContext{TypeInfo::mk_int_context().pointer_type()})
-                .set_module(parent)
-                .set_name(LinkSymbolName{l_struct_full_name, "get_field_offset"}.full_name());
-            Function l_field_offset_fn = fn_builder.compile();
+            Function l_field_offset_fn(LinkSymbolName{l_struct_full_name, "get_field_offset"}.full_name(), FnContext{TypeInfo::mk_int_context().pointer_type()}, parent);
             {
                 CodeSection l_fn_body = l_field_offset_fn.mk_section("fn_body");
                 l_fn_body.enter();

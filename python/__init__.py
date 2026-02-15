@@ -31,7 +31,6 @@ from .llvm_builder_py import (
     TagInfo,
     # Functions
     Function,
-    FunctionBuilder,
     FnContext,
     CodeSection,
     CodeSectionContext,
@@ -67,7 +66,6 @@ __all__ = [
     "TagInfo",
     # Functions
     "Function",
-    "FunctionBuilder",
     "FnContext",
     "CodeSection",
     "CodeSectionContext",

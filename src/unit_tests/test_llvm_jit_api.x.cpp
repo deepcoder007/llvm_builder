@@ -44,12 +44,7 @@ TEST(LLVM_CODEGEN_JIT_API, hello_api) {
     CODEGEN_LINE(Module l_module = l_cursor.main_module())
     CODEGEN_LINE(Module::Context l_module_ctx{l_module})
     {
-        CODEGEN_LINE(Function fn)
-        CODEGEN_LINE(FunctionBuilder fn_builder)
-        CODEGEN_LINE(fn_builder.set_context(FnContext{l_struct.pointer_type()})
-            .set_module(l_module)
-            .set_name("test_fn"))
-        CODEGEN_LINE(fn = fn_builder.compile())
+        CODEGEN_LINE(Function fn("test_fn", FnContext{l_struct.pointer_type()}, l_module))
 
         {
             CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
@@ -148,12 +143,7 @@ TEST(LLVM_CODEGEN_JIT_API, inner_struct) {
     CODEGEN_LINE(Module l_module = l_cursor.main_module())
     CODEGEN_LINE(Module::Context l_module_ctx{l_module})
     {
-        CODEGEN_LINE(Function fn)
-        CODEGEN_LINE(FunctionBuilder fn_builder)
-        CODEGEN_LINE(fn_builder.set_context(FnContext{args_type.pointer_type()})
-            .set_module(l_module)
-            .set_name("test_fn"))
-        CODEGEN_LINE(fn = fn_builder.compile())
+        CODEGEN_LINE(Function fn("test_fn", FnContext{args_type.pointer_type()}, l_module))
 
         {
             CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
@@ -322,12 +312,7 @@ TEST(LLVM_CODEGEN_JIT_API, array_basic_1d) {
     CODEGEN_LINE(Module l_module = l_cursor.main_module())
     CODEGEN_LINE(Module::Context l_module_ctx{l_module})
     {
-        CODEGEN_LINE(Function fn)
-        CODEGEN_LINE(FunctionBuilder fn_builder)
-        CODEGEN_LINE(fn_builder.set_context(FnContext{args_type.pointer_type()})
-            .set_module(l_module)
-            .set_name("big_struct_test_fn"))
-        CODEGEN_LINE(fn = fn_builder.compile())
+        CODEGEN_LINE(Function fn("big_struct_test_fn", FnContext{args_type.pointer_type()}, l_module))
 
         {
             CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
@@ -485,12 +470,7 @@ TEST(LLVM_CODEGEN_JIT_API, full_test) {
     CODEGEN_LINE(Module l_module = l_cursor.main_module())
     CODEGEN_LINE(Module::Context l_module_ctx{l_module})
     {
-        CODEGEN_LINE(Function fn)
-        CODEGEN_LINE(FunctionBuilder fn_builder)
-        CODEGEN_LINE(fn_builder.set_context(FnContext{l_outer_struct.pointer_type()})
-            .set_module(l_module)
-            .set_name("test_fn"))
-        CODEGEN_LINE(fn = fn_builder.compile())
+        CODEGEN_LINE(Function fn("test_fn", FnContext{l_outer_struct.pointer_type()}, l_module))
 
         {
             CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
