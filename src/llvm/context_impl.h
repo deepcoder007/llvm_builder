@@ -41,6 +41,7 @@ DECL_MK_TYPE(void)
 FOR_EACH_LLVM_TYPE(DECL_MK_TYPE)
 #undef DECL_MK_TYPE
     TypeInfo mk_int_context();
+    TypeInfo mk_type_fn_type();
     TypeInfo mk_type_array(TypeInfo element_type, uint32_t num_elements);
     TypeInfo mk_type_vector(TypeInfo element_type, uint32_t num_elements);
     TypeInfo mk_type_struct(const std::string& name, const std::vector<member_field_entry>& element_list, bool is_packed);
@@ -80,6 +81,7 @@ DECL_MK_TYPE(void)
 FOR_EACH_LLVM_TYPE(DECL_MK_TYPE)
 #undef DECL_MK_TYPE
     static TypeInfo mk_int_context();
+    static TypeInfo mk_type_fn_type();
     static TypeInfo mk_type_array(TypeInfo element_type, uint32_t num_elements);
     static TypeInfo mk_type_vector(TypeInfo element_type, uint32_t num_elements);
     static TypeInfo mk_type_struct(const std::string& name, const std::vector<member_field_entry>& element_list, bool is_packed);
@@ -143,6 +145,7 @@ public:
     using array_construct_t = typename TypeInfo::array_construct_t;
     using vector_construct_t = typename TypeInfo::vector_construct_t;
     using struct_construct_t = typename TypeInfo::struct_construct_t;
+    using function_construct_t = typename TypeInfo::function_construct_t;
 private:
     std::shared_ptr<Impl> m_impl;
 public:
@@ -155,6 +158,7 @@ public:
     explicit TypeInfoImpl(array_construct_t, CursorPtr, TypeInfo element_type, uint32_t array_size);
     explicit TypeInfoImpl(vector_construct_t, CursorPtr, TypeInfo element_type, uint32_t vector_size);
     explicit TypeInfoImpl(struct_construct_t, CursorPtr, const std::string& name, const std::vector<member_field_entry>& field_types, const bool packed);
+    explicit TypeInfoImpl(function_construct_t, CursorPtr, llvm::FunctionType* type);
 public:
     std::weak_ptr<Impl> ptr() {
         return m_impl;

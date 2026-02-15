@@ -39,6 +39,7 @@ enum class type_t {
     float64,
     pointer_struct,
     pointer_array,
+    pointer_fn,
 };
 
 // TODO{vibhanshu}: check if all the pointer type fields are initialized
@@ -48,6 +49,8 @@ class Object : public _BaseObject<Field> {
     friend class Struct;
     friend class EventFn;
     class Impl;
+public:
+    using event_fn_t = int32_t(void*);
 private:
     std::shared_ptr<Impl> m_impl;
 private:
@@ -75,6 +78,8 @@ public:
     void set_object(const std::string& name, const Object& v) const;
     Array get_array(const std::string& name) const;
     void set_array(const std::string& name, const Array& v) const;
+    event_fn_t* get_fn_ptr(const std::string& name) const;
+    void set_fn_ptr(const std::string& name, event_fn_t* fn) const;
     bool operator == (const Object& rhs) const;
     static const Object& null();
 };
@@ -139,6 +144,7 @@ public:
     bool is_bool() const;
     bool is_struct_pointer() const;
     bool is_array_pointer() const;
+    bool is_fn_pointer() const;
     bool is_int8() const;
     bool is_int16() const;
     bool is_int32() const;

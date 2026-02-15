@@ -48,6 +48,7 @@ private:
 DECL_MK_TYPE(void)
 FOR_EACH_LLVM_TYPE(DECL_MK_TYPE)
 #undef DECL_MK_TYPE
+    TypeInfo m_type_fn_type;
     std::unordered_map<uint32_t, std::vector<TypeInfo>> m_array_types;
     std::unordered_map<uint32_t, std::vector<TypeInfo>> m_vector_types;
     TypeInfo m_int_context;
@@ -86,6 +87,7 @@ public:
 DECL_DEL_TYPE(void)
 FOR_EACH_LLVM_TYPE(DECL_DEL_TYPE)
 #undef DECL_DEL_TYPE
+        m_type_fn_type = TypeInfo::null();
         m_is_deleted = true;
     }
     void init(Cursor& parent) {
@@ -140,6 +142,14 @@ FOR_EACH_LLVM_TYPE(DECL_DEL_TYPE)
         ADD_UNSIGNED_TYPE(64)
 #undef ADD_SIGNED_TYPE
 #undef ADD_UNSIGNED_TYPE
+        {
+            llvm::Type* l_int32_type = llvm::Type::getInt32Ty(m_context);
+            llvm::Type* l_ptr_type = llvm::PointerType::get(m_context, 0);
+            llvm::FunctionType* l_fn_type = llvm::FunctionType::get(l_int32_type, {l_ptr_type}, false);
+            TypeInfoImpl& l_type_impl = m_type_list.emplace_back(
+                typename TypeInfoImpl::function_construct_t{}, ptr, l_fn_type);
+            m_type_fn_type = TypeInfo{l_type_impl};
+        }
         LLVM_BUILDER_ASSERT(not ErrorContext::has_error());
     }
 private:
@@ -193,6 +203,10 @@ private:
 DECL_MK_TYPE(void)
 FOR_EACH_LLVM_TYPE(DECL_MK_TYPE)
 #undef DECL_MK_TYPE
+    TypeInfo mk_type_fn_type() {
+        LLVM_BUILDER_ASSERT(is_valid());
+        return m_type_fn_type;
+    }
     TypeInfo mk_type_array(TypeInfo element_type, uint32_t num_elements, CursorPtr parent) {
         LLVM_BUILDER_ASSERT(is_valid());
         LLVM_BUILDER_ASSERT(not element_type.has_error());
@@ -333,7 +347,6 @@ Module CursorPtr::main_module() {
                 return Module::null();
             }
         } else {
-            CODEGEN_PUSH_ERROR(MODULE, " already deleted Cursor:" << name());
             return Module::null();
         }
     } else {
@@ -351,7 +364,6 @@ Module CursorPtr::gen_module() {
                 return Module::null();
             }
         } else {
-            CODEGEN_PUSH_ERROR(MODULE, " already deleted Cursor:" << name());
             return Module::null();
         }
     } else {
@@ -364,7 +376,6 @@ Function CursorPtr::mk_function(FunctionImpl&& fn_impl) {
         if (ptr->is_valid()) {
             return ptr->mk_function(std::move(fn_impl));
         } else {
-            CODEGEN_PUSH_ERROR(MODULE, " already deleted Cursor:" << name());
             return Function::null();
         }
     } else {
@@ -380,8 +391,6 @@ TypeInfo CursorPtr::mk_type_pointer(const TypeInfo& base_type) {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         if (ptr->is_valid()) {
             return ptr->mk_type_pointer(base_type, *this);
-        } else {
-            CODEGEN_PUSH_ERROR(MODULE, " already deleted Cursor:" << name());
         }
     }
     return TypeInfo::null();
@@ -393,7 +402,6 @@ TypeInfo CursorPtr::mk_type_##TYPE_NAME() {                         \
         if (ptr->is_valid()) {                                            \
             return ptr->mk_type_##TYPE_NAME();                            \
         } else {                                                          \
-            CODEGEN_PUSH_ERROR(MODULE, " already deleted Cursor:" << name());    \
         }                                                                 \
     }                                                                     \
     return TypeInfo::null();                                              \
@@ -404,18 +412,26 @@ DECL_MK_TYPE(void)
 FOR_EACH_LLVM_TYPE(DECL_MK_TYPE)
 #undef DECL_MK_TYPE
 
+TypeInfo CursorPtr::mk_type_fn_type() {
+    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
+        if (ptr->is_valid()) {
+            return ptr->mk_type_fn_type();
+        }
+    }
+    return TypeInfo::null();
+}
+
 TypeInfo CursorPtr::mk_int_context() {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         if (ptr->is_valid()) {
             return ptr->mk_int_context();
-        } else {
-            CODEGEN_PUSH_ERROR(MODULE, " already deleted Cursor:" << name());
         }
     }
     return TypeInfo::null();
 }
 
 TypeInfo CursorPtr::mk_type_array(TypeInfo element_type, uint32_t num_elements) {
+    CODEGEN_FN
     if (element_type.has_error()) {
         CODEGEN_PUSH_ERROR(MODULE, " can't define array to an invalid type");
         return TypeInfo::null();
@@ -431,14 +447,13 @@ TypeInfo CursorPtr::mk_type_array(TypeInfo element_type, uint32_t num_elements) 
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         if (ptr->is_valid()) {
             return ptr->mk_type_array(element_type, num_elements, *this);
-        } else {
-            CODEGEN_PUSH_ERROR(MODULE, " already deleted Cursor:" << name());
         }
     }
     return TypeInfo::null();
 }
 
 TypeInfo CursorPtr::mk_type_vector(TypeInfo element_type, uint32_t num_elements) {
+    CODEGEN_FN
     if (element_type.has_error()) {
         CODEGEN_PUSH_ERROR(MODULE, " can't define vector to an invalid type");
         return TypeInfo::null();
@@ -454,14 +469,13 @@ TypeInfo CursorPtr::mk_type_vector(TypeInfo element_type, uint32_t num_elements)
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         if (ptr->is_valid()) {
             return ptr->mk_type_vector(element_type, num_elements, *this);
-        } else {
-            CODEGEN_PUSH_ERROR(MODULE, " already deleted Cursor:" << name());
         }
     }
     return TypeInfo::null();
 }
 
 TypeInfo CursorPtr::mk_type_struct(const std::string& name, const std::vector<member_field_entry>& element_list, bool is_packed) {
+    CODEGEN_FN
     if (name.empty()) {
         CODEGEN_PUSH_ERROR(CONTEXT, "can't define struct without name");
         return TypeInfo::null();
@@ -498,14 +512,13 @@ TypeInfo CursorPtr::mk_type_struct(const std::string& name, const std::vector<me
             } else {
                 CODEGEN_PUSH_ERROR(MODULE, " can't create new type after binding cursor:" << this->name());
             }
-        } else {
-            CODEGEN_PUSH_ERROR(MODULE, " already deleted Cursor:" << this->name());
         }
     }
     return TypeInfo::null();
 }
 
 void CursorPtr::main_module_hook_fn(on_main_module_fn_t &&fn) {
+    CODEGEN_FN
     if (not fn) {
         CODEGEN_PUSH_ERROR(CONTEXT, "can't add an empty function callback");
         return;
@@ -517,12 +530,7 @@ void CursorPtr::main_module_hook_fn(on_main_module_fn_t &&fn) {
             } else {
                 CODEGEN_PUSH_ERROR(MODULE, " can't create new type after binding cursor:" << name());
             }
-        } else {
-            CODEGEN_PUSH_ERROR(MODULE, " already deleted Cursor:" << name());
-            return;
         }
-    } else {
-        CODEGEN_PUSH_ERROR(MODULE, "Cursor no longer valid");
     }
 }
 

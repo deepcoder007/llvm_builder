@@ -46,6 +46,7 @@ class TypeInfo : public _BaseObject<TypeInfo> {
     struct array_construct_t {};
     struct vector_construct_t {};
     struct struct_construct_t {};
+    struct function_construct_t {};
 public:
     class field_entry_t : public _BaseObject<field_entry_t> {
         using BaseT = _BaseObject<field_entry_t>;
@@ -107,6 +108,7 @@ public:
     bool is_array() const;
     bool is_vector() const;
     bool is_struct() const;
+    bool is_function() const;
     bool operator == (const TypeInfo& o) const;
     llvm::Type *native_value() const;
     const TypeInfo& base_type() const;
@@ -135,6 +137,7 @@ public:
 DECL_MK_TYPE(void)
 FOR_EACH_LLVM_TYPE(DECL_MK_TYPE)
 #undef DECL_MK_TYPE
+    static TypeInfo mk_fn_type();
     template <typename T>
     static TypeInfo mk_type();
     static TypeInfo mk_int_context();

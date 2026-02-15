@@ -548,3 +548,89 @@ TEST(LLVM_CODEGEN_JIT_API, full_test) {
 
 
 }
+
+static int32_t test_callback_fn(void* /*arg*/) {
+    return 42;
+}
+
+TEST(LLVM_CODEGEN_JIT_API, fn_pointer) {
+    CODEGEN_LINE(Cursor l_cursor{"jit_api_fn_ptr"})
+    CODEGEN_LINE(Cursor::Context l_cursor_ctx{l_cursor})
+    CODEGEN_LINE(TypeInfo int32_type = TypeInfo::mk_int32())
+    CODEGEN_LINE(TypeInfo fn_type = TypeInfo::mk_fn_type())
+    CODEGEN_LINE(TypeInfo fn_ptr_type = fn_type.pointer_type())
+
+    LLVM_BUILDER_ALWAYS_ASSERT(not fn_type.has_error());
+    LLVM_BUILDER_ALWAYS_ASSERT(not fn_ptr_type.has_error());
+    LLVM_BUILDER_ALWAYS_ASSERT(fn_ptr_type.is_valid_struct_field());
+
+    CODEGEN_LINE(TypeInfo l_struct)
+    {
+        std::vector<member_field_entry> l_field_list;
+        CODEGEN_LINE(l_field_list.emplace_back("fn_ptr_field", fn_ptr_type))
+        CODEGEN_LINE(l_field_list.emplace_back("result", int32_type))
+        CODEGEN_LINE(l_struct = TypeInfo::mk_struct("fn_ptr_args", l_field_list))
+    }
+    LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
+
+    CODEGEN_LINE(JustInTimeRunner jit_runner)
+    CODEGEN_LINE(l_cursor.bind())
+    CODEGEN_LINE(Module l_module = l_cursor.main_module())
+    CODEGEN_LINE(Module::Context l_module_ctx{l_module})
+    {
+        CODEGEN_LINE(Function fn("call_fn_ptr", FnContext{l_struct.pointer_type()}, l_module))
+        {
+            CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("body"))
+            CODEGEN_LINE(l_fn_body.enter())
+
+            CODEGEN_LINE(ValueInfo ctx = CodeSectionContext::current_context())
+            CODEGEN_LINE(ValueInfo fn_ptr_val = ctx.field("fn_ptr_field").load())
+            CODEGEN_LINE(ValueInfo call_result = fn_ptr_val.call_fn(ctx))
+            CODEGEN_LINE(ctx.field("result").store(call_result))
+            CODEGEN_LINE(CodeSectionContext::set_return_value(ValueInfo::from_constant(0)))
+        }
+        CODEGEN_LINE(jit_runner.process_module_fn(fn))
+        {
+            const std::string fn_name{"call_fn_ptr"};
+            Function f2 = l_module.get_function(fn_name);
+            f2.verify();
+        }
+        INIT_MODULE(l_module)
+        CodeSectionContext::assert_no_context();
+    }
+    jit_runner.add_module(l_cursor);
+    jit_runner.bind();
+    LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
+    {
+        const runtime::Namespace& l_runtime_module = jit_runner.get_global_namespace();
+        const runtime::Struct& l_args_def = l_runtime_module.struct_info("fn_ptr_args");
+        const runtime::EventFn& call_fn_ptr = l_runtime_module.event_fn_info("call_fn_ptr");
+        LLVM_BUILDER_ALWAYS_ASSERT(not l_runtime_module.has_error())
+        LLVM_BUILDER_ALWAYS_ASSERT(not l_args_def.has_error())
+        LLVM_BUILDER_ALWAYS_ASSERT(not call_fn_ptr.has_error())
+        LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_args_def.num_fields(), 2);
+
+        // Verify field type detection
+        const runtime::Field& fn_field = l_args_def["fn_ptr_field"];
+        LLVM_BUILDER_ALWAYS_ASSERT(not fn_field.has_error());
+        LLVM_BUILDER_ALWAYS_ASSERT(fn_field.is_fn_pointer());
+
+        for (int32_t i = 0; i != 10; ++i) {
+            CODEGEN_LINE(runtime::Object l_args_obj = l_args_def.mk_object())
+            LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
+
+            CODEGEN_LINE(l_args_obj.set_fn_ptr("fn_ptr_field", test_callback_fn))
+            CODEGEN_LINE(l_args_obj.set<int32_t>("result", 0))
+            CODEGEN_LINE(l_args_obj.freeze())
+
+            // Verify get_fn_ptr returns the same pointer we set
+            auto* retrieved_fn = l_args_obj.get_fn_ptr("fn_ptr_field");
+            LLVM_BUILDER_ALWAYS_ASSERT_EQ((void*)retrieved_fn, (void*)test_callback_fn);
+
+            CODEGEN_LINE(call_fn_ptr.on_event(l_args_obj))
+
+            LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_args_obj.get<int32_t>("result"), 42);
+            LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
+        }
+    }
+}
