@@ -69,6 +69,7 @@ public:
         store_vector_entry,
         mk_ptr,
         fn_call,
+        fn_ptr_call,
     };
     struct Impl;
 private:
@@ -158,6 +159,8 @@ public:
     [[nodiscard]]
     ValueInfo load_vector_entry(const ValueInfo& idx_v) const;
     ValueInfo store_vector_entry(const ValueInfo& idx_v, ValueInfo value) const;
+    [[nodiscard]]
+    ValueInfo call_fn(const ValueInfo& arg) const;
 public:
     static ValueInfo null();
     static ValueInfo from_context(const TypeInfo& ctx_type);

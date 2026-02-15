@@ -163,6 +163,7 @@ public:
             case value_type_t::store_vector_entry:  return true; break;
             case value_type_t::mk_ptr:     return false;     break;
             case value_type_t::fn_call:    return false;    break;
+            case value_type_t::fn_ptr_call:    return false;    break;
         }
         return false;
     }
@@ -284,6 +285,21 @@ public:
         LLVM_BUILDER_ASSERT(m_parent.size() == 0);
         LLVM_BUILDER_ASSERT(m_const_value_cache != nullptr);
         return m_const_value_cache;
+    }
+    llvm::Value* M_eval_fn_ptr_call() {
+        LLVM_BUILDER_ASSERT(m_parent.size() == 2);
+        llvm::Value* l_fn_ptr = m_parent[0].M_eval();
+        llvm::Value* l_arg = m_parent[1].M_eval();
+        LLVM_BUILDER_ASSERT(l_fn_ptr != nullptr);
+        LLVM_BUILDER_ASSERT(l_arg != nullptr);
+        if (CursorContextImpl::has_value()) {
+            llvm::FunctionType* l_fn_type = (llvm::FunctionType*)m_parent[0].type().base_type().native_value();
+            LLVM_BUILDER_ASSERT(l_fn_type != nullptr);
+            llvm::CallInst* l_inst = CursorContextImpl::builder().CreateCall(l_fn_type, l_fn_ptr, {l_arg});
+            return l_inst;
+        } else {
+            return nullptr;
+        }
     }
 };
 
@@ -724,6 +740,30 @@ ValueInfo ValueInfo::store_vector_entry(const ValueInfo& idx_v, ValueInfo value)
     return ValueInfo{value_type_t::store_vector_entry, type(), std::vector<ValueInfo>{{*this, idx_v, value}}};
 }
 
+ValueInfo ValueInfo::call_fn(const ValueInfo& arg) const {
+    CODEGEN_FN
+    if (has_error() or arg.has_error()) {
+        return ValueInfo::null();
+    }
+    if (not type().is_pointer()) {
+        M_mark_error();
+        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't call non-pointer type as function");
+        return ValueInfo::null();
+    }
+    if (not type().base_type().is_function()) {
+        M_mark_error();
+        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't call non-function pointer type");
+        return ValueInfo::null();
+    }
+    if (not arg.type().is_pointer()) {
+        M_mark_error();
+        CODEGEN_PUSH_ERROR(VALUE_ERROR, "function argument must be a pointer type");
+        return ValueInfo::null();
+    }
+    ValueInfo l_res{value_type_t::fn_ptr_call, TypeInfo::mk_int32(), std::vector<ValueInfo>{{*this, arg}}};
+    return l_res;
+}
+
 void ValueInfo::store(const ValueInfo& value) const {
     CODEGEN_FN
     if (has_error()) {
@@ -897,7 +937,8 @@ llvm::Value* ValueInfo::M_eval() {
     LLVM_BUILDER_ASSERT(m_impl != nullptr);
     const value_type_t l_vtype = m_impl->value_type();
     const bool l_cacheable = l_vtype != value_type_t::store
-                          and l_vtype != value_type_t::fn_call;
+                          and l_vtype != value_type_t::fn_call
+                          and l_vtype != value_type_t::fn_ptr_call;
     if (l_cacheable) {
         CodeSection l_curr_section = CodeSectionContext::current_section();
         llvm::Value* l_res = l_curr_section.get_eval(*this);
@@ -921,6 +962,7 @@ llvm::Value* ValueInfo::M_eval() {
     CASE_ENTRY(store_vector_entry)
     CASE_ENTRY(mk_ptr)
     CASE_ENTRY(fn_call)
+    CASE_ENTRY(fn_ptr_call)
     }
 #undef CASE_ENTRY
     if (l_cacheable) {

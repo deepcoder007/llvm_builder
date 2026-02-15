@@ -32,7 +32,8 @@ enum class type_id_t : uint8_t {
     pointer_t,
     array_t,
     vector_t,
-    struct_t
+    struct_t,
+    function_t
 };
 
 //
@@ -410,6 +411,16 @@ public:
         LLVM_BUILDER_ASSERT(m_derived_info->is_valid());
         object::Counter::singleton().on_new(object::Callback::object_t::TYPE, (uint64_t)this, short_name());
     }
+    explicit Impl(function_construct_t, CursorPtr cursor_impl, llvm::FunctionType* type)
+        : m_type{(llvm::Type*)type}
+        , m_cursor_impl{cursor_impl}
+        , m_num_bytes{0}
+        , m_type_id{type_id_t::function_t} {
+        LLVM_BUILDER_ASSERT(m_type != nullptr);
+        LLVM_BUILDER_ASSERT(m_type->isFunctionTy());
+        LLVM_BUILDER_ASSERT(m_cursor_impl.is_valid());
+        object::Counter::singleton().on_new(object::Callback::object_t::TYPE, (uint64_t)this, short_name());
+    }
     explicit Impl(struct_construct_t, CursorPtr cursor_impl, const std::string &name,
                   const std::vector<member_field_entry> &field_types,
                   const bool packed)
@@ -496,6 +507,9 @@ public:
     }
     bool is_struct() const {
         return (m_type_id == type_id_t::struct_t);
+    }
+    bool is_function() const {
+        return (m_type_id == type_id_t::function_t);
     }
     bool operator==(const Impl& o) const {
         // TODO{vibhashu}: think of a way so that adding a new property will automatically
@@ -595,6 +609,8 @@ public:
             }
         } else if (is_float()) {
             return LLVM_BUILDER_CONCAT << "float" << (m_num_bytes * 8);
+        } else if (is_function()) {
+            return "fn_type";
         } else {
             return LLVM_BUILDER_CONCAT << "<UNKNOWN SHORT NAME>";
         }
@@ -611,6 +627,7 @@ public:
             << ", is_array:" << is_array()
             << ", is_vector:" << is_vector()
             << ", is_struct:" << is_struct()
+            << ", is_function:" << is_function()
             << "}";
     }
     [[gnu::noinline]]
@@ -704,6 +721,9 @@ public:
             l_res &= (m_type == l_type);
         } else if (is_pointer()) {
             l_res &= l_type->isPointerTy();
+            l_res &= (m_type == l_type);
+        } else if (is_function()) {
+            l_res &= l_type->isFunctionTy();
             l_res &= (m_type == l_type);
         } else if (is_void()) {
             // TODO{vibhanshu}: handle case of isVoidTy
@@ -903,6 +923,7 @@ DEF_GETTER(is_scalar, bool, false)
 DEF_GETTER(is_array, bool, false)
 DEF_GETTER(is_vector, bool, false)
 DEF_GETTER(is_struct, bool, false)
+DEF_GETTER(is_function, bool, false)
 DEF_GETTER(native_value, llvm::Type*, nullptr)
 DEF_GETTER(base_type, const TypeInfo&, TypeInfo::null())
 DEF_GETTER(num_elements, uint32_t, std::numeric_limits<uint32_t>::max())
@@ -929,8 +950,12 @@ bool TypeInfo::is_valid_pointer_field() const {
                 return true;
             } else if (l_base.is_array() or l_base.is_vector()) {
                 return l_base.base_type().is_valid_struct_field();
+            } else if (l_base.is_function()) {
+                return true;
             } else if (l_base.is_pointer()) {
                 return l_base.is_valid_pointer_field();
+            } else if (is_function()) {
+                return true;
             } else {
                 return false;
             }
@@ -1039,6 +1064,11 @@ DEF_MK_TYPE(void)
 FOR_EACH_LLVM_TYPE(DEF_MK_TYPE)
 
 #undef DEF_MK_TYPE
+
+TypeInfo TypeInfo::mk_fn_type() {
+    CODEGEN_FN
+    return CursorContextImpl::mk_type_fn_type();
+}
 
 #define DEF_MK_TYPE2(TYPE_NAME)                    \
     template <>                                    \
@@ -1434,6 +1464,11 @@ TypeInfoImpl::TypeInfoImpl(vector_construct_t, CursorPtr cursor_impl, TypeInfo e
 TypeInfoImpl::TypeInfoImpl(struct_construct_t, CursorPtr cursor_impl, const std::string& name, const std::vector<member_field_entry>& field_types, const bool packed) {
     LLVM_BUILDER_ASSERT(cursor_impl.is_valid());
     m_impl = std::make_shared<Impl>(struct_construct_t{}, cursor_impl, name, field_types, packed);
+}
+
+TypeInfoImpl::TypeInfoImpl(function_construct_t, CursorPtr cursor_impl, llvm::FunctionType* type) {
+    LLVM_BUILDER_ASSERT(cursor_impl.is_valid());
+    m_impl = std::make_shared<Impl>(function_construct_t{}, cursor_impl, type);
 }
 
 

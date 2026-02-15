@@ -344,6 +344,49 @@ void Object::set_array(const std::string& name, const Array& v) const {
     }
 }
 
+auto Object::get_fn_ptr(const std::string& name) const -> event_fn_t* {
+    CODEGEN_FN
+    if (has_error()) {
+        CODEGEN_PUSH_ERROR(JIT, "can't access field in invalid object:" << name);
+        return nullptr;
+    }
+    Field l_field = struct_def()[name];
+    if (l_field.has_error()) {
+        CODEGEN_PUSH_ERROR(JIT, "can't find field:" << name);
+        return nullptr;
+    }
+    if (l_field.is_fn_pointer()) {
+        uint64_t l_raw = *m_impl->get_field_location<uint64_t>(l_field);
+        return reinterpret_cast<event_fn_t*>(l_raw);
+    } else {
+        CODEGEN_PUSH_ERROR(JIT, "field type not fn_pointer:" << name);
+        return nullptr;
+    }
+}
+
+void Object::set_fn_ptr(const std::string& name, event_fn_t* fn) const {
+    CODEGEN_FN
+    if (has_error()) {
+        CODEGEN_PUSH_ERROR(JIT, "can't access field in invalid object:" << name);
+        return;
+    }
+    Field l_field = struct_def()[name];
+    if (l_field.has_error()) {
+        CODEGEN_PUSH_ERROR(JIT, "can't find field:" << name);
+        return;
+    }
+    if (is_frozen()) {
+        CODEGEN_PUSH_ERROR(JIT, "object already frozen, can't set new value");
+        return;
+    }
+    if (l_field.is_fn_pointer()) {
+        uint64_t* l_ptr = m_impl->get_field_location<uint64_t>(l_field);
+        *l_ptr = reinterpret_cast<uint64_t>(fn);
+    } else {
+        CODEGEN_PUSH_ERROR(JIT, "field type not fn_pointer:" << name);
+    }
+}
+
 #define DEF_OBJECT_FN(type)                                                            \
 template <>                                                                             \
 type##_t Object::get(const std::string& name) const {                                   \
@@ -929,8 +972,11 @@ public:
     bool is_array_pointer() const {
         return m_type == type_t::pointer_array;
     }
+    bool is_fn_pointer() const {
+        return m_type == type_t::pointer_fn;
+    }
     bool is_pointer() const {
-        return is_struct_pointer() or is_array_pointer();
+        return is_struct_pointer() or is_array_pointer() or is_fn_pointer();
     }
     bool is_int8() const {
         return m_type == type_t::int8;
@@ -1001,7 +1047,10 @@ public:
                             // TODO{vibhanshu}: log underlying array
                             break;
                         }
-            // case type_t::pointer:  os << "<pointer>" << *((uint64_t*)data); break;
+            case type_t::pointer_fn: {
+                            os << "<fn_pointer>" << *((uint64_t*)data);
+                            break;
+                        }
             }
         } else {
             os << "<invalid_buffer>";
@@ -1071,6 +1120,7 @@ const std::string& Field::name() const {
 IS_TYPE_FWD(bool)
 IS_TYPE_FWD(struct_pointer)
 IS_TYPE_FWD(array_pointer)
+IS_TYPE_FWD(fn_pointer)
 IS_TYPE_FWD(int8)
 IS_TYPE_FWD(int16)
 IS_TYPE_FWD(int32)
@@ -1118,6 +1168,8 @@ type_t Field::get_type(const TypeInfo& type) {
             return type_t::pointer_struct;
         } else if (base_type.is_array() or base_type.is_vector()) {
             return type_t::pointer_array;
+        } else if (base_type.is_function()) {
+            return type_t::pointer_fn;
         }
     } else if (type.is_float()) {
         if (l_size == 4) {

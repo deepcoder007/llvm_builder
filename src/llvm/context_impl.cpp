@@ -83,7 +83,6 @@ TypeInfo CursorContextImpl::mk_type_##TYPE_NAME() {                       \
     if (has_value()) {                                                    \
         return CursorPtr{Cursor::Context::value()}.mk_type_##TYPE_NAME(); \
     } else {                                                              \
-        CODEGEN_PUSH_ERROR(CONTEXT, "No context found");                  \
         return TypeInfo::null();                                          \
     }                                                                     \
 }                                                                         \
@@ -92,6 +91,14 @@ TypeInfo CursorContextImpl::mk_type_##TYPE_NAME() {                       \
 DECL_MK_TYPE(void)
 FOR_EACH_LLVM_TYPE(DECL_MK_TYPE)
 #undef DECL_MK_TYPE
+
+TypeInfo CursorContextImpl::mk_type_fn_type() {
+    if (has_value()) {
+        return CursorPtr{Cursor::Context::value()}.mk_type_fn_type();
+    } else {
+        return TypeInfo::null();
+    }
+}
 
 TypeInfo CursorContextImpl::mk_int_context() {
     if (has_value()) {
