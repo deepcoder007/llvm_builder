@@ -306,6 +306,8 @@ void bind_functions(nb::module_& m) {
     // Function - complete the definition
     function_class
         .def(nb::init<>())
+        .def(nb::init<const std::string&, const FnContext&, Module&>(), "name"_a, "context"_a, "mod"_a)
+        .def(nb::init<const std::string&, const FnContext&>(), "name"_a, "context"_a)
         .def("is_valid", &Function::is_valid)
         .def("parent_module", &Function::parent_module, nb::rv_policy::reference)
         .def("name", &Function::name)
@@ -320,17 +322,6 @@ void bind_functions(nb::module_& m) {
         .def("__eq__", &Function::operator==)
         .def_static("null", &Function::null);
 
-    // FunctionBuilder
-    nb::class_<FunctionBuilder>(m, "FunctionBuilder")
-        .def(nb::init<>())
-        .def("is_frozen", &FunctionBuilder::is_frozen)
-        .def("set_context", &FunctionBuilder::set_context, "context"_a, nb::rv_policy::reference)
-        .def("set_name", &FunctionBuilder::set_name, "name"_a, nb::rv_policy::reference)
-        .def("set_module", &FunctionBuilder::set_module, "mod"_a, nb::rv_policy::reference)
-        .def("mark_external", &FunctionBuilder::mark_external, nb::rv_policy::reference)
-        .def("compile", &FunctionBuilder::compile)
-        .def("__eq__", &FunctionBuilder::operator==)
-        .def_static("null", &FunctionBuilder::null);
 }
 
 //

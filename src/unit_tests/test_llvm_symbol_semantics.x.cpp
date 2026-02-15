@@ -70,11 +70,7 @@ TEST(LLVM_CODEGEN, basic_graph_test) {
     CODEGEN_LINE(Module l_module = l_cursor.main_module())
     CODEGEN_LINE(Module::Context l_module_ctx{l_module})
     {
-        CODEGEN_LINE(FunctionBuilder fn_builder)
-        CODEGEN_LINE(fn_builder.set_context(FnContext{args3_type.pointer_type()})
-            .set_module(l_module)
-            .set_name("sample_fn_name"))
-        CODEGEN_LINE(Function fn = fn_builder.compile())
+        CODEGEN_LINE(Function fn("sample_fn_name", FnContext{args3_type.pointer_type()}, l_module))
         {
             CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
             CODEGEN_LINE(l_fn_body.enter())

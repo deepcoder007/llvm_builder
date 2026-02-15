@@ -26,7 +26,6 @@ LLVM_BUILDER_NS_BEGIN
 
 class Module;
 class Function;
-class FunctionBuilder;
 class IfElseCond;
 class CodeSectionContext;
 class CodeSectionImpl;
@@ -137,7 +136,6 @@ class Function : public _BaseObject<Function> {
     using BaseT = _BaseObject<Function>;
     struct c_construct {
     };
-    friend class FunctionBuilder;
     friend class Module;
     friend class FunctionImpl;
     friend class CodeSectionContext;
@@ -149,6 +147,8 @@ private:
 public:
     explicit Function();
     explicit Function(FunctionImpl& impl);
+    explicit Function(const std::string& name, const FnContext& context, Module& mod);
+    explicit Function(const std::string& name, const FnContext& context);
     ~Function();
 public:
     bool is_valid() const;
@@ -167,27 +167,6 @@ public:
     static Function null();
 private:
     const FnContext& context() const;
-};
-
-// TODO{vibhanshu}: do we need function builder now given that everything simplified
-class FunctionBuilder : public _BaseObject<FunctionBuilder> {
-    using BaseT = _BaseObject<FunctionBuilder>;
-    class Impl;
-    friend class Impl;
-private:
-    std::shared_ptr<Impl> m_impl;
-public:
-    explicit FunctionBuilder();
-    ~FunctionBuilder();
-public:
-    bool is_frozen() const;
-    FunctionBuilder& set_context(const FnContext& context);
-    FunctionBuilder& set_name(const std::string& name);
-    FunctionBuilder& set_module(Module& mod);
-    FunctionBuilder& mark_external();
-    Function compile();
-    bool operator == (const FunctionBuilder& rhs) const;
-    static FunctionBuilder null();
 };
 
 LLVM_BUILDER_NS_END

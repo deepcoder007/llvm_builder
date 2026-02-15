@@ -32,12 +32,7 @@ def main():
     fn_context = llvm.FnContext(ctx_type)
 
     # Build a function: int32 add_coords(Point* p) { return p->x + p->y; }
-    builder = llvm.FunctionBuilder()
-    fn = (builder
-          .set_name("add_coords")
-          .set_context(fn_context)
-          .set_module(module)
-          .compile())
+    fn = llvm.Function("add_coords", fn_context, module)
 
     # Create the function body
     body = fn.mk_section("body")
@@ -108,11 +103,7 @@ def arithmetic_example():
 
     # Build function: void compute(Input* i) { i->result = i->a * i->b + i->a; }
     ctx = llvm.FnContext(input_type.pointer_type())
-    fn = (llvm.FunctionBuilder()
-          .set_name("compute")
-          .set_context(ctx)
-          .set_module(module)
-          .compile())
+    fn = llvm.Function("compute", ctx, module)
 
     body = fn.mk_section("body")
     body.enter()
@@ -170,11 +161,7 @@ def conditional_example():
 
     # Build function: int32 select(Data* d) { return d->cond ? d->a : d->b; }
     ctx = llvm.FnContext(data_type.pointer_type())
-    fn = (llvm.FunctionBuilder()
-          .set_name("select")
-          .set_context(ctx)
-          .set_module(module)
-          .compile())
+    fn = llvm.Function("select", ctx, module)
 
     body = fn.mk_section("body")
     body.enter()

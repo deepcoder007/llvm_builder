@@ -40,7 +40,7 @@ TEST(API_OBJECT, basic_null_test) {
     NULL_OBJECT_TEST(FnContext)
     NULL_OBJECT_TEST(CodeSection)
     NULL_OBJECT_TEST(Function)
-    NULL_OBJECT_TEST(FunctionBuilder)
+
 
     NULL_OBJECT_TEST(runtime::Object)
     NULL_OBJECT_TEST(runtime::Array)
