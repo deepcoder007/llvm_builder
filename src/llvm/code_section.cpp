@@ -222,7 +222,7 @@ private:
     bool m_is_sealed = false;
     std::unordered_set<ValueInfo, ValueHash> m_interned_values;
     std::vector<ValueInfo> m_load_values;
-    std::vector<ValueInfo> m_store_values;
+    std::vector<ValueInfo> m_sink_values;
     std::unordered_map<ValueInfo, llvm::Value*, ValueHash> m_eval_values;
 public:
     explicit Impl(const std::string& name, const Function& fn)
@@ -242,7 +242,7 @@ private:
         for (ValueInfo& v : m_load_values) {
             v.M_eval();
         }
-        for (ValueInfo& v : m_store_values) {
+        for (ValueInfo& v : m_sink_values) {
             v.M_eval();
         }
     }
@@ -322,8 +322,8 @@ public:
             if (it.second) {
                 m_load_values.emplace_back(r);
             }
-        } else if (r.value_type() == ValueInfo::value_type_t::store) {
-            m_store_values.emplace_back(r);
+        } else if (r.M_is_value_sink()) {
+            m_sink_values.emplace_back(r);
         }
         return r;
     }

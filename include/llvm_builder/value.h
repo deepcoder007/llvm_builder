@@ -186,6 +186,7 @@ public:
 private:
     llvm::Value* M_eval();
     void M_self_intern();
+    bool M_is_value_sink() const;
 };
 
 LLVM_BUILDER_NS_END

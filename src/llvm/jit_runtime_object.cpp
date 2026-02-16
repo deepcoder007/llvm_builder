@@ -58,14 +58,20 @@ public:
     bool freeze() {
         LLVM_BUILDER_ASSERT(not is_frozen());
         for (const std::string& fname : m_parent.field_names()) {
-            if (m_parent[fname].is_struct_pointer()) {
+            const Field l_field = m_parent[fname];
+            if (l_field.is_struct_pointer()) {
                 Object l_object = get_object(fname);
                 if (l_object.has_error()) {
                     return false;
                 }
-            } else if (m_parent[fname].is_array_pointer()) {
+            } else if (l_field.is_array_pointer()) {
                 Array l_array = get_array(fname);
                 if (l_array.has_error()) {
+                    return false;
+                }
+            } else if (l_field.is_fn_pointer()) {
+                uint64_t* l_ptr = get_field_location<uint64_t>(l_field);              
+                if (*l_ptr == 0) {
                     return false;
                 }
             }
@@ -85,6 +91,11 @@ public:
             } else if (l_field.is_array_pointer()) {
                 Array l_arr = get_array(fname);
                 if (l_arr.has_error()) {
+                    l_result.emplace_back(l_field);
+                }
+            } else if (l_field.is_fn_pointer()) {
+                uint64_t* l_ptr = get_field_location<uint64_t>(l_field);              
+                if (*l_ptr == 0) {
                     l_result.emplace_back(l_field);
                 }
             }

@@ -83,6 +83,8 @@ public:
     explicit Impl(value_type_t value_type, const TypeInfo& type_info)
       : m_value_type{value_type} , m_type_info{type_info} {
     }
+    Impl(const Impl&) = delete;
+    Impl(Impl&&) = delete;
     ~Impl() = default;
 public:
     void add_parent(const std::vector<ValueInfo>& parent) {
@@ -111,10 +113,10 @@ public:
     value_type_t value_type() const {
         return m_value_type;
     }
-    bool is_cacheable() const {
-        return m_value_type != value_type_t::store
-          and m_value_type != value_type_t::fn_call
-          and m_value_type != value_type_t::fn_ptr_call;
+    bool M_is_value_sink() const {
+        return m_value_type == value_type_t::store
+              or m_value_type == value_type_t::fn_call
+              or m_value_type == value_type_t::fn_ptr_call;
     }
     const TypeInfo& type() const {
         return m_type_info;
@@ -126,6 +128,9 @@ public:
         return m_tag_info.contains(v);
     }
     bool operator == (const Impl& o) const {
+        if (this == &o) {
+            return true;
+        }
         if (m_value_type != o.m_value_type) {
             return false;
         }
@@ -296,9 +301,7 @@ public:
         llvm::Value* l_arg = m_parent[0].M_eval();
         LLVM_BUILDER_ASSERT(l_arg != nullptr);
         if (CursorContextImpl::has_value()) {
-            std::vector<llvm::Value*> l_raw_arg_list;
-            l_raw_arg_list.emplace_back(l_arg);
-            llvm::CallInst* l_inst = CursorContextImpl::builder().CreateCall(m_fn_ptr, l_raw_arg_list);
+            llvm::CallInst* l_inst = CursorContextImpl::builder().CreateCall(m_fn_ptr, {l_arg});
             LLVM_BUILDER_ASSERT(l_inst != nullptr);
             return l_inst;
         } else {
@@ -510,6 +513,14 @@ auto ValueInfo::value_type() const -> value_type_t {
     }
     LLVM_BUILDER_ASSERT(m_impl != nullptr);
     return m_impl->value_type();
+}
+
+bool ValueInfo::M_is_value_sink() const {
+    if (has_error()) {
+        return false;
+    }
+    LLVM_BUILDER_ASSERT(m_impl != nullptr);
+    return m_impl->M_is_value_sink();
 }
 
 const TypeInfo& ValueInfo::type() const {
@@ -800,8 +811,7 @@ ValueInfo ValueInfo::call_fn() const {
         CODEGEN_PUSH_ERROR(VALUE_ERROR, "function argument must be a pointer type");
         return ValueInfo::null();
     }
-    ValueInfo l_res{value_type_t::fn_ptr_call, TypeInfo::mk_int32(), std::vector<ValueInfo>{{*this, arg}}};
-    return l_res;
+    return ValueInfo{value_type_t::fn_ptr_call, TypeInfo::mk_int32(), std::vector<ValueInfo>{{*this, arg}}};
 }
 
 void ValueInfo::store(const ValueInfo& value) const {
@@ -975,15 +985,11 @@ llvm::Value* ValueInfo::M_eval() {
     }
     LLVM_BUILDER_ASSERT(m_impl != nullptr);
     const value_type_t l_vtype = m_impl->value_type();
-    const bool l_cacheable = m_impl->is_cacheable();
-    if (l_cacheable) {
-        CodeSection l_curr_section = CodeSectionContext::current_section();
-        llvm::Value* l_res = l_curr_section.get_eval(*this);
-        if (l_res != nullptr) {
-            return l_res;
-        }
+    CodeSection l_curr_section = CodeSectionContext::current_section();
+    llvm::Value* l_res = l_curr_section.get_eval(*this);
+    if (l_res != nullptr) {
+        return l_res;
     }
-    llvm::Value* l_res = nullptr;
 #define CASE_ENTRY(x)    case value_type_t::x:   l_res = m_impl->M_eval_##x(); break;
     switch (l_vtype) {
     CASE_ENTRY(null)
@@ -1002,10 +1008,7 @@ llvm::Value* ValueInfo::M_eval() {
     CASE_ENTRY(fn_ptr_call)
     }
 #undef CASE_ENTRY
-    if (l_cacheable) {
-        CodeSection l_curr_section = CodeSectionContext::current_section();
-        l_curr_section.add_eval(*this, l_res);
-    }
+    l_curr_section.add_eval(*this, l_res);
     return l_res;
 }
 
