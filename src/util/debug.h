@@ -31,17 +31,8 @@
     }                                                                                                                  \
     /**/
 
-#define LLVM_BUILDER_ALWAYS_ASSERT_CONTEXT_INFO(context, cond, info)                                                             \
-    {                                                                                                                  \
-        if (LLVM_BUILDER_UNLIKELY(not(cond))) {                                                                                  \
-            LLVM_BUILDER_ABORT(LLVM_BUILDER_CONCAT << context "-ASSERT: " << #cond "::" << __FILE__ << ":" << LLVM_BUILDER_XSTR(__LINE__)            \
-                               << "\n              log:" << info);                                                     \
-        }                                                                                                              \
-    }                                                                                                                  \
-    /**/
 
 #define LLVM_BUILDER_ALWAYS_ASSERT(cond)            LLVM_BUILDER_ALWAYS_ASSERT_CONTEXT("ALWAYS", cond)
-#define LLVM_BUILDER_ALWAYS_ASSERT_INFO(cond, info) LLVM_BUILDER_ALWAYS_ASSERT_CONTEXT_INFO("ALWAYS", cond, info)
 
 #define _LLVM_BUILDER_ASSERT_TYPE(lhs, rhs)                                                                                      \
     {                                                                                                                  \
@@ -60,18 +51,12 @@
 
 #define LLVM_BUILDER_ALWAYS_ASSERT_EQ(lhs, rhs)              _LLVM_BUILDER_ALWAYS_ASSERT_OP(lhs, rhs, ==)
 #define LLVM_BUILDER_ALWAYS_ASSERT_NOT_EQ(lhs, rhs)          _LLVM_BUILDER_ALWAYS_ASSERT_OP(lhs, rhs, !=)
-#define LLVM_BUILDER_ALWAYS_ASSERT_LESS_THAN(lhs, rhs)       _LLVM_BUILDER_ALWAYS_ASSERT_OP(lhs, rhs, <)
-#define LLVM_BUILDER_ALWAYS_ASSERT_LESS_THAN_EQ(lhs, rhs)    _LLVM_BUILDER_ALWAYS_ASSERT_OP(lhs, rhs, <=)
-#define LLVM_BUILDER_ALWAYS_ASSERT_GREATER_THAN(lhs, rhs)    _LLVM_BUILDER_ALWAYS_ASSERT_OP(lhs, rhs, >)
-#define LLVM_BUILDER_ALWAYS_ASSERT_GREATER_THAN_EQ(lhs, rhs) _LLVM_BUILDER_ALWAYS_ASSERT_OP(lhs, rhs, >=)
 
 #ifndef LLVM_BUILDER_RELEASE
 #define LLVM_BUILDER_ASSERT(cond)            LLVM_BUILDER_ALWAYS_ASSERT_CONTEXT("DEBUG", cond)
-#define LLVM_BUILDER_ASSERT_INFO(cond, info) LLVM_BUILDER_ALWAYS_ASSERT_CONTEXT_INFO("DEBUG", cond, info)
 #define LLVM_BUILDER_DEBUG(x)                x
 #else
 #define LLVM_BUILDER_ASSERT(cond)
-#define LLVM_BUILDER_ASSERT_INFO(cond, info)
 #define LLVM_BUILDER_DEBUG(x)
 #endif
 

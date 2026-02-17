@@ -144,7 +144,7 @@ FOR_EACH_LLVM_TYPE(DECL_MK_TYPE)
     static TypeInfo mk_type_from_name(const std::string& name);
     static TypeInfo mk_array(TypeInfo element_type, uint32_t num_elements);
     static TypeInfo mk_vector(TypeInfo element_type, uint32_t num_elements);
-    static TypeInfo mk_struct(const std::string& name, const std::vector<member_field_entry>& element_list, bool is_packed = true);
+    static TypeInfo mk_struct(const std::string& name, const std::vector<member_field_entry>& element_list, bool is_packed = false);
     static TypeInfo from_raw(llvm::Type* l_raw_type);
 private:
     bool M_check_sync(const llvm::Value* value) const;

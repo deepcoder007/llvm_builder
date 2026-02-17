@@ -136,16 +136,6 @@ public:
             return Array::null();
         }
     }
-    void print(std::ostream &os) const {
-        os << m_parent.name() << ", buf:"
-            << (m_buf == nullptr ? "<NULL>" : "<MEMORY>")
-            << ":" << (uint64_t)m_buf
-            << ":" << m_parent.name()
-            << ", size:" << m_size
-            << ", field:[";
-        m_parent.log_values(os, m_buf, m_size);
-        os << "]";
-    }
 private:
     char* M_get_buf(uint32_t i) const {
         if (i < m_size) {
@@ -1017,9 +1007,6 @@ public:
     const std::string &name() const {
         return m_name;
     }
-    void print(std::ostream& os) const {
-        os << "idx=" << m_idx << ", offset=" << m_offset << ", name=" << m_name;
-    }
     void log_values(std::ostream& os, void* data) const {
         if (data != nullptr) {
             switch (m_type) {
@@ -1408,10 +1395,6 @@ public:
         //    with event
         return m_event_fn(o.m_impl->ref());
     }
-    void print(std::ostream &os) const {
-        os << "m_name:" << m_name
-            << ": " << (m_event_fn != nullptr);
-    }
 };
 
 //
@@ -1559,9 +1542,6 @@ public:
         } else {
             return EventFn::null();
         }
-    }
-    void print(std::ostream& os) const {
-        os << "name=" << m_namespace;
     }
 };
 

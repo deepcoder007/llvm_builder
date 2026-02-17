@@ -107,6 +107,11 @@ public:
     value_type_t value_type() const {
         return m_value_type;
     }
+    bool is_cacheable() const {
+        return m_value_type != value_type_t::store
+          and m_value_type != value_type_t::fn_call
+          and m_value_type != value_type_t::fn_ptr_call;
+    }
     const TypeInfo& type() const {
         return m_type_info;
     }
@@ -638,7 +643,8 @@ ValueInfo ValueInfo::load() const {
         CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define load underlying operation for non pointer type");
         return ValueInfo::null();
     }
-    return ValueInfo{value_type_t::load, type().base_type(), std::vector<ValueInfo>{{*this}}};
+    ValueInfo v{value_type_t::load, type().base_type(), std::vector<ValueInfo>{{*this}}};
+    return v;
 }
 
 ValueInfo ValueInfo::entry(uint32_t i) const {
@@ -740,8 +746,9 @@ ValueInfo ValueInfo::store_vector_entry(const ValueInfo& idx_v, ValueInfo value)
     return ValueInfo{value_type_t::store_vector_entry, type(), std::vector<ValueInfo>{{*this, idx_v, value}}};
 }
 
-ValueInfo ValueInfo::call_fn(const ValueInfo& arg) const {
+ValueInfo ValueInfo::call_fn() const {
     CODEGEN_FN
+    ValueInfo arg = CodeSectionContext::current_context();
     if (has_error() or arg.has_error()) {
         return ValueInfo::null();
     }
@@ -936,9 +943,7 @@ llvm::Value* ValueInfo::M_eval() {
     }
     LLVM_BUILDER_ASSERT(m_impl != nullptr);
     const value_type_t l_vtype = m_impl->value_type();
-    const bool l_cacheable = l_vtype != value_type_t::store
-                          and l_vtype != value_type_t::fn_call
-                          and l_vtype != value_type_t::fn_ptr_call;
+    const bool l_cacheable = m_impl->is_cacheable();
     if (l_cacheable) {
         CodeSection l_curr_section = CodeSectionContext::current_section();
         llvm::Value* l_res = l_curr_section.get_eval(*this);
