@@ -27,10 +27,6 @@ class separator_t {
 
 class StringUtil {
   public:
-    static uint32_t print_multiline(std::ostream& os, const std::string& msg, const std::string& prefix,
-                                    const std::string& indentation_str);
-
-  public:
     static const std::string s_empty;
 };
 

@@ -228,6 +228,8 @@ void bind_values(nb::module_& m) {
         .def("store_vector_entry", [](ValueInfo& self, uint32_t i, ValueInfo value) {
             return self.store_vector_entry(i, value);
         }, "i"_a, "value"_a)
+        // Function pointer call
+        .def("call_fn", &ValueInfo::call_fn)
         // Static factories
         .def_static("null", &ValueInfo::null)
         .def_static("mk_pointer", &ValueInfo::mk_pointer, "type"_a)

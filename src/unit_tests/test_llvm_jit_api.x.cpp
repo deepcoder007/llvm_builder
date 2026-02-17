@@ -585,7 +585,7 @@ TEST(LLVM_CODEGEN_JIT_API, fn_pointer) {
 
             CODEGEN_LINE(ValueInfo ctx = CodeSectionContext::current_context())
             CODEGEN_LINE(ValueInfo fn_ptr_val = ctx.field("fn_ptr_field").load())
-            CODEGEN_LINE(ValueInfo call_result = fn_ptr_val.call_fn(ctx))
+            CODEGEN_LINE(ValueInfo call_result = fn_ptr_val.call_fn())
             CODEGEN_LINE(ctx.field("result").store(call_result))
             CODEGEN_LINE(CodeSectionContext::set_return_value(ValueInfo::from_constant(0)))
         }

@@ -8,6 +8,7 @@
 #pragma GCC diagnostic ignored "-Wparentheses"
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #pragma GCC diagnostic ignored "-Wredundant-move"
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/TargetParser/Triple.h"
