@@ -17,6 +17,7 @@
 
 namespace llvm {
     class Value;
+    class Function;
 };
 
 LLVM_BUILDER_NS_BEGIN
@@ -54,6 +55,7 @@ class ValueInfo : public _BaseObject<ValueInfo> {
     struct construct_const_t{};
     struct construct_entry_t{};
     struct construct_binary_op_t{};
+    struct construct_fn_t{};
 public:
     enum class value_type_t {
         null,
@@ -82,6 +84,7 @@ private:
     explicit ValueInfo(const TypeInfo& type_info, llvm::Value* v, construct_const_t);
     explicit ValueInfo(const ValueInfo& parent, const TypeInfo& entry_type, const ValueInfo& entry_idx, construct_entry_t);
     explicit ValueInfo(const TypeInfo& res_type, const ValueInfo& v1, const ValueInfo& v2, binary_op_fn_t fn, construct_binary_op_t);
+    explicit ValueInfo(llvm::Function* fn, const ValueInfo& arg, construct_fn_t);
 public:
     explicit ValueInfo();
     ~ValueInfo();
@@ -89,6 +92,7 @@ public:
     bool has_tag(std::string_view v) const;
     void add_tag(const std::string &v);
     void add_tag(const TagInfo &o);
+    value_type_t value_type() const;
     const TypeInfo& type() const;
     const TagInfo& tag_info() const;
     [[nodiscard]]

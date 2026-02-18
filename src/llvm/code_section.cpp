@@ -221,6 +221,8 @@ private:
     bool m_is_commit  = false;
     bool m_is_sealed = false;
     std::unordered_set<ValueInfo, ValueHash> m_interned_values;
+    std::vector<ValueInfo> m_load_values;
+    std::vector<ValueInfo> m_store_values;
     std::unordered_map<ValueInfo, llvm::Value*, ValueHash> m_eval_values;
 public:
     explicit Impl(const std::string& name, const Function& fn)
@@ -237,6 +239,12 @@ public:
 private:
     void M_force_seal() {
         m_is_sealed = true;
+        for (ValueInfo& v : m_load_values) {
+            v.M_eval();
+        }
+        for (ValueInfo& v : m_store_values) {
+            v.M_eval();
+        }
     }
 public:
     const std::string& name() const {
@@ -284,8 +292,8 @@ public:
         LLVM_BUILDER_ASSERT(not is_commit());
         LLVM_BUILDER_ASSERT(value.type() == m_fn.return_type());
         LLVM_BUILDER_ASSERT(not value.has_error());
-        m_cursor_impl.builder().CreateRet(value.M_eval());
         M_force_seal();
+        m_cursor_impl.builder().CreateRet(value.M_eval());
     }
     void jump_to_section(Impl& s) {
         LLVM_BUILDER_ASSERT(is_open());
@@ -293,8 +301,8 @@ public:
         LLVM_BUILDER_ASSERT(not is_commit());
         LLVM_BUILDER_ASSERT(this != &s);
         LLVM_BUILDER_ASSERT(s.m_basic_block != nullptr);
-        m_cursor_impl.builder().CreateBr(s.m_basic_block);
         M_force_seal();
+        m_cursor_impl.builder().CreateBr(s.m_basic_block);
     }
     void conditional_jump(ValueInfo value, Impl& then_dst,
                           Impl& else_dst) {
@@ -302,14 +310,22 @@ public:
         LLVM_BUILDER_ASSERT(not is_sealed());
         LLVM_BUILDER_ASSERT(not is_commit());
         LLVM_BUILDER_ASSERT(not value.has_error());
+        M_force_seal();
         m_cursor_impl.builder().CreateCondBr(value.M_eval(),
                                   then_dst.native_handle(),
                                   else_dst.native_handle());
-        M_force_seal();
     }
     ValueInfo intern(const ValueInfo& v) {
         auto it = m_interned_values.emplace(v);
-        return *it.first;
+        ValueInfo r = *it.first;
+        if (r.value_type() == ValueInfo::value_type_t::load) {
+            if (it.second) {
+                m_load_values.emplace_back(r);
+            }
+        } else if (r.value_type() == ValueInfo::value_type_t::store) {
+            m_store_values.emplace_back(r);
+        }
+        return r;
     }
     void add_eval(const ValueInfo& key, llvm::Value* value) {
         if (value != nullptr) {

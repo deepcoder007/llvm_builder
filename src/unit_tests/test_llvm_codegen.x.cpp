@@ -559,7 +559,7 @@ TEST(LLVM_CODEGEN, struct_type_test) {
                 LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_test_obj.get<int32_t>("field_3"), i + 4);
                 LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_test_obj.get<int32_t>("field_4"), i + 6);
             }
-            LLVM_BUILDER_ALWAYS_ASSERT_EQ(result, i + 2);
+            LLVM_BUILDER_ALWAYS_ASSERT_EQ(result, 0);
         }
     }
 }

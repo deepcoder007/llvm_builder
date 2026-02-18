@@ -78,6 +78,7 @@ private:
     llvm::Value* m_const_value_cache = nullptr;
     binary_op_fn_t m_binary_op = nullptr;
     TypeInfo m_parent_ptr_type;
+    llvm::Function* m_fn_ptr = nullptr;
 public:
     explicit Impl(value_type_t value_type, const TypeInfo& type_info)
       : m_value_type{value_type} , m_type_info{type_info} {
@@ -97,6 +98,9 @@ public:
     }
     void set_value_cache(llvm::Value* v) {
         m_const_value_cache = v;
+    }
+    void set_fn_ptr(llvm::Function* fn) {
+        m_fn_ptr = fn;
     }
     void set_binary_op(binary_op_fn_t fn) {
         m_binary_op = fn;
@@ -287,9 +291,19 @@ public:
         return m_const_value_cache;
     }
     llvm::Value* M_eval_fn_call() {
-        LLVM_BUILDER_ASSERT(m_parent.size() == 0);
-        LLVM_BUILDER_ASSERT(m_const_value_cache != nullptr);
-        return m_const_value_cache;
+        LLVM_BUILDER_ASSERT(m_parent.size() == 1);
+        LLVM_BUILDER_ASSERT(m_fn_ptr != nullptr);
+        llvm::Value* l_arg = m_parent[0].M_eval();
+        LLVM_BUILDER_ASSERT(l_arg != nullptr);
+        if (CursorContextImpl::has_value()) {
+            std::vector<llvm::Value*> l_raw_arg_list;
+            l_raw_arg_list.emplace_back(l_arg);
+            llvm::CallInst* l_inst = CursorContextImpl::builder().CreateCall(m_fn_ptr, l_raw_arg_list);
+            LLVM_BUILDER_ASSERT(l_inst != nullptr);
+            return l_inst;
+        } else {
+            return nullptr;
+        }
     }
     llvm::Value* M_eval_fn_ptr_call() {
         LLVM_BUILDER_ASSERT(m_parent.size() == 2);
@@ -301,6 +315,7 @@ public:
             llvm::FunctionType* l_fn_type = (llvm::FunctionType*)m_parent[0].type().base_type().native_value();
             LLVM_BUILDER_ASSERT(l_fn_type != nullptr);
             llvm::CallInst* l_inst = CursorContextImpl::builder().CreateCall(l_fn_type, l_fn_ptr, {l_arg});
+            LLVM_BUILDER_ASSERT(l_inst != nullptr);
             return l_inst;
         } else {
             return nullptr;
@@ -470,6 +485,16 @@ ValueInfo::ValueInfo(const TypeInfo& res_type, const ValueInfo& v1, const ValueI
     object::Counter::singleton().on_new(object::Callback::object_t::VALUE, (uint64_t)this, "");
 }
 
+ValueInfo::ValueInfo(llvm::Function* fn, const ValueInfo& arg, construct_fn_t)
+    : BaseT{State::VALID}
+    , m_impl{std::make_shared<Impl>(value_type_t::fn_call, TypeInfo::mk_int32())} {
+    LLVM_BUILDER_ASSERT(not arg.has_error());
+    m_impl->add_parent(std::vector<ValueInfo>{{arg}});
+    m_impl->set_fn_ptr(fn);
+    M_self_intern();
+    object::Counter::singleton().on_new(object::Callback::object_t::VALUE, (uint64_t)this, "");
+}
+
 void ValueInfo::M_self_intern() {
     ValueInfo l_interned = CodeSectionContext::current_section().intern(*this);
     m_impl = l_interned.m_impl;
@@ -477,6 +502,14 @@ void ValueInfo::M_self_intern() {
 
 ValueInfo::~ValueInfo() {
     // object::Counter::singleton().on_delete(object::Callback::object_t::VALUE, (uint64_t)this, "");
+}
+
+auto ValueInfo::value_type() const -> value_type_t {
+    if (has_error()) {
+        return value_type_t::null;
+    }
+    LLVM_BUILDER_ASSERT(m_impl != nullptr);
+    return m_impl->value_type();
 }
 
 const TypeInfo& ValueInfo::type() const {
@@ -795,8 +828,7 @@ void ValueInfo::store(const ValueInfo& value) const {
         CODEGEN_PUSH_ERROR(VALUE_ERROR, "type mis-match between pointer and value type: expected:" << type().base_type().short_name() << " found:" << value.type().short_name());
         return;
     }
-    // TODO{vibhanshu}: review if store should be called inpace, or we are allowed to delay execution
-    ValueInfo{value_type_t::store, type(), std::vector<ValueInfo>{{*this, value}}}.M_eval();
+    ValueInfo{value_type_t::store, type(), std::vector<ValueInfo>{{*this, value}}};
 }
 
 auto ValueInfo::null() -> ValueInfo {
