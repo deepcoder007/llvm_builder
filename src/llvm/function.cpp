@@ -167,13 +167,11 @@ public:
         LLVM_BUILDER_ASSERT(is_valid());
         LLVM_BUILDER_ASSERT(not parent.has_error())
         LLVM_BUILDER_ASSERT(not arg.has_error())
-        std::vector<llvm::Value*> l_raw_arg_list;
         if (m_context.type() != arg.type()) {
             CODEGEN_PUSH_ERROR(FUNCTION, "Expected type:" << m_context.type().short_name() << ", found type:" << arg.type().short_name());
             parent.M_mark_error();
             return ValueInfo::null();
         }
-        l_raw_arg_list.emplace_back(arg.M_eval());
         LLVM_BUILDER_ASSERT(Module::Context::has_value());
         Module& l_current_module = Module::Context::value();
         LLVM_BUILDER_ASSERT(not l_current_module.has_error());
@@ -188,10 +186,7 @@ public:
             }
             l_fn_to_call = l_existing;
         }
-        llvm::CallInst* l_inst = CursorContextImpl::builder().CreateCall(l_fn_to_call, l_raw_arg_list);
-        ValueInfo l_res{ValueInfo::value_type_t::fn_call, TypeInfo::mk_int32(), std::vector<ValueInfo>{}};
-        l_res.M_set_const_value_cache(l_inst);
-        return l_res;
+        return ValueInfo{l_fn_to_call, arg, typename ValueInfo::construct_fn_t{}};
     }
     void declare_fn(const Module& src_mod, const Module& dst_mod) const {
         LLVM_BUILDER_ASSERT(is_valid());
