@@ -15,6 +15,10 @@
 
 LLVM_BUILDER_NS_BEGIN
 
+static int32_t test_callback_fn(void* arg) {
+    return 42;
+}
+
 LLVM_BUILDER_NS_END
 
 int32_t main(int32_t argc, char **argv) {

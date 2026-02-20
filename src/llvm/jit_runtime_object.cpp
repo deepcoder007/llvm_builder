@@ -232,7 +232,6 @@ const Struct& Object::struct_def() const {
 
 void *Object::ref() const {
     if (has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "Trying to access reference of invalid object")
         return nullptr;
     }
     LLVM_BUILDER_ASSERT(m_impl);
@@ -242,7 +241,6 @@ void *Object::ref() const {
 Object Object::get_object(const std::string& name) const {
     CODEGEN_FN
     if (has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't access field in invalid object:" << name);
         return Object::null();
     }
     Field l_field = struct_def()[name];
@@ -260,12 +258,7 @@ Object Object::get_object(const std::string& name) const {
 
 void Object::set_object(const std::string& name, const Object& v) const {
     CODEGEN_FN
-    if (has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't access field in invalid object:" << name);
-        return;
-    }
-    if (v.has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't set invalid object for field:" << name);
+    if (has_error() or v.has_error()) {
         return;
     }
     Field l_field = struct_def()[name];
@@ -295,7 +288,6 @@ void Object::set_object(const std::string& name, const Object& v) const {
 Array Object::get_array(const std::string& name) const {
     CODEGEN_FN
     if (has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't access field in invalid object:" << name);
         return Array::null();
     }
     Field l_field = struct_def()[name];
@@ -314,12 +306,7 @@ Array Object::get_array(const std::string& name) const {
 
 void Object::set_array(const std::string& name, const Array& v) const {
     CODEGEN_FN
-    if (has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't access field in invalid object:" << name);
-        return;
-    }
-    if (v.has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't set invalid object for field:" << name);
+    if (has_error() or v.has_error()) {
         return;
     }
     Field l_field = struct_def()[name];
@@ -348,7 +335,6 @@ void Object::set_array(const std::string& name, const Array& v) const {
 auto Object::get_fn_ptr(const std::string& name) const -> event_fn_t* {
     CODEGEN_FN
     if (has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't access field in invalid object:" << name);
         return nullptr;
     }
     Field l_field = struct_def()[name];
@@ -368,7 +354,6 @@ auto Object::get_fn_ptr(const std::string& name) const -> event_fn_t* {
 void Object::set_fn_ptr(const std::string& name, event_fn_t* fn) const {
     CODEGEN_FN
     if (has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't access field in invalid object:" << name);
         return;
     }
     Field l_field = struct_def()[name];
@@ -393,7 +378,6 @@ template <>                                                                     
 type##_t Object::get(const std::string& name) const {                                   \
     CODEGEN_FN                                                                          \
     if (has_error()) {                                                                  \
-        CODEGEN_PUSH_ERROR(JIT, "can't access field in invalid object:" << name);       \
         return std::numeric_limits<type##_t>::max();                                    \
     }                                                                                   \
     Field l_field = struct_def()[name];                                                 \
@@ -412,7 +396,6 @@ template <>                                                                     
 void Object::set(const std::string& name, type##_t v) const {                           \
     CODEGEN_FN                                                                          \
     if (has_error()) {                                                                  \
-        CODEGEN_PUSH_ERROR(JIT, "can't access field in invalid object:" << name);       \
         return;                                                                         \
     }                                                                                   \
     Field l_field = struct_def()[name];                                                 \
@@ -697,8 +680,7 @@ bool Array::freeze() {
     }
     LLVM_BUILDER_ASSERT(m_impl);
     if (m_impl->is_frozen()) {
-        CODEGEN_PUSH_ERROR(JIT, "Trying to re-freeze array")
-        return false;
+        return true;
     }
     return m_impl->freeze();
 }
@@ -740,7 +722,6 @@ template <>                                                                     
 type##_t Array::get(uint32_t i) const {                                                 \
     CODEGEN_FN                                                                          \
     if (has_error()) {                                                                  \
-        CODEGEN_PUSH_ERROR(JIT, "can't access invalid array:");                         \
         return std::numeric_limits<type##_t>::max();                                    \
     }                                                                                   \
     if (i >= num_elements()) {                                                          \
@@ -760,7 +741,6 @@ template <>                                                                     
 void Array::set(uint32_t i, type##_t v) const {                                         \
     CODEGEN_FN                                                                          \
     if (has_error()) {                                                                  \
-        CODEGEN_PUSH_ERROR(JIT, "can't access invalid array:");                         \
         return;                                                                         \
     }                                                                                   \
     if (i >= num_elements()) {                                                          \
@@ -797,7 +777,6 @@ DEF_ARRAY_FN(uint64)
 Object Array::get_object(uint32_t i) const {
     CODEGEN_FN
     if (has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't access invalid array:");
         return Object::null();
     }
     if (i >= num_elements()) {
@@ -815,12 +794,7 @@ Object Array::get_object(uint32_t i) const {
 
 void Array::set_object(uint32_t i, const Object& v) const {
     CODEGEN_FN
-    if (has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't access invalid array:");
-        return;
-    }
-    if (v.has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't set invalid object:");
+    if (has_error() or v.has_error()) {
         return;
     }
     if (i >= num_elements()) {
@@ -849,7 +823,6 @@ void Array::set_object(uint32_t i, const Object& v) const {
 Array Array::get_array(uint32_t i) const {
     CODEGEN_FN
     if (has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't access invalid array:");
         return Array::null();
     }
     if (i >= num_elements()) {
@@ -867,12 +840,7 @@ Array Array::get_array(uint32_t i) const {
 
 void Array::set_array(uint32_t i, const Array& v) const {
     CODEGEN_FN
-    if (has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't access invalid array:");
-        return;
-    }
-    if (v.has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't set invalid array entry:");
+    if (has_error() or v.has_error()) {
         return;
     }
     if (i >= num_elements()) {
@@ -1438,12 +1406,7 @@ void EventFn::init() {
 
 int32_t EventFn::on_event(const Object& o) const {
     CODEGEN_FN
-    if (has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't run event on invalid object")
-        return -1;
-    }
-    if (o.has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't run event on invalid object")
+    if (has_error() or o.has_error()) {
         return -1;
     }
     if (ErrorContext::has_error()) {
@@ -1604,11 +1567,7 @@ void Namespace::bind() {
 
 void Namespace::add_struct(const TypeInfo& struct_type) {
     CODEGEN_FN
-    if (has_error()) {
-        return;
-    }
-    if (struct_type.has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't add invalid struct");
+    if (has_error() or struct_type.has_error()) {
         return;
     }
     if (not struct_type.is_struct()) {

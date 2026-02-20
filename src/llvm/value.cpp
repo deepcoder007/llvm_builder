@@ -986,6 +986,7 @@ llvm::Value* ValueInfo::M_eval() {
     LLVM_BUILDER_ASSERT(m_impl != nullptr);
     const value_type_t l_vtype = m_impl->value_type();
     CodeSection l_curr_section = CodeSectionContext::current_section();
+    LLVM_BUILDER_ASSERT(l_curr_section.is_sealed());
     llvm::Value* l_res = l_curr_section.get_eval(*this);
     if (l_res != nullptr) {
         return l_res;
