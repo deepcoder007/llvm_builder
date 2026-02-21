@@ -798,7 +798,7 @@ public:
         LLVM_BUILDER_ASSERT(src != nullptr);
         LLVM_BUILDER_ASSERT(is_integer());
         llvm::IRBuilder<>& l_builder = m_cursor_impl.builder();
-        if (not src_type.is_float() or src->getType()->isFloatTy()) {
+        if (not src->getType()->isFloatTy() and not src->getType()->isDoubleTy()) {
             return nullptr;
         }
         if (is_signed_integer()) {
