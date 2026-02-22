@@ -10,7 +10,6 @@
 #include "llvm_builder/module.h"
 #include "llvm/context_impl.h"
 
-// TODO{vibhanshu}: remove this iostream after fixing verify
 #include <iostream>
 
 LLVM_BUILDER_NS_BEGIN
@@ -29,9 +28,9 @@ FnContext::FnContext(const TypeInfo& type)
         M_mark_error();
         return;
     }
-    if (not m_type.is_scalar() and not m_type.is_pointer()) {
+    if (not m_type.is_pointer() or not m_type.base_type().is_struct()) {
         M_mark_error();
-        CODEGEN_PUSH_ERROR(FUNCTION, "type of function arg should be scalar or pointer:");
+        CODEGEN_PUSH_ERROR(FUNCTION, "type of function arg should be pointer to struct");
         return;
     }
 }
@@ -105,34 +104,6 @@ public:
         [[maybe_unused]] bool has_arg = false;
         for (auto& l_arg_value : m_fn->args()) {
             m_link_symbol.add_arg(m_context.type(), "context");
-            m_context.set_value(&l_arg_value);
-            LLVM_BUILDER_ASSERT(not has_arg);
-            has_arg = true;
-        }
-        LLVM_BUILDER_ASSERT(has_arg);
-        object::Counter::singleton().on_new(object::Callback::object_t::FUNCTION, (uint64_t)this, m_fn_name);
-    }
-    explicit Impl(Module parent, llvm::Function& raw_fn)
-      : m_parent{parent}, m_fn_name{raw_fn.getName()},
-        m_return_type{TypeInfo::from_raw(raw_fn.getFunctionType()->getReturnType())}, m_type{raw_fn.getFunctionType()} , m_fn{&raw_fn} {
-        CODEGEN_FN
-        LLVM_BUILDER_ASSERT(not m_parent.has_error());
-        LLVM_BUILDER_ASSERT(not m_fn_name.empty());
-        LLVM_BUILDER_ASSERT(not m_return_type.has_error());
-        LLVM_BUILDER_ASSERT(is_valid());
-        [[maybe_unused]] bool has_arg = false;
-        for (auto& l_arg_value : m_fn->args()) {
-            const llvm::StringRef l_arg_name_ref = l_arg_value.getName();
-            const std::string l_arg_name{l_arg_name_ref.data(), l_arg_name_ref.size()};
-            // llvm::Type* l_type = l_arg_value.getParamByValType();
-            llvm::Type* l_type = l_arg_value.getType();
-            if (l_type == nullptr) {
-                m_type = nullptr;
-                m_fn = nullptr;
-                return;
-            }
-            const TypeInfo l_type_info = TypeInfo::from_raw(l_type);
-            m_context = FnContext{l_type_info};
             m_context.set_value(&l_arg_value);
             LLVM_BUILDER_ASSERT(not has_arg);
             has_arg = true;
@@ -584,19 +555,6 @@ FunctionImpl::FunctionImpl(const std::string& external_fn_name,
     }
 }
 
-
-FunctionImpl::FunctionImpl(Module parent, llvm::Function& raw_fn, c_construct) {
-    CODEGEN_FN
-    if (parent.has_error()) {
-        return;
-    }
-    m_impl = std::make_shared<Impl>(parent, raw_fn);
-    if (not is_valid()) {
-        CODEGEN_PUSH_ERROR(FUNCTION, "Function can't be defined correctly:");
-        return;
-    }
-}
-
 FunctionImpl::FunctionImpl(FunctionImpl&& o) {
     m_impl = std::move(o.m_impl);
 }
@@ -607,5 +565,10 @@ FunctionImpl& FunctionImpl::operator = (FunctionImpl&& o) {
 }
 
 FunctionImpl::~FunctionImpl() = default;
+
+const std::string& FunctionImpl::name() const {
+    LLVM_BUILDER_ASSERT(m_impl);
+    return m_impl->name();
+}
 
 LLVM_BUILDER_NS_END

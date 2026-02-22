@@ -1078,6 +1078,8 @@ TEST(LLVM_CODEGEN, multi_module) {
     multi_args_fields.emplace_back("arg1", int32_type);
     multi_args_fields.emplace_back("arg2", int32_type);
     multi_args_fields.emplace_back("arg3", int32_type);
+    multi_args_fields.emplace_back("res5", int32_type);
+    multi_args_fields.emplace_back("res6", int32_type);
     CODEGEN_LINE(TypeInfo multi_args_type = TypeInfo::mk_struct("multi_args", multi_args_fields))
 
     CODEGEN_LINE(l_cursor.bind())
@@ -1085,9 +1087,9 @@ TEST(LLVM_CODEGEN, multi_module) {
         Module l_module = l_cursor.gen_module();
         Module::Context l_module_ctx{l_module};
         {
-            Function fn_ext("fn2", FnContext{int32_type}, l_module);
+            Function fn_ext("fn2", FnContext{multi_args_type.pointer_type()}, l_module);
 
-            Function fn_local_ext("fn2_local", FnContext{int32_type}, l_module);
+            Function fn_local_ext("fn2_local", FnContext{multi_args_type.pointer_type()}, l_module);
 
             Function fn("fn1", FnContext{multi_args_type.pointer_type()}, l_module);
             {
@@ -1103,8 +1105,11 @@ TEST(LLVM_CODEGEN, multi_module) {
                 ValueInfo res3 = res2.add(c2);
                 ValueInfo res4 = res2.add(ctx.field("arg3").load());
                 ValueInfo res5 = res3.add(res4);
-                ValueInfo res6 = fn_ext.call_fn(res5);
-                ValueInfo res7 = fn_local_ext.call_fn(res6);
+                ctx.field("res5").store(res5);
+                ValueInfo res6 = fn_ext.call_fn(ctx);
+                ctx.field("res6").store(res6);
+                ValueInfo res7 = fn_local_ext.call_fn(ctx);
+                LLVM_BUILDER_ASSERT(res7.type().is_integer());
                 CodeSectionContext::set_return_value(res7);
             }
             jit_runner.process_module_fn(fn);
@@ -1119,14 +1124,15 @@ TEST(LLVM_CODEGEN, multi_module) {
     {
         Module l_module = l_cursor.gen_module();
         Module::Context l_module_ctx{l_module};
-        TypeInfo float32_type = TypeInfo::mk_float32();
         {
-            Function fn("fn2", FnContext{int32_type}, l_module);
+            Function fn("fn2", FnContext{multi_args_type.pointer_type()}, l_module);
             {
                 CodeSection l_fn_body = fn.mk_section("test_fn_body");
                 l_fn_body.enter();
-                ValueInfo arg = CodeSectionContext::current_context();
+                ValueInfo ctx = CodeSectionContext::current_context();
+                ValueInfo arg = ctx.field("res5").load();
                 ValueInfo res = arg.add(arg);
+                LLVM_BUILDER_ASSERT(res.type().is_integer());
                 CodeSectionContext::set_return_value(res);
             }
             jit_runner.process_module_fn(fn);
@@ -1137,17 +1143,19 @@ TEST(LLVM_CODEGEN, multi_module) {
             }
         }
         {
-            Function fn("fn2_local", FnContext{int32_type}, l_module);
+            Function fn("fn2_local", FnContext{multi_args_type.pointer_type()}, l_module);
             {
                 CodeSection l_fn_body = fn.mk_section("test_fn_body");
                 l_fn_body.enter();
-                ValueInfo arg = CodeSectionContext::current_context();
+                ValueInfo ctx = CodeSectionContext::current_context();
+                ValueInfo arg = ctx.field("res6").load();
                 ValueInfo res = arg.add(arg);
+                LLVM_BUILDER_ASSERT(res.type().is_integer());
                 CodeSectionContext::set_return_value(res);
             }
             jit_runner.process_module_fn(fn);
             {
-                const std::string fn_name{"fn2"};
+                const std::string fn_name{"fn2_local"};
                 Function f2 = l_module.get_function(fn_name);
                 f2.verify();
             }

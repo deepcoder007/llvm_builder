@@ -33,6 +33,7 @@ public:
     Module main_module();
     Module gen_module();
     Function mk_function(FunctionImpl&& fn_impl);
+    Function find_function(const std::string& name);
     TypeInfo mk_type_pointer(const TypeInfo& base_type);
 #define DECL_MK_TYPE(TYPE_NAME)            \
     TypeInfo mk_type_ ##TYPE_NAME();       \
@@ -104,7 +105,6 @@ public:
                       TypeInfo return_type, const FnContext& context, c_construct);
     explicit FunctionImpl(const std::string& external_fn_name,
                       TypeInfo return_type, const FnContext& context, c_construct);
-    explicit FunctionImpl(Module parent, llvm::Function& raw_fn, c_construct);
     ~FunctionImpl();
 public:
     FunctionImpl(FunctionImpl&&);
@@ -116,6 +116,7 @@ public:
     bool is_valid() const {
         return static_cast<bool>(m_impl);
     }
+    const std::string& name() const;
 };
 
 class CodeSectionImpl {

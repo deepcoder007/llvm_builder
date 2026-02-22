@@ -178,6 +178,14 @@ private:
         LLVM_BUILDER_ASSERT(not fn_impl.is_valid());
         return Function{impl};
     }
+    Function find_function(const std::string& name) {
+        for (FunctionImpl& fn_impl : m_func_list) {
+            if (fn_impl.is_valid() and fn_impl.name() == name) {
+                return Function{fn_impl};
+            }
+        }
+        return Function::null();
+    }
     TypeInfo mk_type_pointer(const TypeInfo& base_type, CursorPtr parent) {
         CODEGEN_FN
         // TODO{vibhanshu}: allow pointer type of struct, array, void, vector only -> disallow pointer of scalar types
@@ -378,6 +386,14 @@ Function CursorPtr::mk_function(FunctionImpl&& fn_impl) {
         } else {
             return Function::null();
         }
+    } else {
+        return Function::null();
+    }
+}
+
+Function CursorPtr::find_function(const std::string& name) {
+    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
+        return ptr->find_function(name);
     } else {
         return Function::null();
     }
@@ -812,19 +828,11 @@ public:
         LLVM_BUILDER_ASSERT(not parent.has_error());
         LLVM_BUILDER_ASSERT(not name.empty());
         const std::string l_full_name = LinkSymbolName{name}.full_name();
-        LLVM_BUILDER_ASSERT(m_raw_module);
-        llvm::Function* l_fn = m_raw_module->getFunction(l_full_name);
-        if (l_fn == nullptr) {
-            l_fn = m_raw_module->getFunction(name);
+        Function existing = m_cursor_impl.find_function(l_full_name);
+        if (not existing.has_error()) {
+            return existing;
         }
-        LLVM_BUILDER_ASSERT(l_fn != nullptr);
-        FunctionImpl impl{parent, *l_fn, Function::c_construct{}};
-        if (impl.is_valid()) {
-            return m_cursor_impl.mk_function(std::move(impl));
-        } else {
-            CODEGEN_PUSH_ERROR(MODULE, "unable to create valid function");
-            return Function::null();
-        }
+        return m_cursor_impl.find_function(name);
     }
     void add_struct_definition(Module& parent, const TypeInfo &struct_type) {
         CODEGEN_FN
@@ -834,52 +842,6 @@ public:
         if (not it.second) {
             CODEGEN_PUSH_ERROR(TYPE_ERROR, "struct type already exist with name:" << struct_type.struct_name());
         }
-#if 0
-        std::vector<Function> r_fn_defs;
-        const std::string l_struct_full_name = struct_type.struct_name();
-        {
-            Function l_size_fn(LinkSymbolName{l_struct_full_name, "size"}.full_name(), FnContext{arg_type.pointer_type()}, parent);
-            {
-                CodeSection l_fn_body = l_size_fn.mk_section("fn_body");
-                l_fn_body.enter();
-                ValueInfo struct_size = ValueInfo::calc_struct_size(struct_type);
-                ValueInfo ctx = CodeSectionContext::current_context();
-                ctx.field("result").store(struct_size);
-                CodeSectionContext::set_return_value(ValueInfo::from_constant(0));
-            }
-            l_size_fn.verify();
-            r_fn_defs.emplace_back(l_size_fn);
-        }
-        {
-            Function l_field_count_fn(LinkSymbolName{l_struct_full_name, "field_count"}.full_name(), FnContext{arg_type.pointer_type()}, parent);
-            {
-                CodeSection l_fn_body = l_field_count_fn.mk_section("fn_body");
-                l_fn_body.enter();
-                ValueInfo field_count = ValueInfo::calc_struct_field_count(struct_type);
-                ValueInfo ctx = CodeSectionContext::current_context();
-                ctx.field("result").store(field_count);
-                CodeSectionContext::set_return_value(ValueInfo::from_constant(0));
-            }
-            l_field_count_fn.verify();
-            r_fn_defs.emplace_back(l_field_count_fn);
-        }
-        {
-            Function l_field_offset_fn(LinkSymbolName{l_struct_full_name, "get_field_offset"}.full_name(), FnContext{TypeInfo::mk_int_context().pointer_type()}, parent);
-            {
-                CodeSection l_fn_body = l_field_offset_fn.mk_section("fn_body");
-                l_fn_body.enter();
-                ValueInfo ctx = CodeSectionContext::pop("context"_cs);
-                ValueInfo idx = ctx.field("offset").load();
-                ValueInfo offset = ValueInfo::calc_struct_field_offset(struct_type, idx);
-                ctx.field("result").store(offset);
-                CodeSectionContext::set_return_value(ValueInfo::from_constant(0));
-            }
-            // TODO{vibhanshu}: make a cleaner interface to do this ?
-            l_field_offset_fn.verify();
-            r_fn_defs.emplace_back(l_field_offset_fn);
-        }
-        return r_fn_defs;
-#endif
     }
     // TODO{vibhanshu}: remove usage of C files as much possible, if not remove, reduce the size
     void write_to_file() const {

@@ -1175,32 +1175,7 @@ TypeInfo TypeInfo::mk_struct(const std::string& name, const std::vector<member_f
     }
 }
 
-TypeInfo TypeInfo::from_raw(llvm::Type* l_raw_type) {
-    CODEGEN_FN
-    LLVM_BUILDER_ASSERT(l_raw_type != nullptr);
-    if (l_raw_type->isVoidTy()) {
-        return mk_void();
-    } else if (l_raw_type->isFloatTy()) {
-        return mk_float32();
-    } else if (l_raw_type->isDoubleTy()) {
-        return mk_float64();
-    } else if (l_raw_type->isIntegerTy(8)) {
-        return mk_int8();
-    } else if (l_raw_type->isIntegerTy(16)) {
-        return mk_int16();
-    } else if (l_raw_type->isIntegerTy(32)) {
-        return mk_int32();
-    } else if (l_raw_type->isIntegerTy(64)) {
-        return mk_int64();
-    } else if (l_raw_type->isPointerTy()) {
-        return mk_void().pointer_type();
-    } else if (l_raw_type->isStructTy()) {
-        LLVM_BUILDER_ABORT("Struct Type yet to be implemented");
-    } else {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type not supported");
-        return TypeInfo::null();
-    }
-}
+
 
 llvm::Value* TypeInfo::M_type_cast(const TypeInfo& src_type, llvm::Value* src_value) {
     LLVM_BUILDER_ASSERT(not has_error());

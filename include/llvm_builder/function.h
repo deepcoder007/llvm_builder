@@ -8,7 +8,6 @@
 #include "llvm_builder/defines.h"
 #include "llvm_builder/type.h"
 #include "llvm_builder/value.h"
-#include "llvm_builder/defines.h"
 
 #include <string_view>
 #include <vector>
