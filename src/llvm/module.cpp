@@ -39,6 +39,7 @@ private:
     llvm::orc::ThreadSafeContext m_ts_context;
     llvm::LLVMContext& m_context;
     llvm::IRBuilder<> m_ir_builder;
+    TypeInfo m_ctx_type;
     std::unordered_map<std::string, ModuleImpl> m_modules;
     std::vector<FunctionImpl> m_func_list;
     std::vector<TypeInfoImpl> m_type_list;
@@ -156,8 +157,18 @@ private:
     const std::string &name() const {
         return m_name;
     }
+    void set_context_type(const TypeInfo& ctx_type) {
+        LLVM_BUILDER_ASSERT(not is_bind_called());
+        LLVM_BUILDER_ASSERT(is_valid());
+        LLVM_BUILDER_ASSERT(ctx_type.is_pointer());
+        LLVM_BUILDER_ASSERT(ctx_type.base_type().is_struct());
+        m_ctx_type = ctx_type;
+    }
+    const TypeInfo& context_type() const {
+        LLVM_BUILDER_ASSERT(is_valid());
+        return m_ctx_type;
+    }
     Module main_module() const {
-        CODEGEN_FN
         LLVM_BUILDER_ASSERT(is_bind_called());
         LLVM_BUILDER_ASSERT(is_valid());
         LLVM_BUILDER_ASSERT(m_main_module.is_init());
@@ -285,6 +296,7 @@ FOR_EACH_LLVM_TYPE(DECL_MK_TYPE)
         CODEGEN_FN
         LLVM_BUILDER_ASSERT(is_valid());
         LLVM_BUILDER_ASSERT(not is_bind_called());
+        LLVM_BUILDER_ASSERT(not context_type().has_error());
         m_is_bind = true;
         m_main_module = M_gen_module(m_name, ptr);
         Module::Context l_module_ctx{m_main_module};
@@ -343,6 +355,33 @@ const std::string& CursorPtr::name() const {
         static std::string s_null{"<NULL>"};
         return s_null;
     }
+}
+
+void CursorPtr::set_context_type(const TypeInfo& ctx_type) {
+    CODEGEN_FN
+    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
+        if (ptr->is_valid()) {
+            if (not ptr->is_bind_called()) {
+                ptr->set_context_type(ctx_type);
+            } else {
+                CODEGEN_PUSH_ERROR(MODULE, " bind already called for Cursor:" << name());
+            }
+        }
+    }
+}
+
+auto CursorPtr::context_type() const -> const TypeInfo&  {
+    CODEGEN_FN
+    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
+        if (ptr->is_valid()) {
+            if (ptr->is_bind_called()) {
+                return ptr->context_type();
+            } else {
+                CODEGEN_PUSH_ERROR(MODULE, " bind not called for Cursor:" << name());
+            }
+        }
+    }
+    return TypeInfo::null();
 }
 
 Module CursorPtr::main_module() {
@@ -562,6 +601,8 @@ void CursorPtr::bind() {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         if (ptr->is_bind_called()) {
             CODEGEN_PUSH_ERROR(MODULE, " bind already called for Cursor:" << name());
+        } else if (ptr->context_type().has_error()) {
+            CODEGEN_PUSH_ERROR(MODULE, " context type not yet set for Cursor:" << name());
         } else {
             ptr->bind(m_impl);
         }
@@ -634,6 +675,26 @@ auto Cursor::name() -> const std::string& {
         return s_name;
     }
     return CursorPtr{*this}.name();
+}
+
+void Cursor::set_context_type(const TypeInfo& ctx_type) {
+    CODEGEN_FN
+    if (has_error()) {
+        return;
+    }
+    if (not ctx_type.is_pointer() or not ctx_type.base_type().is_struct()) {
+        CODEGEN_PUSH_ERROR(MODULE, "context type need to be pointer to struct, found:" << ctx_type.short_name());
+        return;
+    }
+    CursorPtr{*this}.set_context_type(ctx_type);
+}
+
+auto Cursor::context_type() -> const TypeInfo&  {
+    CODEGEN_FN
+    if (has_error()) {
+        return TypeInfo::null();
+    }
+    return CursorPtr{*this}.context_type();
 }
 
 Module Cursor::main_module() {

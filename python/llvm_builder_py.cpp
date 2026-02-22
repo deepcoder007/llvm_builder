@@ -256,17 +256,6 @@ void bind_values(nb::module_& m) {
 // Function bindings
 //
 void bind_functions(nb::module_& m) {
-    // FnContext
-    nb::class_<FnContext>(m, "FnContext")
-        .def(nb::init<>())
-        .def(nb::init<const TypeInfo&>(), "type"_a)
-        .def("type", &FnContext::type)
-        .def("value", &FnContext::value)
-        .def("is_valid", &FnContext::is_valid)
-        .def("is_init", &FnContext::is_init)
-        .def("__eq__", &FnContext::operator==)
-        .def_static("null", &FnContext::null, nb::rv_policy::reference);
-
     // Forward declare Function for CodeSection
     nb::class_<Function> function_class(m, "Function");
 
@@ -301,21 +290,19 @@ void bind_functions(nb::module_& m) {
         .def_static("current_section", &CodeSectionContext::current_section)
         .def_static("is_current_section", &CodeSectionContext::is_current_section, "code"_a)
         .def_static("current_function", &CodeSectionContext::current_function)
-        .def_static("current_context", &CodeSectionContext::current_context)
         .def_static("clean_sealed_context", &CodeSectionContext::clean_sealed_context)
         .def_static("assert_no_context", &CodeSectionContext::assert_no_context);
 
     // Function - complete the definition
     function_class
         .def(nb::init<>())
-        .def(nb::init<const std::string&, const FnContext&, Module&>(), "name"_a, "context"_a, "mod"_a)
-        .def(nb::init<const std::string&, const FnContext&>(), "name"_a, "context"_a)
+        .def(nb::init<const std::string&, Module&>(), "name"_a, "mod"_a)
+        .def(nb::init<const std::string&>(), "name"_a)
         .def("is_valid", &Function::is_valid)
         .def("parent_module", &Function::parent_module, nb::rv_policy::reference)
         .def("name", &Function::name)
         .def("is_external", &Function::is_external)
-        .def("return_type", &Function::return_type)
-        .def("call_fn", &Function::call_fn, "context"_a)
+        .def("call_fn", &Function::call_fn)
         .def("declare_fn", &Function::declare_fn, "src_mod"_a, "dst_mod"_a)
         .def("mk_section", &Function::mk_section, "name"_a)
         .def("verify", &Function::verify)
@@ -355,6 +342,7 @@ void bind_modules(nb::module_& m) {
         .def(nb::init<>())
         .def(nb::init<const std::string&>(), "name"_a)
         .def("name", &Cursor::name)
+        .def("set_context_type", &Cursor::set_context_type, "ctx_type"_a)
         .def("main_module", &Cursor::main_module)
         .def("gen_module", &Cursor::gen_module)
         .def("is_bind_called", &Cursor::is_bind_called)

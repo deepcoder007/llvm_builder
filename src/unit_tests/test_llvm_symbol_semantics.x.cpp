@@ -18,10 +18,9 @@
 #include <format>
 
 using namespace llvm_builder;
-#include <format>
 
 void code_fn() {
-    CODEGEN_LINE(ValueInfo ctx = CodeSectionContext::current_context())
+    CODEGEN_LINE(ValueInfo ctx = ValueInfo::from_context())
     CODEGEN_LINE(ValueInfo arg1 = ctx.field("arg1").load())
     CODEGEN_LINE(ValueInfo arg2 = ctx.field("arg2").load())
     CODEGEN_LINE(ValueInfo c1 = ValueInfo::from_constant(101))
@@ -66,11 +65,12 @@ TEST(LLVM_CODEGEN_SYMBOL_SEMANTICS, basic_graph_test) {
     arr_args_fields.emplace_back("b", int32_arr_type.pointer_type());
     CODEGEN_LINE(TypeInfo arr_args_type = TypeInfo::mk_struct("arr_args", arr_args_fields))
 
+    CODEGEN_LINE(l_cursor.set_context_type(args3_type.pointer_type()))
     CODEGEN_LINE(l_cursor.bind())
     CODEGEN_LINE(Module l_module = l_cursor.main_module())
     CODEGEN_LINE(Module::Context l_module_ctx{l_module})
     {
-        CODEGEN_LINE(Function fn("sample_fn_name", FnContext{args3_type.pointer_type()}, l_module))
+        CODEGEN_LINE(Function fn("sample_fn_name", l_module))
         {
             CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
             CODEGEN_LINE(l_fn_body.enter())
@@ -79,7 +79,7 @@ TEST(LLVM_CODEGEN_SYMBOL_SEMANTICS, basic_graph_test) {
             code_fn();
             CODEGEN_LINE(CodeSectionContext::section_break("another_section"))
             {
-                CODEGEN_LINE(ValueInfo ctx = CodeSectionContext::current_context())
+                CODEGEN_LINE(ValueInfo ctx = ValueInfo::from_context())
                 CODEGEN_LINE(ValueInfo arg4_ptr = ctx.field("arg4"))
                 CODEGEN_LINE(ValueInfo arg5_ptr = ctx.field("arg5"))
                 CODEGEN_LINE(ValueInfo arg6_ptr = ctx.field("arg6"))
@@ -171,15 +171,16 @@ TEST(LLVM_CODEGEN_SYMBOL_SEMANTICS, lazy_load_logic) {
     LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
 
     CODEGEN_LINE(JustInTimeRunner jit_runner)
+    CODEGEN_LINE(l_cursor.set_context_type(l_struct.pointer_type()))
     CODEGEN_LINE(l_cursor.bind())
     CODEGEN_LINE(Module l_module = l_cursor.main_module())
     CODEGEN_LINE(Module::Context l_module_ctx{l_module})
     {
-        CODEGEN_LINE(Function fn_double("double_arg", FnContext{l_struct.pointer_type()}, l_module))
+        CODEGEN_LINE(Function fn_double("double_arg", l_module))
         {
             CODEGEN_LINE(CodeSection l_fn_body = fn_double.mk_section("body"))
             CODEGEN_LINE(l_fn_body.enter())
-            CODEGEN_LINE(ValueInfo ctx = CodeSectionContext::current_context())
+            CODEGEN_LINE(ValueInfo ctx = ValueInfo::from_context())
             CODEGEN_LINE(ValueInfo arg1 = ctx.field("arg1").load())
             CODEGEN_LINE(ctx.field("arg1").store(arg1.add(arg1)))
             CODEGEN_LINE(ValueInfo arg2 = ctx.field("arg2").load())
@@ -197,7 +198,7 @@ TEST(LLVM_CODEGEN_SYMBOL_SEMANTICS, lazy_load_logic) {
             }
             CODEGEN_LINE(CodeSectionContext::set_return_value(ValueInfo::from_constant(0)))
         }
-        CODEGEN_LINE(Function fn_double_section("double_arg_section", FnContext{l_struct.pointer_type()}, l_module))
+        CODEGEN_LINE(Function fn_double_section("double_arg_section", l_module))
         {
             CODEGEN_LINE(CodeSection l_fn_body = fn_double_section.mk_section("body"))
             CODEGEN_LINE(l_fn_body.enter())
@@ -205,7 +206,7 @@ TEST(LLVM_CODEGEN_SYMBOL_SEMANTICS, lazy_load_logic) {
                 std::stringstream ss;
                 ss << "section_" << i;
                 CodeSectionContext::section_break(ss.str());
-                CODEGEN_LINE(ValueInfo ctx = CodeSectionContext::current_context())
+                CODEGEN_LINE(ValueInfo ctx = ValueInfo::from_context())
                 CODEGEN_LINE(ValueInfo arg1 = ctx.field("arg1").load())
                 CODEGEN_LINE(ctx.field("arg1").store(arg1.add(arg1)))
                 CODEGEN_LINE(ValueInfo arg2 = ctx.field("arg2").load())
@@ -321,15 +322,16 @@ TEST(LLVM_CODEGEN_SYMBOL_SEMANTICS, value_sink_ordering_logic) {
     LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
 
     CODEGEN_LINE(JustInTimeRunner jit_runner)
+    CODEGEN_LINE(l_cursor.set_context_type(l_struct.pointer_type()))
     CODEGEN_LINE(l_cursor.bind())
     CODEGEN_LINE(Module l_module = l_cursor.main_module())
     CODEGEN_LINE(Module::Context l_module_ctx{l_module})
     {
-        CODEGEN_LINE(Function fn_double("double_arg", FnContext{l_struct.pointer_type()}, l_module))
+        CODEGEN_LINE(Function fn_double("double_arg", l_module))
         {
             CODEGEN_LINE(CodeSection l_fn_body = fn_double.mk_section("body"))
             CODEGEN_LINE(l_fn_body.enter())
-            CODEGEN_LINE(ValueInfo ctx = CodeSectionContext::current_context())
+            CODEGEN_LINE(ValueInfo ctx = ValueInfo::from_context())
             CODEGEN_LINE(ValueInfo arg1 = ctx.field("arg1").load())
             CODEGEN_LINE(ctx.field("arg1").store(arg1.add(arg1)))
             CODEGEN_LINE(ValueInfo arg2 = ctx.field("arg2").load())
@@ -346,16 +348,16 @@ TEST(LLVM_CODEGEN_SYMBOL_SEMANTICS, value_sink_ordering_logic) {
             CODEGEN_LINE(CodeSectionContext::set_return_value(ValueInfo::from_constant(0)))
         }
         {
-            CODEGEN_LINE(Function fn("call_fn_ptr", FnContext{l_struct.pointer_type()}, l_module))
+            CODEGEN_LINE(Function fn("call_fn_ptr", l_module))
             CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("body"))
             CODEGEN_LINE(l_fn_body.enter())
 
-            CODEGEN_LINE(ValueInfo ctx = CodeSectionContext::current_context())
+            CODEGEN_LINE(ValueInfo ctx = ValueInfo::from_context())
             CODEGEN_LINE(ValueInfo arg4 = ctx.field("arg4").load())
             CODEGEN_LINE(ctx.field("arg4").store(arg4.add(ValueInfo::from_constant(1000))))
-            CODEGEN_LINE(ValueInfo call_fn_1 = fn_double.call_fn(ctx))
-            CODEGEN_LINE(ValueInfo call_fn_2 = fn_double.call_fn(ctx))
-            CODEGEN_LINE(ValueInfo call_fn_3 = fn_double.call_fn(ctx))
+            CODEGEN_LINE(ValueInfo call_fn_1 = fn_double.call_fn())
+            CODEGEN_LINE(ValueInfo call_fn_2 = fn_double.call_fn())
+            CODEGEN_LINE(ValueInfo call_fn_3 = fn_double.call_fn())
             CODEGEN_LINE(ctx.field("arg3").store(call_fn_1.add(call_fn_2)))
             CODEGEN_LINE(ctx.field("arg3").store(call_fn_1.add(call_fn_2)))
             CODEGEN_LINE(ctx.field("arg3").store(call_fn_1.add(call_fn_2)))

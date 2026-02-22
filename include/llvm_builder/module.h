@@ -47,6 +47,8 @@ public:
     ~Cursor();
 public:
     const std::string& name();
+    const TypeInfo& context_type();
+    void set_context_type(const TypeInfo& ctx_type);
     Module main_module();
     Module gen_module();
     void main_module_hook_fn(on_main_module_fn_t&& fn);

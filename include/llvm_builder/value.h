@@ -84,7 +84,7 @@ private:
     explicit ValueInfo(const TypeInfo& type_info, llvm::Value* v, construct_const_t);
     explicit ValueInfo(const ValueInfo& parent, const TypeInfo& entry_type, const ValueInfo& entry_idx, construct_entry_t);
     explicit ValueInfo(const TypeInfo& res_type, const ValueInfo& v1, const ValueInfo& v2, binary_op_fn_t fn, construct_binary_op_t);
-    explicit ValueInfo(llvm::Function* fn, const ValueInfo& arg, construct_fn_t);
+    explicit ValueInfo(llvm::Function* fn, construct_fn_t);
 public:
     explicit ValueInfo();
     ~ValueInfo();
@@ -167,7 +167,7 @@ public:
     ValueInfo call_fn() const;
 public:
     static ValueInfo null();
-    static ValueInfo from_context(const TypeInfo& ctx_type);
+    static ValueInfo from_context();
     template <typename T>
     [[nodiscard]]
     static ValueInfo from_constant(T v);

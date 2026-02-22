@@ -30,34 +30,6 @@ class CodeSectionContext;
 class CodeSectionImpl;
 class FunctionImpl;
 
-class FnContext : public _BaseObject<FnContext> {
-    using BaseT = _BaseObject<FnContext>;
-    friend class ValueInfo;
-private:
-    TypeInfo m_type;
-    llvm::Argument* m_raw_arg = nullptr;
-public:
-    explicit FnContext();
-    explicit FnContext(const TypeInfo& type);
-    ~FnContext();
-public:
-    TypeInfo type() const {
-        return m_type;
-    }
-    bool is_valid() const {
-        return m_type.is_valid();
-    }
-    bool is_init() const {
-        return m_raw_arg != nullptr;
-    }
-    void set_value(llvm::Argument* raw_arg);
-    bool operator == (const FnContext& rhs) const;
-    static const FnContext& null();
-    ValueInfo value() const;
-private:
-    llvm::Value* M_eval();
-};
-
 class CodeSection : public _BaseObject<CodeSection>  {
     using BaseT = _BaseObject<CodeSection>;
 public:
@@ -114,7 +86,6 @@ public:
     static CodeSection current_section();
     static bool is_current_section(CodeSection& code);
     static Function current_function();
-    static ValueInfo current_context();
     static size_t clean_sealed_context();
     static void assert_no_context();
     static void print_section_stack(std::ostream& os);
@@ -146,16 +117,15 @@ private:
 public:
     explicit Function();
     explicit Function(FunctionImpl& impl);
-    explicit Function(const std::string& name, const FnContext& context, Module& mod);
-    explicit Function(const std::string& name, const FnContext& context);
+    explicit Function(const std::string& name, Module& mod);
+    explicit Function(const std::string& name);
     ~Function();
 public:
     bool is_valid() const;
-    const Module &parent_module() const;
-    const std::string &name() const;
+    const Module& parent_module() const;
+    const std::string& name() const;
     bool is_external() const;
-    const TypeInfo& return_type() const;
-    ValueInfo call_fn(const ValueInfo& context) const;
+    ValueInfo call_fn() const;
     void declare_fn(Module& src_mod, Module& dst_mod);
     CodeSection mk_section(const std::string& name);
     llvm::Function *native_handle() const;
@@ -165,7 +135,7 @@ public:
     bool operator == (const Function& o) const;
     static Function null();
 private:
-    const FnContext& context() const;
+    llvm::Value* M_eval_arg() const;
 };
 
 LLVM_BUILDER_NS_END

@@ -290,7 +290,7 @@ public:
         LLVM_BUILDER_ASSERT(is_open());
         LLVM_BUILDER_ASSERT(not is_sealed());
         LLVM_BUILDER_ASSERT(not is_commit());
-        LLVM_BUILDER_ASSERT(value.type() == m_fn.return_type());
+        LLVM_BUILDER_ASSERT(value.type() == TypeInfo::mk_int32());
         LLVM_BUILDER_ASSERT(not value.has_error());
         M_force_seal();
         m_cursor_impl.builder().CreateRet(value.M_eval());
@@ -430,14 +430,6 @@ void CodeSection::enter() {
         // TODO{vibhnashu}: ensure that in function, only the first section will have argument to allow
         //         later sections to over-ride arguemnt values
         CodeSectionContext::M_push_section(*this);
-        VariableContextMgr& var_mgr = VariableContextMgr::singleton();
-        Function fn = function();
-        if (not has_error()) {
-            ValueInfo l_value = CodeSectionContext::current_context();
-            TypeInfo l_type_info = l_value.type();
-            LLVM_BUILDER_ASSERT(l_type_info.is_pointer() or l_type_info.is_scalar());
-            var_mgr.set("context", l_value);
-        }
     } else {
         M_mark_error();
         return;
@@ -456,14 +448,6 @@ void CodeSection::M_re_enter() {
             return;
         }
         ptr->re_enter();
-        VariableContextMgr& var_mgr = VariableContextMgr::singleton();
-        Function fn = function();
-        if (not has_error()) {
-            ValueInfo l_value = CodeSectionContext::current_context();
-            TypeInfo l_type_info = l_value.type();
-            LLVM_BUILDER_ASSERT(l_type_info.is_pointer() or l_type_info.is_scalar());
-            var_mgr.set("context", l_value);
-        }
     } else {
         M_mark_error();
         return;
@@ -561,9 +545,8 @@ void CodeSection::M_set_return_value(ValueInfo value) {
             return;
         }
         TypeInfo value_type = value.type();
-        TypeInfo fn_type = ptr->function().return_type();
-        if (value_type != fn_type) {
-            CODEGEN_PUSH_ERROR(CODE_SECTION, "return type of value does not match return type of function: found:" << value_type.short_name() << ", expected:" << fn_type.short_name());
+        if (value_type != TypeInfo::mk_int32()) {
+            CODEGEN_PUSH_ERROR(CODE_SECTION, "return type of value does not match return type of function: found:" << value_type.short_name() << ", expected:int32");
             M_mark_error();
             return;
         }
@@ -943,10 +926,6 @@ bool CodeSectionContext::is_current_section(CodeSection &code) {
     } else {
         return false;
     }
-}
-
-ValueInfo CodeSectionContext::current_context() {
-    return current_function().context().value();
 }
 
 size_t CodeSectionContext::clean_sealed_context() {

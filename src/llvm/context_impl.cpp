@@ -46,6 +46,22 @@ llvm::orc::ThreadSafeContext& CursorContextImpl::thread_safe_context() {
     return CursorPtr{Cursor::Context::value()}.thread_safe_context();
 }
 
+const TypeInfo& CursorContextImpl::context_type() {
+    if (has_value()) {
+        return CursorPtr{Cursor::Context::value()}.context_type();
+    } else {
+        return TypeInfo::null();
+    }
+}
+
+void CursorContextImpl::set_context_type(const TypeInfo& ctx_type) {
+    if (has_value()) {
+        CursorPtr{Cursor::Context::value()}.set_context_type(ctx_type);
+    } else {
+        CODEGEN_PUSH_ERROR(MODULE, "can't set context type outside cursor context")
+    }
+}
+
 Module CursorContextImpl::main_module() {
     if (has_value()) {
         return CursorPtr{Cursor::Context::value()}.main_module();

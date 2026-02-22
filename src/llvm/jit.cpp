@@ -37,7 +37,6 @@ public:
     explicit Impl(JustInTimeRunner& parent) : m_parent{parent} {
         CODEGEN_FN
         LLVM_BUILDER_ASSERT(not parent.has_error());
-        LLVM_BUILDER_ALWAYS_ASSERT(Cursor::Context::has_value());
         m_fpm = std::make_unique<llvm::FunctionPassManager>();
         m_fpm->addPass(llvm::InstCombinePass());
         m_fpm->addPass(llvm::ReassociatePass());
@@ -46,11 +45,14 @@ public:
         m_mam = std::make_unique<llvm::ModuleAnalysisManager>();
         m_lam = std::make_unique<llvm::LoopAnalysisManager>();
         m_cgam = std::make_unique<llvm::CGSCCAnalysisManager>();
+#if 0
+        // TODO{vibhanshu}: figure out how to use standard instrumentation here? maybe move it to cursor?
         m_pic = std::make_unique<llvm::PassInstrumentationCallbacks>();
         // TODO{vibhanshu}: how to remove this dependency on cursor
         llvm::LLVMContext& l_context = CursorContextImpl::ctx();
         m_si = std::make_unique<llvm::StandardInstrumentations>(l_context, true);
         m_si->registerCallbacks(*m_pic, m_mam.get());
+#endif
 
         llvm::PassBuilder PB;
         PB.registerModuleAnalyses(*m_mam);
@@ -329,11 +331,7 @@ public:
 // JustInTimeRunner
 //
 JustInTimeRunner::JustInTimeRunner() : BaseT{State::VALID} {
-    if (CursorContextImpl::has_value()) {
-        m_impl = std::make_shared<Impl>(*this);
-    } else {
-        M_mark_error();
-    }
+    m_impl = std::make_shared<Impl>(*this);
 }
 
 JustInTimeRunner::JustInTimeRunner(null_tag_t) : BaseT{State::ERROR} {

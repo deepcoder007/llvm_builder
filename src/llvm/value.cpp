@@ -195,7 +195,7 @@ public:
         LLVM_BUILDER_ASSERT(m_parent.size() == 0);
         if (CursorContextImpl::has_value()) {
             Function fn = CodeSectionContext::current_function();
-            return meta::remove_const(fn.context()).M_eval();
+            return fn.M_eval_arg();
         } else {
             return nullptr;
         }
@@ -296,11 +296,12 @@ public:
         return m_const_value_cache;
     }
     llvm::Value* M_eval_fn_call() {
-        LLVM_BUILDER_ASSERT(m_parent.size() == 1);
+        LLVM_BUILDER_ASSERT(m_parent.size() == 0);
         LLVM_BUILDER_ASSERT(m_fn_ptr != nullptr);
-        llvm::Value* l_arg = m_parent[0].M_eval();
-        LLVM_BUILDER_ASSERT(l_arg != nullptr);
         if (CursorContextImpl::has_value()) {
+            Function fn = CodeSectionContext::current_function();
+            llvm::Value* l_arg = fn.M_eval_arg();
+            LLVM_BUILDER_ASSERT(l_arg != nullptr);
             llvm::CallInst* l_inst = CursorContextImpl::builder().CreateCall(m_fn_ptr, {l_arg});
             LLVM_BUILDER_ASSERT(l_inst != nullptr);
             return l_inst;
@@ -309,14 +310,15 @@ public:
         }
     }
     llvm::Value* M_eval_fn_ptr_call() {
-        LLVM_BUILDER_ASSERT(m_parent.size() == 2);
+        LLVM_BUILDER_ASSERT(m_parent.size() == 1);
         llvm::Value* l_fn_ptr = m_parent[0].M_eval();
-        llvm::Value* l_arg = m_parent[1].M_eval();
         LLVM_BUILDER_ASSERT(l_fn_ptr != nullptr);
-        LLVM_BUILDER_ASSERT(l_arg != nullptr);
         if (CursorContextImpl::has_value()) {
             llvm::FunctionType* l_fn_type = (llvm::FunctionType*)m_parent[0].type().base_type().native_value();
             LLVM_BUILDER_ASSERT(l_fn_type != nullptr);
+            Function fn = CodeSectionContext::current_function();
+            llvm::Value* l_arg = fn.M_eval_arg();
+            LLVM_BUILDER_ASSERT(l_arg != nullptr);
             llvm::CallInst* l_inst = CursorContextImpl::builder().CreateCall(l_fn_type, l_fn_ptr, {l_arg});
             LLVM_BUILDER_ASSERT(l_inst != nullptr);
             return l_inst;
@@ -488,11 +490,9 @@ ValueInfo::ValueInfo(const TypeInfo& res_type, const ValueInfo& v1, const ValueI
     object::Counter::singleton().on_new(object::Callback::object_t::VALUE, (uint64_t)this, "");
 }
 
-ValueInfo::ValueInfo(llvm::Function* fn, const ValueInfo& arg, construct_fn_t)
+ValueInfo::ValueInfo(llvm::Function* fn, construct_fn_t)
     : BaseT{State::VALID}
     , m_impl{std::make_shared<Impl>(value_type_t::fn_call, TypeInfo::mk_int32())} {
-    LLVM_BUILDER_ASSERT(not arg.has_error());
-    m_impl->add_parent(std::vector<ValueInfo>{{arg}});
     m_impl->set_fn_ptr(fn);
     M_self_intern();
     object::Counter::singleton().on_new(object::Callback::object_t::VALUE, (uint64_t)this, "");
@@ -500,7 +500,9 @@ ValueInfo::ValueInfo(llvm::Function* fn, const ValueInfo& arg, construct_fn_t)
 
 void ValueInfo::M_self_intern() {
     ValueInfo l_interned = CodeSectionContext::current_section().intern(*this);
-    m_impl = l_interned.m_impl;
+    if (not l_interned.has_error()) {
+        m_impl = l_interned.m_impl;
+    }
 }
 
 ValueInfo::~ValueInfo() {
@@ -792,8 +794,7 @@ ValueInfo ValueInfo::store_vector_entry(const ValueInfo& idx_v, ValueInfo value)
 
 ValueInfo ValueInfo::call_fn() const {
     CODEGEN_FN
-    ValueInfo arg = CodeSectionContext::current_context();
-    if (has_error() or arg.has_error()) {
+    if (has_error()) {
         return ValueInfo::null();
     }
     if (not type().is_pointer()) {
@@ -806,12 +807,7 @@ ValueInfo ValueInfo::call_fn() const {
         CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't call non-function pointer type");
         return ValueInfo::null();
     }
-    if (not arg.type().is_pointer()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "function argument must be a pointer type");
-        return ValueInfo::null();
-    }
-    return ValueInfo{value_type_t::fn_ptr_call, TypeInfo::mk_int32(), std::vector<ValueInfo>{{*this, arg}}};
+    return ValueInfo{value_type_t::fn_ptr_call, TypeInfo::mk_int32(), std::vector<ValueInfo>{{*this}}};
 }
 
 void ValueInfo::store(const ValueInfo& value) const {
@@ -847,11 +843,12 @@ auto ValueInfo::null() -> ValueInfo {
     return s_null_value;
 }
 
-auto ValueInfo::from_context(const TypeInfo& ctx_type) -> ValueInfo {
-    if (ctx_type.has_error()) {
+auto ValueInfo::from_context() -> ValueInfo {
+    if (CursorContextImpl::is_bind_called()) {
+        return ValueInfo{value_type_t::context, CursorContextImpl::context_type(), std::vector<ValueInfo>{}};
+    } else {
         return ValueInfo::null();
     }
-    return ValueInfo{value_type_t::context, ctx_type, std::vector<ValueInfo>{}};
 }
 
 [[nodiscard]]

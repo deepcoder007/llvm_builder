@@ -27,12 +27,11 @@ def main():
     point_type = llvm.TypeInfo.mk_struct("Point", point_fields)
     module.add_struct_definition(point_type)
 
-    # Create a function context with pointer to Point as parameter
-    ctx_type = point_type.pointer_type()
-    fn_context = llvm.FnContext(ctx_type)
+    # Set context type on cursor (pointer to Point as parameter)
+    cursor.set_context_type(point_type.pointer_type())
 
     # Build a function: int32 add_coords(Point* p) { return p->x + p->y; }
-    fn = llvm.Function("add_coords", fn_context, module)
+    fn = llvm.Function("add_coords", module)
 
     # Create the function body
     body = fn.mk_section("body")
@@ -102,8 +101,8 @@ def arithmetic_example():
     module.add_struct_definition(input_type)
 
     # Build function: void compute(Input* i) { i->result = i->a * i->b + i->a; }
-    ctx = llvm.FnContext(input_type.pointer_type())
-    fn = llvm.Function("compute", ctx, module)
+    cursor.set_context_type(input_type.pointer_type())
+    fn = llvm.Function("compute", module)
 
     body = fn.mk_section("body")
     body.enter()
@@ -160,8 +159,8 @@ def conditional_example():
     module.add_struct_definition(data_type)
 
     # Build function: int32 select(Data* d) { return d->cond ? d->a : d->b; }
-    ctx = llvm.FnContext(data_type.pointer_type())
-    fn = llvm.Function("select", ctx, module)
+    cursor.set_context_type(data_type.pointer_type())
+    fn = llvm.Function("select", module)
 
     body = fn.mk_section("body")
     body.enter()

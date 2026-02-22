@@ -15,66 +15,13 @@
 LLVM_BUILDER_NS_BEGIN
 
 //
-// FnContext
-//
-FnContext::FnContext() : BaseT{State::ERROR} {
-}
-
-FnContext::FnContext(const TypeInfo& type)
-    : BaseT{State::VALID}, m_type{type} {
-    CODEGEN_FN
-    if (m_type.has_error()) {
-        CODEGEN_PUSH_ERROR(FUNCTION, "Context Type invalid");
-        M_mark_error();
-        return;
-    }
-    if (not m_type.is_pointer() or not m_type.base_type().is_struct()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(FUNCTION, "type of function arg should be pointer to struct");
-        return;
-    }
-}
-
-FnContext::~FnContext() = default;
-
-bool FnContext::operator == (const FnContext& rhs) const {
-    if (has_error() and rhs.has_error()) {
-        return true;
-    }
-    return m_type == rhs.m_type
-      and m_raw_arg == rhs.m_raw_arg;
-}
-
-ValueInfo FnContext::value() const {
-    return ValueInfo::from_context(m_type);
-}
-
-void FnContext::set_value(llvm::Argument* raw_arg) {
-    if (has_error()) {
-        return;
-    }
-    m_raw_arg = raw_arg;
-}
-
-auto FnContext::null() -> const FnContext& {
-    static FnContext s_null{};
-    LLVM_BUILDER_ASSERT(s_null.has_error());
-    return s_null;
-}
-
-llvm::Value* FnContext::M_eval() {
-    return m_raw_arg;
-}
-
-//
 // Function::Impl
 //
 class Function::Impl : meta::noncopyable {
     Module m_parent;
     const std::string m_fn_name;
     const bool m_is_external = false;
-    const TypeInfo m_return_type;
-    FnContext m_context;
+    llvm::Argument* m_raw_arg = nullptr;
     llvm::FunctionType* m_type = nullptr;
     llvm::Function* m_fn = nullptr;
     LinkSymbol m_link_symbol;
@@ -83,28 +30,23 @@ public:
     explicit Impl(const LinkSymbolName& symbol_name
                   , Module parent
                   , const std::string& fn_name
-                  , bool is_external
-                  , const TypeInfo& return_type
-                  , const FnContext& context)
+                  , bool is_external)
           : m_parent{parent}
           , m_fn_name{fn_name}
           , m_is_external{is_external}
-          , m_return_type{return_type}
-          , m_context{context}
-          , m_type{M_mk_fn_type(m_return_type, m_context)}
+          , m_type{M_mk_fn_type()}
           , m_fn{M_mk_fn(parent)}
-          , m_link_symbol{symbol_name, return_type, LinkSymbol::symbol_type::function} {
+          , m_link_symbol{symbol_name, TypeInfo::mk_int32(), LinkSymbol::symbol_type::function} {
         CODEGEN_FN
         LLVM_BUILDER_ASSERT(not m_parent.has_error());
         LLVM_BUILDER_ASSERT(not m_fn_name.empty());
-        LLVM_BUILDER_ASSERT(not m_return_type.has_error());
-        LLVM_BUILDER_ASSERT(not m_context.has_error());
         LLVM_BUILDER_ASSERT(is_valid());
         LLVM_BUILDER_ASSERT(not m_link_symbol.has_error());
+        LLVM_BUILDER_ASSERT(CursorContextImpl::has_value());
         [[maybe_unused]] bool has_arg = false;
         for (auto& l_arg_value : m_fn->args()) {
-            m_link_symbol.add_arg(m_context.type(), "context");
-            m_context.set_value(&l_arg_value);
+            m_link_symbol.add_arg(CursorContextImpl::context_type(), "context");
+            m_raw_arg = &l_arg_value;
             LLVM_BUILDER_ASSERT(not has_arg);
             has_arg = true;
         }
@@ -116,7 +58,7 @@ public:
     }
 public:
     bool is_valid() const {
-        return m_type != nullptr and m_fn != nullptr and m_return_type.is_valid();
+        return m_type != nullptr and m_fn != nullptr;
     }
     const Module& parent_module() const {
         return m_parent;
@@ -127,22 +69,9 @@ public:
     bool is_external() const {
         return m_is_external;
     }
-    const TypeInfo& return_type() const {
-        return m_return_type;
-    }
-    const FnContext& context() const {
-        return m_context;
-    }
-    ValueInfo call_fn(const Function& parent, ValueInfo arg) const {
+    ValueInfo call_fn() const {
         CODEGEN_FN
         LLVM_BUILDER_ASSERT(is_valid());
-        LLVM_BUILDER_ASSERT(not parent.has_error())
-        LLVM_BUILDER_ASSERT(not arg.has_error())
-        if (m_context.type() != arg.type()) {
-            CODEGEN_PUSH_ERROR(FUNCTION, "Expected type:" << m_context.type().short_name() << ", found type:" << arg.type().short_name());
-            parent.M_mark_error();
-            return ValueInfo::null();
-        }
         LLVM_BUILDER_ASSERT(Module::Context::has_value());
         Module& l_current_module = Module::Context::value();
         LLVM_BUILDER_ASSERT(not l_current_module.has_error());
@@ -157,7 +86,7 @@ public:
             }
             l_fn_to_call = l_existing;
         }
-        return ValueInfo{l_fn_to_call, arg, typename ValueInfo::construct_fn_t{}};
+        return ValueInfo{l_fn_to_call, typename ValueInfo::construct_fn_t{}};
     }
     void declare_fn(const Module& src_mod, const Module& dst_mod) const {
         LLVM_BUILDER_ASSERT(is_valid());
@@ -184,6 +113,10 @@ public:
         // TODO{vibhanshu}: add assembly annotation for debugging
         m_fn->print(llvm::errs(), nullptr);
     }
+    llvm::Value* M_eval_arg() const {
+        LLVM_BUILDER_ASSERT(m_fn->arg_size() == 1);
+        return m_fn->getArg(0);
+    }
     const LinkSymbol& link_symbol() const {
         return m_link_symbol;
     }
@@ -201,13 +134,12 @@ public:
         return CodeSection{l_entry};
     }
 private:
-    static llvm::FunctionType* M_mk_fn_type(TypeInfo return_type, const FnContext& context) {
+    static llvm::FunctionType* M_mk_fn_type() {
         CODEGEN_FN
-        LLVM_BUILDER_ASSERT(not return_type.has_error());
-        std::vector<llvm::Type*> l_arg_type_vec;
-        LLVM_BUILDER_ASSERT(not context.has_error());
-        l_arg_type_vec.emplace_back(context.type().native_value());
-        llvm::FunctionType* l_fn_type = llvm::FunctionType::get(return_type.native_value(), l_arg_type_vec, false);
+        LLVM_BUILDER_ASSERT(CursorContextImpl::has_value());
+        TypeInfo l_ctx_type = CursorContextImpl::context_type();
+        LLVM_BUILDER_ASSERT(not l_ctx_type.has_error());
+        llvm::FunctionType* l_fn_type = llvm::FunctionType::get(TypeInfo::mk_int32().native_value(), {l_ctx_type.native_value()}, false);
         LLVM_BUILDER_ASSERT(l_fn_type != nullptr);
         return l_fn_type;
     }
@@ -248,7 +180,7 @@ Function::Function(FunctionImpl& impl)
     }
 }
 
-Function::Function(const std::string& name, const FnContext& context, Module& mod)
+Function::Function(const std::string& name, Module& mod)
   : BaseT{State::VALID} {
     CODEGEN_FN
     if (not CursorContextImpl::has_value()) {
@@ -261,18 +193,12 @@ Function::Function(const std::string& name, const FnContext& context, Module& mo
         M_mark_error();
         return;
     }
-    if (context.has_error() or not context.is_valid()) {
-        CODEGEN_PUSH_ERROR(FUNCTION, "invalid function argument");
-        M_mark_error();
-        return;
-    }
     if (mod.has_error()) {
         CODEGEN_PUSH_ERROR(FUNCTION, "module not valid");
         M_mark_error();
         return;
     }
-    TypeInfo return_type = TypeInfo::mk_int32();
-    FunctionImpl impl(mod, name, return_type, context, c_construct{});
+    FunctionImpl impl(mod, name, c_construct{});
     Function fn = CursorContextImpl::mk_function(std::move(impl));
     LLVM_BUILDER_ASSERT(not impl.is_valid());
     if (fn.has_error()) {
@@ -282,7 +208,7 @@ Function::Function(const std::string& name, const FnContext& context, Module& mo
     m_impl = fn.m_impl;
 }
 
-Function::Function(const std::string& name, const FnContext& context)
+Function::Function(const std::string& name)
   : BaseT{State::VALID} {
     CODEGEN_FN
     if (not CursorContextImpl::has_value()) {
@@ -295,13 +221,7 @@ Function::Function(const std::string& name, const FnContext& context)
         M_mark_error();
         return;
     }
-    if (context.has_error() or not context.is_valid()) {
-        CODEGEN_PUSH_ERROR(FUNCTION, "invalid function argument");
-        M_mark_error();
-        return;
-    }
-    TypeInfo return_type = TypeInfo::mk_int32();
-    FunctionImpl impl(name, return_type, context, c_construct{});
+    FunctionImpl impl(name, c_construct{});
     Function fn = CursorContextImpl::mk_function(std::move(impl));
     LLVM_BUILDER_ASSERT(not impl.is_valid());
     if (fn.has_error()) {
@@ -362,41 +282,12 @@ bool Function::is_external() const {
     }
 }
 
-const TypeInfo& Function::return_type() const {
-    if (has_error()) {
-        return TypeInfo::null();
-    }
-    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
-        return ptr->return_type();
-    } else {
-        M_mark_error();
-        return TypeInfo::null(); 
-    }
-}
-
-auto Function::context() const -> const FnContext& {
-    if (has_error()) {
-        return FnContext::null();
-    }
-    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
-        return ptr->context();
-    } else {
-        M_mark_error();
-        return FnContext::null();
-    }
-}
-
-ValueInfo Function::call_fn(const ValueInfo& context) const {
+ValueInfo Function::call_fn() const {
     if (has_error()) {
         return ValueInfo::null();
     }
-    if (context.has_error()) {
-        CODEGEN_PUSH_ERROR(FUNCTION, "trying to call function with invalid context");
-        M_mark_error();
-        return ValueInfo::null();
-    }
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
-        return ptr->call_fn(*this, context);
+        return ptr->call_fn();
     } else {
         M_mark_error();
         return ValueInfo::null();
@@ -502,17 +393,26 @@ bool Function::operator == (const Function& o) const {
 }
 
 auto Function::null() -> Function {
-   static Function s_func{};
-   LLVM_BUILDER_ASSERT(s_func.has_error());
-   return s_func; 
+    static Function s_func{};
+    LLVM_BUILDER_ASSERT(s_func.has_error());
+    return s_func; 
+}
+
+llvm::Value* Function::M_eval_arg() const {
+    if (has_error()) {
+        return nullptr;
+    }
+    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
+        return ptr->M_eval_arg();
+    } else {
+        return nullptr;
+    }
 }
 
 //
 // FunctionImpl
 //
-FunctionImpl::FunctionImpl(Module parent, const std::string& fn_name,
-            TypeInfo return_type, const FnContext& context,
-            c_construct) {
+FunctionImpl::FunctionImpl(Module parent, const std::string& fn_name, c_construct) {
     CODEGEN_FN
     if (parent.has_error()) {
         return;
@@ -520,14 +420,8 @@ FunctionImpl::FunctionImpl(Module parent, const std::string& fn_name,
     if (fn_name.empty()) {
         return;
     }
-    if (return_type.has_error()) {
-        return;
-    }
-    if (context.has_error()) {
-        return;
-    }
     LinkSymbolName sym_name{fn_name};
-    m_impl = std::make_shared<Impl>(sym_name, parent, fn_name, false, return_type, context);
+    m_impl = std::make_shared<Impl>(sym_name, parent, fn_name, false);
     if (not is_valid()) {
         CODEGEN_PUSH_ERROR(FUNCTION, "Function can't be defined correctly:" << fn_name);
         return;
@@ -535,20 +429,13 @@ FunctionImpl::FunctionImpl(Module parent, const std::string& fn_name,
     parent.register_symbol(m_impl->link_symbol());
 }
 
-FunctionImpl::FunctionImpl(const std::string& external_fn_name,
-                    TypeInfo return_type, const FnContext& context, c_construct) {
+FunctionImpl::FunctionImpl(const std::string& external_fn_name, c_construct) {
     CODEGEN_FN
     if (external_fn_name.empty()) {
         return;
     }
-    if (return_type.has_error()) {
-        return;
-    }
-    if (context.has_error()) {
-        return;
-    }
     LinkSymbolName sym_name{external_fn_name};
-    m_impl = std::make_shared<Impl>(sym_name, Module::null(), sym_name.full_name(), true, return_type, context);
+    m_impl = std::make_shared<Impl>(sym_name, Module::null(), sym_name.full_name(), true);
     if (not is_valid()) {
         CODEGEN_PUSH_ERROR(FUNCTION, "Function can't be defined correctly:" << external_fn_name);
         return;
