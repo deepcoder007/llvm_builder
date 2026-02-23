@@ -156,7 +156,8 @@ public:
             return m_type_list[0].type();
         } else {
             CODEGEN_PUSH_ERROR(VALUE_ERROR, LLVM_BUILDER_CONCAT << "can't define base-type of type:" << short_name())
-            return TypeInfo::null();
+            static const TypeInfo s_null{};
+            return s_null;
         }
     }
     field_entry_t  operator [] (uint32_t i) const {
@@ -278,12 +279,17 @@ bool TypeInfo::field_entry_t::operator==(const field_entry_t &o) const {
     return l_idx_match and l_offset_match and l_name_match and l_type_match;
 }
 
-auto TypeInfo::field_entry_t::null() -> field_entry_t& {
-    const uint32_t l_uint_max = std::numeric_limits<uint32_t>::max();
-    static const std::string s_name{};
-    static const TypeInfo s_null_type{};
-    static field_entry_t s_null_entry{l_uint_max, l_uint_max, s_name, s_null_type, true};
-    return s_null_entry;
+auto TypeInfo::field_entry_t::null(const std::string& log) -> field_entry_t {
+    static field_entry_t s_null_entry = []() -> field_entry_t {
+            const uint32_t l_uint_max = std::numeric_limits<uint32_t>::max();
+            const std::string s_name{};
+            const TypeInfo s_null_type{};
+            return field_entry_t{l_uint_max, l_uint_max, s_name, s_null_type, true};
+        } ();
+    LLVM_BUILDER_ASSERT(s_null_entry.has_error());
+    field_entry_t result = s_null_entry;
+    result.M_mark_error(log);
+    return result;
 }
 
 #define DECL_EQUIV_FN(fn)                                               \
@@ -543,7 +549,8 @@ public:
             return m_derived_info->base_type();
         } else {
             CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type is scalar");
-            return TypeInfo::null();
+            static const TypeInfo s_null{};
+            return s_null;
         }
     }
     field_entry_t operator[](uint32_t i) const {
@@ -614,39 +621,6 @@ public:
         } else {
             return LLVM_BUILDER_CONCAT << "<UNKNOWN SHORT NAME>";
         }
-    }
-    [[gnu::noinline]]
-    void print(std::ostream &os) const {
-        os << "{Type:value:" << m_type
-            << ", num_bytes:" << m_num_bytes
-            << ", is_boolean:" << is_boolean()
-            << ", is_pointer:" << is_pointer()
-            << ", is_integer:" << is_integer()
-            << ", is_signed:" << m_is_signed
-            << ", is_float:" << is_float()
-            << ", is_array:" << is_array()
-            << ", is_vector:" << is_vector()
-            << ", is_struct:" << is_struct()
-            << ", is_function:" << is_function()
-            << "}";
-    }
-    [[gnu::noinline]]
-    void dump_llvm_type_info(std::ostream &os) const {
-        LLVM_BUILDER_ASSERT(m_type != nullptr);
-        os << " Debug llvm::Type : " << m_type << std::endl
-        << "    > num_bites :" << m_type->getPrimitiveSizeInBits() << std::endl
-        << "    > is_void  : " << m_type->isVoidTy() << std::endl
-        << "    > is_float : " << m_type->isFloatTy() << std::endl
-        << "    > is_double : " << m_type->isDoubleTy() << std::endl
-        << "    > is_integer : " << m_type->isIntegerTy() << std::endl
-        << "    > is_pointer : "  << m_type->isPointerTy() << std::endl;
-        for (uint32_t i = 1; i <= 8; ++i) {
-            os << "      > is_integer:" << i << " - " << m_type->isIntegerTy(i) << std::endl;
-        }
-        os << "    > is_single_value:" << m_type->isSingleValueType() << std::endl
-        << "    > is_aggregate:" << m_type->isAggregateType() << std::endl
-        << "    > size in bits:" << m_type->getPrimitiveSizeInBits() << std::endl
-        << "    > scalar size in bits:" << m_type -> getScalarSizeInBits() << std::endl;
     }
     // TODO{vibhanshu}: review this function at priority
     [[gnu::noinline]]
@@ -733,22 +707,6 @@ public:
         }
         // TODO{vibhanshu}: add checks for bool , array, vector and struct types
         return l_res;
-    }
-public:
-    TypeInfo pointer_type(const TypeInfo& parent) const {
-        CODEGEN_FN
-        if (m_type == nullptr) {
-            return TypeInfo::null();
-        } else if (parent.has_error()) {
-            CODEGEN_PUSH_ERROR(TYPE_ERROR, "can't make pointer of invalid type");
-            return TypeInfo::null();
-        } else if (m_cursor_impl.is_valid()){
-            // TODOP{vibhanshu}: try to make mk_type_pointer fn call const
-            return meta::remove_const(m_cursor_impl).mk_type_pointer(parent);
-        } else {
-            CODEGEN_PUSH_ERROR(TYPE_ERROR, "Cursor not found");
-            return TypeInfo::null();
-        }
     }
 public:
     llvm::Value* M_fixed_point_type_cast(llvm::Value* src) {
@@ -871,10 +829,12 @@ TypeInfo::TypeInfo(TypeInfoImpl &impl) : BaseT{State::VALID} {
 
 TypeInfo::~TypeInfo() = default;
 
-auto TypeInfo::null() -> TypeInfo& {
+auto TypeInfo::null(const std::string& log) -> TypeInfo {
     static TypeInfo s_null_type{};
     LLVM_BUILDER_ASSERT(s_null_type.has_error());
-    return s_null_type;
+    TypeInfo result = s_null_type;
+    result.M_mark_error(log);
+    return result;
 }
 
 bool TypeInfo::operator == (const TypeInfo& o) const {
@@ -925,7 +885,7 @@ DEF_GETTER(is_vector, bool, false)
 DEF_GETTER(is_struct, bool, false)
 DEF_GETTER(is_function, bool, false)
 DEF_GETTER(native_value, llvm::Type*, nullptr)
-DEF_GETTER(base_type, const TypeInfo&, TypeInfo::null())
+DEF_GETTER(base_type, TypeInfo, TypeInfo::null())
 DEF_GETTER(num_elements, uint32_t, std::numeric_limits<uint32_t>::max())
 DEF_GETTER(struct_size_bytes, uint32_t, std::numeric_limits<uint32_t>::max())
 DEF_GETTER(struct_name, std::string, "INVALID_STRUCT")
@@ -1018,16 +978,6 @@ auto TypeInfo::operator[] (const std::string& s) const -> field_entry_t {
     }
 }
 
-void TypeInfo::dump_llvm_type_info(std::ostream& os) const {
-    if (has_error()) {
-        return;
-    }
-    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
-        ptr->dump_llvm_type_info(os);
-    } else {
-        M_mark_error();
-    }
-}
 
 bool TypeInfo::M_check_sync(const llvm::Value* value) const {
     if (has_error()) {
@@ -1041,12 +991,36 @@ bool TypeInfo::M_check_sync(const llvm::Value* value) const {
     }
 }
 
-TypeInfo TypeInfo::pointer_type() const {
+TypeInfo TypeInfo::mk_ptr() const {
     if (has_error()) {
         return TypeInfo::null();
     }
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
-        return ptr->pointer_type(*this);
+        return TypeInfo::mk_pointer(*this);
+    } else {
+        M_mark_error();
+        return TypeInfo::null();
+    }
+}
+
+TypeInfo TypeInfo::mk_arr(uint32_t num_elements) const {
+    if (has_error()) {
+        return TypeInfo::null();
+    }
+    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
+        return TypeInfo::mk_array(*this, num_elements);
+    } else {
+        M_mark_error();
+        return TypeInfo::null();
+    }
+}
+
+TypeInfo TypeInfo::mk_vec(uint32_t num_elements) const {
+    if (has_error()) {
+        return TypeInfo::null();
+    }
+    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
+        return TypeInfo::mk_vector(*this, num_elements);
     } else {
         M_mark_error();
         return TypeInfo::null();
@@ -1125,12 +1099,22 @@ TypeInfo TypeInfo::mk_type_from_name(const std::string& name) {
     }
 }
 
+TypeInfo TypeInfo::mk_pointer(TypeInfo element_type) {
+    CODEGEN_FN
+    if (element_type.has_error()) {
+        CODEGEN_PUSH_ERROR(TYPE_ERROR, "element_type invalid for pointer");
+        return TypeInfo::null();
+    } else {
+        return CursorContextImpl::mk_type_pointer(element_type);
+    }
+}
+
 TypeInfo TypeInfo::mk_array(TypeInfo element_type, uint32_t num_elements) {
     CODEGEN_FN
     if (element_type.has_error()) {
         CODEGEN_PUSH_ERROR(TYPE_ERROR, "element_type invalid for array");
         return TypeInfo::null();
-    } else if (element_type.has_error() or num_elements == 0) {
+    } else if (num_elements == 0) {
         CODEGEN_PUSH_ERROR(TYPE_ERROR, "number of elements can't be 0 in array");
         return TypeInfo::null();
     } else if (not element_type.is_scalar() and not element_type.is_pointer()) {
@@ -1294,10 +1278,12 @@ bool LinkSymbolName::is_valid() const {
     return r;
 }
 
-LinkSymbolName LinkSymbolName::null() {
+LinkSymbolName LinkSymbolName::null(const std::string& log) {
     static LinkSymbolName s_null{};
     LLVM_BUILDER_ASSERT(s_null.has_error());
-    return s_null;
+    LinkSymbolName result = s_null;
+    result.M_mark_error(log);
+    return result;
 }
 
 //
@@ -1392,10 +1378,12 @@ bool LinkSymbol::operator == (const LinkSymbol& o) const {
     return r;
 }
 
-LinkSymbol LinkSymbol::null() {
+LinkSymbol LinkSymbol::null(const std::string& log) {
     static LinkSymbol s_null{};
     LLVM_BUILDER_ASSERT(s_null.has_error());
-    return s_null;
+    LinkSymbol result = s_null;
+    result.M_mark_error(log);
+    return result;
 }
 
 //

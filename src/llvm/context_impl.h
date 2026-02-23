@@ -30,8 +30,7 @@ public:
 public:
     bool is_valid() const;
     const std::string& name() const;
-    const TypeInfo& context_type() const;
-    void set_context_type(const TypeInfo& ctx_type);
+    TypeInfo context_type() const;
     Module main_module();
     Module gen_module();
     Function mk_function(FunctionImpl&& fn_impl);
@@ -50,7 +49,7 @@ FOR_EACH_LLVM_TYPE(DECL_MK_TYPE)
     TypeInfo mk_type_struct(const std::string& name, const std::vector<member_field_entry>& element_list, bool is_packed);
     void main_module_hook_fn(on_main_module_fn_t &&fn);
     bool is_bind_called() const;
-    void bind();
+    void bind(const TypeInfo& ctx_type);
     void cleanup();
     void for_each_module(on_module_fn_t&& fn);
 public:
@@ -73,8 +72,7 @@ public:
     static llvm::LLVMContext& ctx();
     static llvm::IRBuilder<> &builder();
     static llvm::orc::ThreadSafeContext& thread_safe_context(); 
-    static const TypeInfo& context_type();
-    static void set_context_type(const TypeInfo& ctx_type);
+    static TypeInfo context_type();
     static Module main_module();
     static Module gen_module();
     static Function mk_function(FunctionImpl&& fn_impl);
@@ -92,7 +90,7 @@ FOR_EACH_LLVM_TYPE(DECL_MK_TYPE)
     static TypeInfo mk_type_struct(const std::string& name, const std::vector<member_field_entry>& element_list, bool is_packed);
     static void main_module_hook_fn(on_main_module_fn_t &&fn);
     static bool is_bind_called();
-    static void bind();
+    static void bind(const TypeInfo& ctx_type);
     static llvm::DataLayout get_host_data_layout();
 };
 
@@ -105,8 +103,7 @@ class FunctionImpl {
 private:
     std::shared_ptr<Impl> m_impl;
 public:
-    explicit FunctionImpl(Module parent, const std::string& fn_name, c_construct);
-    explicit FunctionImpl(const std::string& external_fn_name, c_construct);
+    explicit FunctionImpl(const std::string& fn_name, bool is_external, c_construct);
     ~FunctionImpl();
 public:
     FunctionImpl(FunctionImpl&&);

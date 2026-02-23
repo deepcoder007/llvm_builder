@@ -34,8 +34,8 @@ class member_field_entry;
     }                                                                         \
     /**/                                                                      \
 
-class TypeInfo : public _BaseObject<TypeInfo> {
-    using BaseT = _BaseObject<TypeInfo>;
+class TypeInfo : public _BaseObject {
+    using BaseT = _BaseObject;
     friend class ValueInfo;
     friend class TypeInfoImpl;
     struct void_construct_t{};
@@ -47,8 +47,8 @@ class TypeInfo : public _BaseObject<TypeInfo> {
     struct struct_construct_t {};
     struct function_construct_t {};
 public:
-    class field_entry_t : public _BaseObject<field_entry_t> {
-        using BaseT = _BaseObject<field_entry_t>;
+    class field_entry_t : public _BaseObject {
+        using BaseT = _BaseObject;
     private:
         const uint32_t m_idx;
         const uint32_t m_offset;
@@ -74,16 +74,16 @@ public:
         const std::string& name() const {
             return m_name;
         }
-        const TypeInfo& type() const {
+        TypeInfo type() const {
             return m_type;
         }
         bool is_readonly() const {
             return m_is_readonly;
         }
         bool operator == (const field_entry_t& o) const;
-        static field_entry_t& null();
+        static field_entry_t null(const std::string& log = "");
     };
-    static_assert(sizeof(field_entry_t) == 5*sizeof(std::nullptr_t));
+    static_assert(sizeof(field_entry_t) == 72);
     class Impl;
 private:
     struct derived_info_t;
@@ -110,7 +110,7 @@ public:
     bool is_function() const;
     bool operator == (const TypeInfo& o) const;
     llvm::Type *native_value() const;
-    const TypeInfo& base_type() const;
+    TypeInfo base_type() const;
     field_entry_t operator[] (uint32_t i) const;
     field_entry_t operator[] (const std::string& s) const;
     uint32_t num_elements() const;
@@ -119,16 +119,20 @@ public:
     std::string short_name() const;
     bool is_valid_pointer_field() const;
     bool is_valid_struct_field() const;
-    void dump_llvm_type_info(std::ostream& os) const;
 public:
-    TypeInfo pointer_type() const;
+    TypeInfo mk_ptr() const;
+    TypeInfo mk_arr(uint32_t num_elements) const;
+    TypeInfo mk_vec(uint32_t num_elements) const;
     DECL_EQUIV_FN(boolean)
     DECL_EQUIV_FN(integer)
     DECL_EQUIV_FN(float)
     DECL_EQUIV_FN(signed_integer)
     DECL_EQUIV_FN(unsigned_integer)
 public:
-    static TypeInfo& null();
+    bool is_null() const {
+        return *this == null();
+    }
+    static TypeInfo null(const std::string& log = "");
 #define DECL_MK_TYPE(TYPE_NAME)              \
     static TypeInfo mk_ ##TYPE_NAME();       \
 /**/ 
@@ -141,6 +145,7 @@ FOR_EACH_LLVM_TYPE(DECL_MK_TYPE)
     static TypeInfo mk_type();
     static TypeInfo mk_int_context();
     static TypeInfo mk_type_from_name(const std::string& name);
+    static TypeInfo mk_pointer(TypeInfo element_type);
     static TypeInfo mk_array(TypeInfo element_type, uint32_t num_elements);
     static TypeInfo mk_vector(TypeInfo element_type, uint32_t num_elements);
     static TypeInfo mk_struct(const std::string& name, const std::vector<member_field_entry>& element_list, bool is_packed = false);
@@ -179,8 +184,8 @@ public:
     }
 };
 
-class LinkSymbolName : public _BaseObject<LinkSymbolName> {
-    using BaseT = _BaseObject<LinkSymbolName>;
+class LinkSymbolName : public _BaseObject {
+    using BaseT = _BaseObject;
 private:
     // TODO{vibhanshu}: do we need to support hierarchical namespace?
     // TODO{vibhanshu}: maybe use fixed_string to store strings,
@@ -212,13 +217,13 @@ public:
     bool operator == (const LinkSymbolName& o) const {
         return m_full_name == o.m_full_name;
     }
-    static LinkSymbolName null();
+    static LinkSymbolName null(const std::string& log = "");
 private:
     std::string M_full_name() const;
 };
 
-class LinkSymbol : public _BaseObject<LinkSymbol> {
-    using BaseT = _BaseObject<LinkSymbol>;
+class LinkSymbol : public _BaseObject {
+    using BaseT = _BaseObject;
     using field_entry_t = typename TypeInfo::field_entry_t;
 public:
     enum class symbol_type : uint8_t {
@@ -253,11 +258,11 @@ public:
     LinkSymbol(const LinkSymbol&) = default;
     ~LinkSymbol();
 public:
-    const LinkSymbolName& symbol_name() const {
+    LinkSymbolName symbol_name() const {
         return m_symbol_name;
     }
     const std::string& full_name() const {
-        return symbol_name().full_name();
+        return m_symbol_name.full_name();
     }
     bool equals_name(const std::string& name) const {
         return m_symbol_name.equals_name(name);
@@ -273,7 +278,7 @@ public:
     }
     void add_arg(const TypeInfo& type, const std::string& name);
     bool operator == (const LinkSymbol& o) const;
-    static LinkSymbol null();
+    static LinkSymbol null(const std::string& log = "");
 private:
     void M_ensure_valid() const;
 };

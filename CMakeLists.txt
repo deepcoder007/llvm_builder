@@ -171,9 +171,6 @@ function(setup_llvm_exec target src_file)
 endfunction()
 
 setup_llvm_exec(dummy "src/apps/dummy.x.cpp")
-setup_llvm_exec(dummy2 "src/apps/dummy2.x.cpp")
-setup_llvm_exec(raw_llvm "src/apps/raw_llvm.x.cpp")
-setup_llvm_exec(raw_llvm2 "src/apps/raw_llvm2.x.cpp")
 
 # Option for bundled/standalone builds (no external LLVM dependency at runtime)
 option(LLVM_BUILDER_BUNDLE_LLVM "Bundle LLVM libraries for standalone distribution" OFF)

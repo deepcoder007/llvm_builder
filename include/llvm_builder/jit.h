@@ -44,8 +44,8 @@ enum class type_t {
 
 // TODO{vibhanshu}: check if all the pointer type fields are initialized
 //                 to valid values, before this object is used in event
-class Object : public _BaseObject<Field> {
-    using BaseT = _BaseObject<Field>;
+class Object : public _BaseObject {
+    using BaseT = _BaseObject;
     friend class Struct;
     friend class EventFn;
     class Impl;
@@ -67,7 +67,7 @@ public:
     bool freeze();
     std::vector<Field> null_fields() const;
     bool is_instance_of(const Struct &o) const;
-    const Struct& struct_def() const;
+    Struct struct_def() const;
     // TODO{vibhanshu}: remove ref() once this api is stable
     void* ref() const;
     template <typename T>
@@ -81,13 +81,13 @@ public:
     event_fn_t* get_fn_ptr(const std::string& name) const;
     void set_fn_ptr(const std::string& name, event_fn_t* fn) const;
     bool operator == (const Object& rhs) const;
-    static const Object& null();
+    static Object null(const std::string& log = "");
 };
 
 
 // TODO{vibhanshu}: possible to merge it with Object?
-class Array : public _BaseObject<Field> {
-    using BaseT = _BaseObject<Field>;
+class Array : public _BaseObject {
+    using BaseT = _BaseObject;
     class Impl;
 private:
     std::shared_ptr<Impl> m_impl;
@@ -120,13 +120,13 @@ public:
     Array get_array(uint32_t i) const;
     void set_array(uint32_t i, const Array& v) const;
     bool operator == (const Array& rhs) const;
-    static const Array& null();
+    static Array null(const std::string& log = "");
 public:
     static Array from(type_t type, uint32_t size);
 };
 
-class Field : public _BaseObject<Field> {
-    using BaseT = _BaseObject<Field>;
+class Field : public _BaseObject {
+    using BaseT = _BaseObject;
     class Impl;
     struct construct_t {};
     friend class Struct;
@@ -137,7 +137,7 @@ public:
     explicit Field(const Struct& parent, int32_t idx, int32_t offset, const std::string &name, const TypeInfo& type, construct_t);
     ~Field();
 public:
-    const Struct& struct_def() const;
+    Struct struct_def() const;
     int32_t idx() const;
     int32_t offset() const;
     const std::string &name() const;
@@ -156,7 +156,7 @@ public:
     bool is_float32() const;
     bool is_float64() const;
     bool operator == (const Field& rhs) const;
-    static const Field& null();
+    static Field null(const std::string& log = "");
     static type_t get_type(const TypeInfo& type);
     static uint32_t get_raw_size(const TypeInfo& type);
 private:
@@ -166,8 +166,8 @@ private:
 // TODO{vibhanshu}: add API to return a aggregate or some view of different set of underlying variables
 // e.g a group of ints, arg1, arg2, ... argN  can be transformed to an array view based API like int[N]
 // this is very similar to memroy view protocol
-class Struct : public _BaseObject<Struct> {
-    using BaseT = _BaseObject<Struct>;
+class Struct : public _BaseObject {
+    using BaseT = _BaseObject;
     class Impl;
     friend class Namespace;
     friend class Object;
@@ -187,15 +187,15 @@ public:
     Object mk_object() const;
     Field operator[] (const std::string& s) const;
     bool operator == (const Struct& rhs) const;
-    static const Struct& null();
+    static Struct null(const std::string& log = "");
 private:
     void log_values(std::ostream& os, void* data, uint32_t size) const;
 };
 
 Field operator""_field(const char* s, size_t len);
 
-class EventFn : public _BaseObject<EventFn> {
-    using BaseT = _BaseObject<EventFn>;
+class EventFn : public _BaseObject {
+    using BaseT = _BaseObject;
     friend class Namespace;
     class Impl;
     struct construct_t{};
@@ -212,16 +212,16 @@ public:
     void init();
     int32_t on_event(const Object& o) const;
     bool operator == (const EventFn& rhs) const;
-    static const EventFn& null();
+    static EventFn null(const std::string& log = "");
 };
 
 // TODO{vibhanshu}: Namespace can't have circular dependency,
 //           if a event in namespace A depends on event in namespace B
 //           then there can  be no dependency of any event in B on any event of A
 //           implement this check
-class Namespace : public _BaseObject<Namespace> {
+class Namespace : public _BaseObject {
+    using BaseT = _BaseObject;
     friend class LLVM_BUILDER_NS()::JustInTimeRunner;
-    using BaseT = _BaseObject<Namespace>;
     class Impl;
     struct construct_t {};
 public:
@@ -241,7 +241,7 @@ public:
     Struct struct_info(const std::string& name) const;
     EventFn event_fn_info(const std::string& name) const;
     bool operator == (const Namespace& rhs) const;
-    static const Namespace& null();
+    static Namespace null(const std::string& log = "");
 private:
     void add_struct(const TypeInfo& struct_type);
     void add_event(const std::string& e);
@@ -258,8 +258,8 @@ using RuntimeEventFn = runtime::EventFn;
 using RuntimeNamespace = runtime::Namespace;
 using runtime_type_t = runtime::type_t;
 
-class JustInTimeRunner : public _BaseObject<JustInTimeRunner> {
-    using BaseT = _BaseObject<JustInTimeRunner>;
+class JustInTimeRunner : public _BaseObject {
+    using BaseT = _BaseObject;
     class Impl;
     using fn_t = int32_t (void*);
     std::shared_ptr<Impl> m_impl;
@@ -280,7 +280,7 @@ public:
     runtime::Namespace get_namespace(const std::string& name) const;
     runtime::Namespace get_global_namespace() const;
     bool operator == (const JustInTimeRunner& o) const;
-    static const JustInTimeRunner& null();
+    static JustInTimeRunner null(const std::string& log = "");
 };
 
 LLVM_BUILDER_NS_END

@@ -22,7 +22,7 @@ class separator_t {
     }
   public:
     void print(std::ostream& os) const;
-    OSTREAM_FRIEND(separator_t)
+    friend std::ostream& operator<<(std::ostream& os, const separator_t& x) { x.print(os); return os; }
 };
 
 class StringUtil {

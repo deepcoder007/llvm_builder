@@ -118,6 +118,9 @@ public:
               or m_value_type == value_type_t::fn_call
               or m_value_type == value_type_t::fn_ptr_call;
     }
+    const std::vector<ValueInfo>& parents() const {
+        return m_parent;
+    }
     const TypeInfo& type() const {
         return m_type_info;
     }
@@ -194,7 +197,7 @@ public:
     llvm::Value* M_eval_context() {
         LLVM_BUILDER_ASSERT(m_parent.size() == 0);
         if (CursorContextImpl::has_value()) {
-            Function fn = CodeSectionContext::current_function();
+            Function fn = FunctionContext::function();
             return fn.M_eval_arg();
         } else {
             return nullptr;
@@ -299,7 +302,7 @@ public:
         LLVM_BUILDER_ASSERT(m_parent.size() == 0);
         LLVM_BUILDER_ASSERT(m_fn_ptr != nullptr);
         if (CursorContextImpl::has_value()) {
-            Function fn = CodeSectionContext::current_function();
+            Function fn = FunctionContext::function();
             llvm::Value* l_arg = fn.M_eval_arg();
             LLVM_BUILDER_ASSERT(l_arg != nullptr);
             llvm::CallInst* l_inst = CursorContextImpl::builder().CreateCall(m_fn_ptr, {l_arg});
@@ -316,7 +319,7 @@ public:
         if (CursorContextImpl::has_value()) {
             llvm::FunctionType* l_fn_type = (llvm::FunctionType*)m_parent[0].type().base_type().native_value();
             LLVM_BUILDER_ASSERT(l_fn_type != nullptr);
-            Function fn = CodeSectionContext::current_function();
+            Function fn = FunctionContext::function();
             llvm::Value* l_arg = fn.M_eval_arg();
             LLVM_BUILDER_ASSERT(l_arg != nullptr);
             llvm::CallInst* l_inst = CursorContextImpl::builder().CreateCall(l_fn_type, l_fn_ptr, {l_arg});
@@ -464,7 +467,7 @@ ValueInfo::ValueInfo(const TypeInfo& type_info, llvm::Value* v, construct_const_
 
 ValueInfo::ValueInfo(const ValueInfo& parent, const TypeInfo& entry_type, const ValueInfo& entry_idx, construct_entry_t)
     : BaseT{State::VALID}
-    , m_impl{std::make_shared<Impl>(value_type_t::inner_entry, entry_type.pointer_type())} {
+    , m_impl{std::make_shared<Impl>(value_type_t::inner_entry, entry_type.mk_ptr())} {
     LLVM_BUILDER_ASSERT(not parent.has_error());
     LLVM_BUILDER_ASSERT(not entry_type.has_error());
     LLVM_BUILDER_ASSERT(not entry_idx.has_error());
@@ -499,7 +502,7 @@ ValueInfo::ValueInfo(llvm::Function* fn, construct_fn_t)
 }
 
 void ValueInfo::M_self_intern() {
-    ValueInfo l_interned = CodeSectionContext::current_section().intern(*this);
+    ValueInfo l_interned = FunctionContext::function().current_section().M_intern(*this);
     if (not l_interned.has_error()) {
         m_impl = l_interned.m_impl;
     }
@@ -525,7 +528,16 @@ bool ValueInfo::M_is_value_sink() const {
     return m_impl->M_is_value_sink();
 }
 
-const TypeInfo& ValueInfo::type() const {
+const std::vector<ValueInfo>& ValueInfo::M_parents() const {
+    static const std::vector<ValueInfo> s_empty;
+    if (has_error()) {
+        return s_empty;
+    }
+    LLVM_BUILDER_ASSERT(m_impl != nullptr);
+    return m_impl->parents();
+}
+
+TypeInfo ValueInfo::type() const {
     if (has_error()) {
         return TypeInfo::null();
     }
@@ -675,7 +687,7 @@ void ValueInfo::push(std::string_view name) const {
     if (cname.empty()) {
         CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't store/push an empty string as name");
     } else {
-        CodeSectionContext::push(cname, *this);
+        FunctionContext::push(cname, *this);
     }
 }
 
@@ -720,6 +732,7 @@ ValueInfo ValueInfo::entry(uint32_t i) const {
 ValueInfo ValueInfo::entry(const ValueInfo& i) const {
     CODEGEN_FN
     if (has_error() or i.has_error()) {
+        M_mark_error();
         return ValueInfo::null();
     }
     if (not type().is_pointer()) {
@@ -765,10 +778,8 @@ ValueInfo ValueInfo::field(const std::string& s) const {
 
 ValueInfo ValueInfo::load_vector_entry(const ValueInfo& idx_v) const {
     CODEGEN_FN
-    if (has_error()) {
-        return ValueInfo::null();
-    }
-    if (idx_v.has_error()) {
+    if (has_error() or idx_v.has_error()) {
+        M_mark_error();
         return ValueInfo::null();
     }
     if (not type().is_vector()) {
@@ -783,10 +794,8 @@ ValueInfo ValueInfo::load_vector_entry(const ValueInfo& idx_v) const {
 
 ValueInfo ValueInfo::store_vector_entry(const ValueInfo& idx_v, ValueInfo value) const {
     CODEGEN_FN
-    if (has_error()) {
-        return ValueInfo::null();
-    }
-    if (idx_v.has_error()) {
+    if (has_error() or idx_v.has_error() or value.has_error()) {
+        M_mark_error();
         return ValueInfo::null();
     }
     return ValueInfo{value_type_t::store_vector_entry, type(), std::vector<ValueInfo>{{*this, idx_v, value}}};
@@ -812,11 +821,8 @@ ValueInfo ValueInfo::call_fn() const {
 
 void ValueInfo::store(const ValueInfo& value) const {
     CODEGEN_FN
-    if (has_error()) {
-        return;
-    }
-    if (value.has_error()) {
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't store invalid value");
+    if (has_error() or value.has_error()) {
+        M_mark_error();
         return;
     }
     if (not type().is_pointer()) {
@@ -837,10 +843,12 @@ void ValueInfo::store(const ValueInfo& value) const {
     ValueInfo{value_type_t::store, type(), std::vector<ValueInfo>{{*this, value}}};
 }
 
-auto ValueInfo::null() -> ValueInfo {
+auto ValueInfo::null(const std::string& log) -> ValueInfo {
     static ValueInfo s_null_value{};
     LLVM_BUILDER_ASSERT(s_null_value.has_error());
-    return s_null_value;
+    ValueInfo result = s_null_value;
+    result.M_mark_error(log);
+    return result;
 }
 
 auto ValueInfo::from_context() -> ValueInfo {
@@ -894,7 +902,7 @@ ValueInfo ValueInfo::store_vector_entry(uint32_t i, ValueInfo value) const {
 
 ValueInfo ValueInfo::mk_pointer(TypeInfo type) {
     CODEGEN_FN
-    if (type.has_error() or type.has_error()) {
+    if (type.has_error()) {
         return ValueInfo::null();
     }
     if (CursorContextImpl::has_value()) {
@@ -903,7 +911,7 @@ ValueInfo ValueInfo::mk_pointer(TypeInfo type) {
         [[maybe_unused]] llvm::PointerType* ptr_type = l_inst->getType();
         LLVM_BUILDER_ASSERT(ptr_type != nullptr);
         LLVM_BUILDER_ASSERT(ptr_type->isLoadableOrStorableType(type.native_value()));
-        ValueInfo r{value_type_t::mk_ptr, type.pointer_type(), std::vector<ValueInfo>{}};
+        ValueInfo r{value_type_t::mk_ptr, type.mk_ptr(), std::vector<ValueInfo>{}};
         r.m_impl->set_value_cache(l_inst);
         return r;
     } else {
@@ -929,52 +937,6 @@ ValueInfo ValueInfo::mk_struct(TypeInfo type) {
     return ValueInfo::null();
 }
 
-ValueInfo ValueInfo::calc_struct_size(TypeInfo type) {
-    CODEGEN_FN
-    if (CursorContextImpl::has_value()) {
-        if (not type.is_struct()) {
-            CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type not a struct");
-            return ValueInfo::null();
-        }
-        return ValueInfo::from_constant<int32_t>((int32_t)type.size_in_bytes());
-    } else {
-        return ValueInfo::from_constant<int32_t>(-1);
-    }
-}
-
-ValueInfo ValueInfo::calc_struct_field_count(TypeInfo type) {
-    if (type.is_struct()) {
-        return ValueInfo::from_constant<int32_t>((int32_t)type.num_elements());
-    } else {
-        return ValueInfo::from_constant<int32_t>(-1);
-    }
-}
-
-ValueInfo ValueInfo::calc_struct_field_offset(TypeInfo type, ValueInfo idx) {
-    CODEGEN_FN
-    if (CursorContextImpl::has_value()) {
-        if (not type.is_struct()) {
-            CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type not a struct");
-            return ValueInfo::null();
-        }
-        if (not idx.type().is_integer()) {
-            CODEGEN_PUSH_ERROR(TYPE_ERROR, "Index needs to be of int type");
-            return ValueInfo::null();
-        }
-        const int32_t l_num_fields = type.num_elements();
-        ValueInfo l_offset_result = ValueInfo::from_constant(-1);
-        for (int32_t i = 0; i != l_num_fields; ++i) {
-            ValueInfo l_curr_iter_idx = ValueInfo::from_constant(i);
-            ValueInfo l_match_idx = l_curr_iter_idx.equal(idx);
-            ValueInfo l_offset_curr = ValueInfo::from_constant(static_cast<int32_t>(type[i].offset()));
-            l_offset_result = l_match_idx.cond(l_offset_curr, l_offset_result);
-        }
-        return l_offset_result;
-    } else {
-        return ValueInfo::null();
-    }
-}
-
 llvm::Value* ValueInfo::M_eval() {
     CODEGEN_FN
     if (has_error()) {
@@ -982,9 +944,9 @@ llvm::Value* ValueInfo::M_eval() {
     }
     LLVM_BUILDER_ASSERT(m_impl != nullptr);
     const value_type_t l_vtype = m_impl->value_type();
-    CodeSection l_curr_section = CodeSectionContext::current_section();
+    CodeSection l_curr_section = FunctionContext::function().current_section();
     LLVM_BUILDER_ASSERT(l_curr_section.is_sealed());
-    llvm::Value* l_res = l_curr_section.get_eval(*this);
+    llvm::Value* l_res = l_curr_section.M_get_eval(*this);
     if (l_res != nullptr) {
         return l_res;
     }
@@ -1006,8 +968,251 @@ llvm::Value* ValueInfo::M_eval() {
     CASE_ENTRY(fn_ptr_call)
     }
 #undef CASE_ENTRY
-    l_curr_section.add_eval(*this, l_res);
+    l_curr_section.M_add_eval(*this, l_res);
     return l_res;
+}
+
+//
+// IfElseCond::BranchSection::Impl
+//
+class IfElseCond::BranchSection::Impl : public meta::noncopyable {
+    const std::string m_name;
+    branch_type m_type = branch_type::invalid;
+    Function m_fn;
+    IfElseCond& m_parent;
+    CodeSection m_section;
+public:
+    explicit Impl(const std::string& name, branch_type type, Function fn, IfElseCond& parent)
+        : m_name{name}
+        , m_type{type}
+        , m_fn{fn}
+        , m_parent{parent} {
+        LLVM_BUILDER_ASSERT(not name.empty());
+        LLVM_BUILDER_ASSERT(not fn.has_error());
+        LLVM_BUILDER_ASSERT(m_type == branch_type::br_then or m_type == branch_type::br_else);
+        m_section = fn.mk_section(m_name);
+    }
+    ~Impl() {
+        if (m_section.is_open()) {
+            LLVM_BUILDER_ASSERT(m_section.is_sealed());
+        }
+    }
+public:
+    bool is_open() const {
+        return m_section.is_open();
+    }
+    bool is_sealed() const {
+        return m_section.is_sealed();
+    }
+    void enter() {
+        CODEGEN_FN
+        LLVM_BUILDER_ASSERT(not m_section.is_sealed());
+        m_section.enter();
+        m_parent.enter_branch(c_construct{}, m_type);
+    }
+    void exit() {
+        CODEGEN_FN
+        FunctionContext::function().current_section().jump_to_section(m_parent.m_post_if_branch);
+        LLVM_BUILDER_ASSERT(m_section.is_sealed());
+        m_parent.exit_branch(c_construct{}, m_type);
+    }
+    void define_branch(br_fn_t&& fn) {
+        CODEGEN_FN
+        LLVM_BUILDER_ASSERT(fn);
+        enter();
+        fn();
+        exit();
+    }
+    CodeSection code_section() {
+        return m_section;
+    }
+};
+
+//
+// IfElseCond::BranchSection
+//
+IfElseCond::BranchSection::BranchSection(const std::string& name, branch_type type, Function fn, IfElseCond& parent) {
+    if (ErrorContext::has_error()) {
+        return;
+    }
+    m_impl = std::make_unique<Impl>(name, type, fn, parent);
+}
+
+IfElseCond::BranchSection::~BranchSection() = default;
+
+bool IfElseCond::BranchSection::is_open() const {
+    if (ErrorContext::has_error()) {
+        return false;
+    }
+    LLVM_BUILDER_ASSERT(m_impl);
+    return m_impl->is_open();
+}
+
+bool IfElseCond::BranchSection::is_sealed() const {
+    if (ErrorContext::has_error()) {
+        return false;
+    }
+    LLVM_BUILDER_ASSERT(m_impl);
+    return m_impl->is_sealed();
+}
+
+void IfElseCond::BranchSection::enter() {
+    if (ErrorContext::has_error()) {
+        return;
+    }
+    LLVM_BUILDER_ASSERT(m_impl);
+    m_impl->enter();
+}
+
+void IfElseCond::BranchSection::exit() {
+    if (ErrorContext::has_error()) {
+        return;
+    }
+    LLVM_BUILDER_ASSERT(m_impl);
+    m_impl->exit();
+}
+
+void IfElseCond::BranchSection::define_branch(br_fn_t&& fn) {
+    if (ErrorContext::has_error()) {
+        return;
+    }
+    if (not fn) {
+        CODEGEN_PUSH_ERROR(BRANCH_ERROR,  "can't define an empty branch")
+    }
+    LLVM_BUILDER_ASSERT(m_impl);
+    m_impl->define_branch(std::move(fn));
+}
+
+auto IfElseCond::BranchSection::code_section() -> CodeSection {
+    if (ErrorContext::has_error()) {
+        return CodeSection::null();
+    }
+    LLVM_BUILDER_ASSERT(m_impl);
+    return m_impl->code_section();
+}
+
+//
+// IfElseCond
+//
+IfElseCond::IfElseCond(const std::string &name, const ValueInfo &value)
+    : m_name{name}, m_value{value}, m_parent{FunctionContext::function().current_section()},
+      m_then_branch{LLVM_BUILDER_CONCAT << m_name << ".then", branch_type::br_then,
+                    FunctionContext::function(), *this},
+      m_else_branch{LLVM_BUILDER_CONCAT << m_name << ".else", branch_type::br_else, FunctionContext::function(), *this},
+      m_post_if_branch{FunctionContext::function().mk_section(LLVM_BUILDER_CONCAT << name << ".post")} {
+    if (m_name.empty()) {
+        CODEGEN_PUSH_ERROR(BRANCH_ERROR,  "branching without branch name")
+    }
+    if (m_value.has_error()) {
+        CODEGEN_PUSH_ERROR(BRANCH_ERROR,  "branching with invalid value")
+    } else if (not m_value.type().is_boolean()) {
+        CODEGEN_PUSH_ERROR(BRANCH_ERROR,  "branching can only be done over boolean type value")
+    }
+}
+
+IfElseCond::~IfElseCond() {
+    // TODO{vibhanshu}: instead jump directly to post for un-specified branch
+    if (not m_then_branch.is_sealed() and not m_else_branch.is_sealed()) {
+        CODEGEN_PUSH_ERROR(BRANCH_ERROR, "Then/Else branch not found for condition:" << m_name);
+    }
+    if (not is_sealed()) {
+        CODEGEN_PUSH_ERROR(BRANCH_ERROR, "IfElseCondition was never completed:" << m_name);
+    }
+}
+
+void IfElseCond::then_branch(br_fn_t&& fn) {
+    if (ErrorContext::has_error()) {
+        return;
+    }
+    if (is_sealed()) {
+        CODEGEN_PUSH_ERROR(BRANCH_ERROR, "IfElse already sealed");
+        return;
+    }
+    if (not fn) {
+        CODEGEN_PUSH_ERROR(BRANCH_ERROR, "IfElse branch not correctly specified");
+        return;
+    }
+    m_then_branch.define_branch(std::move(fn));
+}
+
+void IfElseCond::else_branch(br_fn_t&& fn) {
+    if (ErrorContext::has_error()) {
+        return;
+    }
+    if (is_sealed()) {
+        CODEGEN_PUSH_ERROR(BRANCH_ERROR, "IfElse already sealed");
+        return;
+    }
+    if (not fn) {
+        CODEGEN_PUSH_ERROR(BRANCH_ERROR, "IfElse branch not correctly specified");
+        return;
+    }
+    m_else_branch.define_branch(std::move(fn));
+}
+
+auto IfElseCond::then_branch() -> BranchSection& {
+    if (is_sealed()) {
+        CODEGEN_PUSH_ERROR(BRANCH_ERROR, "IfElse already sealed");
+    }
+    return m_then_branch;
+}
+
+auto IfElseCond::else_branch() -> BranchSection& {
+    if (is_sealed()) {
+        CODEGEN_PUSH_ERROR(BRANCH_ERROR, "IfElse already sealed");
+    }
+    return m_else_branch;
+}
+
+void IfElseCond::bind() {
+    if (ErrorContext::has_error()) {
+        return;
+    }
+    if (is_sealed()) {
+        CODEGEN_PUSH_ERROR(BRANCH_ERROR, "IfElse already sealed");
+        return;
+    }
+    if (m_is_inside_branch_type == branch_type::invalid) {
+        LLVM_BUILDER_ASSERT(FunctionContext::function().is_current_section(m_parent));
+        CodeSection l_then_section = m_post_if_branch;
+        CodeSection l_else_section = m_post_if_branch;
+        if (m_then_branch.is_open()) {
+            l_then_section = m_then_branch.code_section();
+        }
+        if (m_else_branch.is_open()) {
+            l_else_section = m_else_branch.code_section();
+        }
+        m_parent.conditional_jump(m_value, l_then_section, l_else_section);
+        m_post_if_branch.enter();
+        m_is_sealed = true;
+    } else {
+        CODEGEN_PUSH_ERROR(CODE_SECTION, "can't bind when already inside a section");
+    }
+}
+
+void IfElseCond::enter_branch(c_construct, branch_type type) {
+    if (m_is_inside_branch_type == branch_type::invalid) {
+        m_is_inside_branch_type = type;
+        if (type == branch_type::br_then) {
+            LLVM_BUILDER_ASSERT(m_then_branch.is_open());
+            LLVM_BUILDER_ASSERT(not m_then_branch.is_sealed());
+        } else {
+            LLVM_BUILDER_ASSERT(type == branch_type::br_else);
+            LLVM_BUILDER_ASSERT(m_else_branch.is_open());
+            LLVM_BUILDER_ASSERT(not m_else_branch.is_sealed());
+        }
+    } else {
+        CODEGEN_PUSH_ERROR(CODE_SECTION, "can't enter branch while inside another branch");
+    }
+}
+
+void IfElseCond::exit_branch(c_construct, [[maybe_unused]] branch_type type) {
+    if (m_is_inside_branch_type != branch_type::invalid) {
+        LLVM_BUILDER_ASSERT(m_is_inside_branch_type == type);
+        m_is_inside_branch_type = branch_type::invalid;
+    } else {
+        CODEGEN_PUSH_ERROR(CODE_SECTION, "can't exit branch without entering branch");
+    }
 }
 
 LLVM_BUILDER_NS_END

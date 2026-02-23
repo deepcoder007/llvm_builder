@@ -165,7 +165,6 @@ Object::Object() : BaseT{State::ERROR} {
 
 Object::Object(const Struct& parent)
     : BaseT{State::VALID} {
-    CODEGEN_FN
     if (parent.has_error()) {
         M_mark_error();
     } else {
@@ -184,7 +183,6 @@ Object& Object::operator = (Object&&) = default;
 Object::~Object() = default;
 
 bool Object::is_frozen() const {
-    CODEGEN_FN;
     if (has_error()) {
         return false;
     }
@@ -193,20 +191,17 @@ bool Object::is_frozen() const {
 }
 
 bool Object::freeze() {
-    CODEGEN_FN;
     if (has_error()) {
         return false;
     }
     LLVM_BUILDER_ASSERT(m_impl);
     if (m_impl->is_frozen()) {
-        CODEGEN_PUSH_ERROR(JIT, "Trying to re-freeze a object")
         return false;
     }
     return m_impl->freeze();
 }
 
 auto Object::null_fields() const -> std::vector<Field> {
-    CODEGEN_FN;
     if (has_error()) {
         return std::vector<Field>{};
     }
@@ -222,7 +217,7 @@ bool Object::is_instance_of(const Struct &o) const {
     return m_impl->is_instance_of(o);
 }
 
-const Struct& Object::struct_def() const {
+Struct Object::struct_def() const {
     if (has_error()) {
         return Struct::null();
     }
@@ -239,39 +234,35 @@ void *Object::ref() const {
 }
 
 Object Object::get_object(const std::string& name) const {
-    CODEGEN_FN
     if (has_error()) {
         return Object::null();
     }
     Field l_field = struct_def()[name];
     if (l_field.has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't find field:" << name);
-        return Object::null();
+        return Object::null(LLVM_BUILDER_CONCAT << "can't find field:" << name);
     }
     if (l_field.is_struct_pointer()) {
         return m_impl->get_object(name);
     } else {
-        CODEGEN_PUSH_ERROR(JIT, "field type not struct:" << name);
-        return Object::null();
+        return Object::null(LLVM_BUILDER_CONCAT << "field type not struct:" << name);
     }
 }
 
 void Object::set_object(const std::string& name, const Object& v) const {
-    CODEGEN_FN
     if (has_error() or v.has_error()) {
         return;
     }
     Field l_field = struct_def()[name];
     if (l_field.has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't find field:" << name);
+        M_mark_error(LLVM_BUILDER_CONCAT << "can't find field:" << name);
         return;
     }
     if (not v.is_frozen()) {
-        CODEGEN_PUSH_ERROR(JIT, "can only set a frozen object for field:" << name);
+        M_mark_error(LLVM_BUILDER_CONCAT << "can only set a frozen object for field:" << name);
         return;
     }
     if (is_frozen()) {
-        CODEGEN_PUSH_ERROR(JIT, "object already frozen, can't set new value");
+        M_mark_error("object already frozen, can't set new value");
         return;
     }
     // TODO{vibhanshu}: check if struct object v is compatible with type
@@ -281,45 +272,41 @@ void Object::set_object(const std::string& name, const Object& v) const {
         *l_ptr = (uint64_t)v.ref();
         m_impl->add_object(name, (uint64_t)l_ptr, v);
     } else {
-        CODEGEN_PUSH_ERROR(JIT, "field type not struct:" << name);
+        M_mark_error(LLVM_BUILDER_CONCAT << " field type not struct:" << name);
     }
 }
 
 Array Object::get_array(const std::string& name) const {
-    CODEGEN_FN
     if (has_error()) {
         return Array::null();
     }
     Field l_field = struct_def()[name];
     if (l_field.has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't find field:" << name);
-        return Array::null();
+        return Array::null(LLVM_BUILDER_CONCAT << "can't find field:" << name);
     }
     if (l_field.is_array_pointer()) {
         return m_impl->get_array(name);
     } else {
-        CODEGEN_PUSH_ERROR(JIT, "field type not array:" << name);
-        return Array::null();
+        return Array::null(LLVM_BUILDER_CONCAT << "field type not array:" << name);
     }
 
 }
 
 void Object::set_array(const std::string& name, const Array& v) const {
-    CODEGEN_FN
     if (has_error() or v.has_error()) {
         return;
     }
     Field l_field = struct_def()[name];
     if (l_field.has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't find field:" << name);
+        M_mark_error(LLVM_BUILDER_CONCAT << "can't find field:" << name);
         return;
     }
     if (not v.is_frozen()) {
-        CODEGEN_PUSH_ERROR(JIT, "can only set a frozen object for field:" << name);
+        M_mark_error(LLVM_BUILDER_CONCAT << "can only set a frozen object for field:" << name);
         return;
     }
     if (is_frozen()) {
-        CODEGEN_PUSH_ERROR(JIT, "object already frozen, can't set new value");
+        M_mark_error("object already frozen, can't set new value");
         return;
     }
     if (l_field.is_array_pointer()) {
@@ -328,89 +315,81 @@ void Object::set_array(const std::string& name, const Array& v) const {
         *l_ptr = (uint64_t)v.ref();
         m_impl->add_array(name, (uint64_t)l_ptr, v);
     } else {
-        CODEGEN_PUSH_ERROR(JIT, "field type not array:" << name);
+        M_mark_error(LLVM_BUILDER_CONCAT << "field type not array:" << name);
     }
 }
 
 auto Object::get_fn_ptr(const std::string& name) const -> event_fn_t* {
-    CODEGEN_FN
     if (has_error()) {
         return nullptr;
     }
     Field l_field = struct_def()[name];
     if (l_field.has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't find field:" << name);
+        M_mark_error(LLVM_BUILDER_CONCAT << "can't find field:" << name);
         return nullptr;
     }
     if (l_field.is_fn_pointer()) {
         uint64_t l_raw = *m_impl->get_field_location<uint64_t>(l_field);
         return reinterpret_cast<event_fn_t*>(l_raw);
     } else {
-        CODEGEN_PUSH_ERROR(JIT, "field type not fn_pointer:" << name);
+        M_mark_error(LLVM_BUILDER_CONCAT << "field type not fn_pointer:" << name);
         return nullptr;
     }
 }
 
 void Object::set_fn_ptr(const std::string& name, event_fn_t* fn) const {
-    CODEGEN_FN
     if (has_error()) {
         return;
     }
     Field l_field = struct_def()[name];
     if (l_field.has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't find field:" << name);
+        M_mark_error(LLVM_BUILDER_CONCAT << "can't find field:" << name);
         return;
     }
     if (is_frozen()) {
-        CODEGEN_PUSH_ERROR(JIT, "object already frozen, can't set new value");
+        M_mark_error("object already frozen, can't set new value");
         return;
     }
     if (l_field.is_fn_pointer()) {
         uint64_t* l_ptr = m_impl->get_field_location<uint64_t>(l_field);
         *l_ptr = reinterpret_cast<uint64_t>(fn);
     } else {
-        CODEGEN_PUSH_ERROR(JIT, "field type not fn_pointer:" << name);
+        M_mark_error(LLVM_BUILDER_CONCAT << "field type not fn_pointer:" << name);
     }
 }
 
 #define DEF_OBJECT_FN(type)                                                            \
 template <>                                                                             \
 type##_t Object::get(const std::string& name) const {                                   \
-    CODEGEN_FN                                                                          \
     if (has_error()) {                                                                  \
         return std::numeric_limits<type##_t>::max();                                    \
     }                                                                                   \
     Field l_field = struct_def()[name];                                                 \
     if (l_field.has_error()) {                                                          \
-        CODEGEN_PUSH_ERROR(JIT, "can't find field:" << name);                           \
+        M_mark_error(LLVM_BUILDER_CONCAT << "can't find field:" << name);               \
         return std::numeric_limits<type##_t>::max();                                    \
     }                                                                                   \
     if (l_field.is_##type()) {                                                          \
         return *m_impl->get_field_location<type##_t>(l_field);                          \
     } else {                                                                            \
-        CODEGEN_PUSH_ERROR(JIT, "Field type not " << #type << ":" << name);             \
+        M_mark_error(LLVM_BUILDER_CONCAT << "Field type not " << #type << ":" << name); \
         return std::numeric_limits<type##_t>::max();                                    \
     }                                                                                   \
 }                                                                                       \
 template <>                                                                             \
 void Object::set(const std::string& name, type##_t v) const {                           \
-    CODEGEN_FN                                                                          \
     if (has_error()) {                                                                  \
         return;                                                                         \
     }                                                                                   \
     Field l_field = struct_def()[name];                                                 \
     if (l_field.has_error()) {                                                          \
-        CODEGEN_PUSH_ERROR(JIT, "can't find field:" << name);                           \
-        return;                                                                         \
-    }                                                                                   \
-    if (is_frozen()) {                                                                  \
-        CODEGEN_PUSH_ERROR(JIT, "object already frozen, can't set new value");          \
+        M_mark_error(LLVM_BUILDER_CONCAT << "can't find field:" << name);               \
         return;                                                                         \
     }                                                                                   \
     if (l_field.is_##type()) {                                                          \
         *m_impl->get_field_location<type##_t>(l_field) = v;                             \
     } else {                                                                            \
-        CODEGEN_PUSH_ERROR(JIT, "Field type not " << #type << ":" << name);             \
+        M_mark_error(LLVM_BUILDER_CONCAT << "Field type not " << #type << ":" << name); \
     }                                                                                   \
 }                                                                                       \
 /**/
@@ -436,10 +415,12 @@ bool Object::operator==(const Object &rhs) const {
     return m_impl.get() == rhs.m_impl.get();
 }
 
-const Object& Object::null() {
+Object Object::null(const std::string& log) {
     static Object s_null{};
     LLVM_BUILDER_ASSERT(s_null.has_error());
-    return s_null;
+    Object result = s_null;
+    result.M_mark_error(log);
+    return result;
 }
 
 //
@@ -629,11 +610,9 @@ Array::Array() : BaseT{State::ERROR} {
 Array::Array(type_t element_type, uint32_t size)
     : BaseT{State::VALID} {
     if (size == 0) {
-        CODEGEN_PUSH_ERROR(JIT, "Can't define array of length 0")
-        M_mark_error();
+        M_mark_error("Can't define array of length 0");
     } else if (element_type == type_t::unknown) {
-        CODEGEN_PUSH_ERROR(JIT, "Can't define array of invalid type")
-        M_mark_error();
+        M_mark_error("Can't define array of invalid type");
     } else {
         m_impl = std::make_shared<Impl>(element_type, size);
     }
@@ -647,7 +626,6 @@ Array& Array::operator = (Array&&) = default;
 Array::~Array() = default;
 
 bool Array::is_scalar() const {
-    CODEGEN_FN;
     if (has_error()) {
         return false;
     }
@@ -656,7 +634,6 @@ bool Array::is_scalar() const {
 }
 
 bool Array::is_pointer() const {
-    CODEGEN_FN;
     if (has_error()) {
         return false;
     }
@@ -665,7 +642,6 @@ bool Array::is_pointer() const {
 }
 
 bool Array::is_frozen() const {
-    CODEGEN_FN;
     if (has_error()) {
         return false;
     }
@@ -674,7 +650,6 @@ bool Array::is_frozen() const {
 }
 
 bool Array::freeze() {
-    CODEGEN_FN;
     if (has_error()) {
         return false;
     }
@@ -720,43 +695,37 @@ void* Array::ref() const {
 #define DEF_ARRAY_FN(type)                                                              \
 template <>                                                                             \
 type##_t Array::get(uint32_t i) const {                                                 \
-    CODEGEN_FN                                                                          \
     if (has_error()) {                                                                  \
         return std::numeric_limits<type##_t>::max();                                    \
     }                                                                                   \
     if (i >= num_elements()) {                                                          \
-        CODEGEN_PUSH_ERROR(JIT, "array index out of range:" << i);                      \
+        M_mark_error(LLVM_BUILDER_CONCAT << "array index out of range:" << i);          \
         return std::numeric_limits<type##_t>::max();                                    \
     }                                                                                   \
     if (element_type() == type_t::type) {                                               \
         const type##_t* l_arr = reinterpret_cast<const type##_t*>(ref());               \
-        LLVM_BUILDER_ASSERT(l_arr != nullptr);                                                  \
+        LLVM_BUILDER_ASSERT(l_arr != nullptr);                                          \
         return l_arr[i];                                                                \
     } else {                                                                            \
-        CODEGEN_PUSH_ERROR(JIT, "Field type not " << #type);                            \
+        M_mark_error(LLVM_BUILDER_CONCAT << "Field type not " << #type);                \
         return std::numeric_limits<type##_t>::max();                                    \
     }                                                                                   \
 }                                                                                       \
 template <>                                                                             \
 void Array::set(uint32_t i, type##_t v) const {                                         \
-    CODEGEN_FN                                                                          \
     if (has_error()) {                                                                  \
         return;                                                                         \
     }                                                                                   \
     if (i >= num_elements()) {                                                          \
-        CODEGEN_PUSH_ERROR(JIT, "array index out of range:" << i);                      \
-        return;                                                                         \
-    }                                                                                   \
-    if (is_frozen()) {                                                                  \
-        CODEGEN_PUSH_ERROR(JIT, "object already frozen, can't set new value");          \
+        M_mark_error(LLVM_BUILDER_CONCAT << "array index out of range:" << i);          \
         return;                                                                         \
     }                                                                                   \
     if (element_type() == type_t::type) {                                               \
         type##_t* l_arr = reinterpret_cast<type##_t*>(ref());                           \
-        LLVM_BUILDER_ASSERT(l_arr != nullptr);                                                  \
+        LLVM_BUILDER_ASSERT(l_arr != nullptr);                                          \
         l_arr[i] = v;                                                                   \
     } else {                                                                            \
-        CODEGEN_PUSH_ERROR(JIT, "Field type not " << #type);                            \
+        M_mark_error(LLVM_BUILDER_CONCAT << "Field type not " << #type);                \
         return;                                                                         \
     }                                                                                   \
 }                                                                                       \
@@ -775,38 +744,34 @@ DEF_ARRAY_FN(uint64)
 #undef DEF_ARRAY_FN
 
 Object Array::get_object(uint32_t i) const {
-    CODEGEN_FN
     if (has_error()) {
         return Object::null();
     }
     if (i >= num_elements()) {
-        CODEGEN_PUSH_ERROR(JIT, "array index out of range:" << i);
-        return Object::null();
+        return Object::null(LLVM_BUILDER_CONCAT << "array index out of range:" << i);
     }
     LLVM_BUILDER_ASSERT(m_impl)
     if (m_impl->element_type() == type_t::pointer_struct) {
         return m_impl->get_object(i);
     } else {
-        CODEGEN_PUSH_ERROR(JIT, "array entry not of type struct");
-        return Object::null();
+        return Object::null("array entry not of type struct");
     }
 }
 
 void Array::set_object(uint32_t i, const Object& v) const {
-    CODEGEN_FN
     if (has_error() or v.has_error()) {
         return;
     }
     if (i >= num_elements()) {
-        CODEGEN_PUSH_ERROR(JIT, "array index out of range:" << i);
+        M_mark_error(LLVM_BUILDER_CONCAT << "array index out of range:" << i);
         return;
     }
     if (is_frozen()) {
-        CODEGEN_PUSH_ERROR(JIT, "array already frozen, can't set new value");
+        M_mark_error("array already frozen, can't set new value");
         return;
     }
     if (not v.is_frozen()) {
-        CODEGEN_PUSH_ERROR(JIT, "array entry object to be set should be frozen");
+        M_mark_error("array entry object to be set should be frozen");
         return;
     }
     LLVM_BUILDER_ASSERT(m_impl)
@@ -815,44 +780,40 @@ void Array::set_object(uint32_t i, const Object& v) const {
         l_arr[i] = (uint64_t)v.ref();
         m_impl->set_object(i, v);
     } else {
-        CODEGEN_PUSH_ERROR(JIT, "array entry not of type struct");
+        M_mark_error("array entry not of type struct");
         return;
     }
 }
 
 Array Array::get_array(uint32_t i) const {
-    CODEGEN_FN
     if (has_error()) {
         return Array::null();
     }
     if (i >= num_elements()) {
-        CODEGEN_PUSH_ERROR(JIT, "array index out of range:" << i);
-        return Array::null();
+        return Array::null(LLVM_BUILDER_CONCAT << "array index out of range:" << i);
     }
     LLVM_BUILDER_ASSERT(m_impl)
     if (m_impl->element_type() == type_t::pointer_array) {
         return m_impl->get_array(i);
     } else {
-        CODEGEN_PUSH_ERROR(JIT, "array entry not of type array");
-        return Array::null();
+        return Array::null("array entry not of type array");
     }
 }
 
 void Array::set_array(uint32_t i, const Array& v) const {
-    CODEGEN_FN
     if (has_error() or v.has_error()) {
         return;
     }
     if (i >= num_elements()) {
-        CODEGEN_PUSH_ERROR(JIT, "array index out of range:" << i);
+        M_mark_error(LLVM_BUILDER_CONCAT << "array index out of range:" << i);
         return;
     }
     if (is_frozen()) {
-        CODEGEN_PUSH_ERROR(JIT, "array already frozen, can't set new value");
+        M_mark_error("array already frozen, can't set new value");
         return;
     }
     if (not v.is_frozen()) {
-        CODEGEN_PUSH_ERROR(JIT, "array entry to be set should be frozen");
+        M_mark_error("array entry to be set should be frozen");
         return;
     }
     LLVM_BUILDER_ASSERT(m_impl)
@@ -861,7 +822,7 @@ void Array::set_array(uint32_t i, const Array& v) const {
         l_arr[i] = (uint64_t)v.ref();
         m_impl->set_array(i, v);
     } else {
-        CODEGEN_PUSH_ERROR(JIT, "array entry not of type struct");
+        M_mark_error("array entry not of type struct");
         return;
     }
 }
@@ -873,21 +834,20 @@ bool Array::operator == (const Array& rhs) const {
     return m_impl.get() == rhs.m_impl.get();
 }
 
-const Array& Array::null() {
+Array Array::null(const std::string& log) {
     static Array s_null{};
     LLVM_BUILDER_ASSERT(s_null.has_error());
-    return s_null;
+    Array result = s_null;
+    result.M_mark_error(log);
+    return result;
 }
 
 auto Array::from(type_t type, uint32_t size) -> Array {
-    CODEGEN_FN
     if (type == type_t::unknown) {
-        CODEGEN_PUSH_ERROR(JIT, "Can't create array of unknown type")
-        return Array::null();
+        return Array::null("Can't create array of unknown type");
     }
     if (size == 0 or size == std::numeric_limits<uint32_t>::max()) {
-        CODEGEN_PUSH_ERROR(JIT, "Can't create array of invalid size")
-        return Array::null();
+        return Array::null("Can't create array of invalid size");
     }
     return Array{type, size};
 }
@@ -1041,7 +1001,7 @@ Field::Field(const Struct& parent,
 
 Field::~Field() = default;
 
-const Struct& Field::struct_def() const {
+Struct Field::struct_def() const {
     if (has_error()) {
         return Struct::null();
     }
@@ -1115,10 +1075,12 @@ bool Field::operator == (const Field& rhs) const {
     return m_impl.get() == rhs.m_impl.get();
 }
 
-const Field &Field::null() {
+Field Field::null(const std::string& log) {
     static Field s_null{};
     LLVM_BUILDER_ASSERT(s_null.has_error());
-    return s_null;
+    Field result = s_null;
+    result.M_mark_error(log);
+    return result;
 }
 
 type_t Field::get_type(const TypeInfo& type) {
@@ -1213,7 +1175,6 @@ public:
         return m_name;
     }
     Object mk_object(const Struct& parent) const {
-        CODEGEN_FN
         Object l_object{parent};
         LLVM_BUILDER_ASSERT(l_object.m_impl);
         LLVM_BUILDER_ASSERT(not l_object.has_error());
@@ -1263,8 +1224,7 @@ Struct::Struct() : BaseT{State::ERROR} {
 Struct::Struct(const TypeInfo& type, construct_t)
   : BaseT{State::VALID} {
     if (not type.is_struct()) {
-        CODEGEN_PUSH_ERROR(JIT, "Type not a struct:" << type.short_name());
-        M_mark_error();
+        M_mark_error(LLVM_BUILDER_CONCAT << "Type not a struct:" << type.short_name());
     } else {
         m_impl = std::make_shared<Impl>(*this, type);
     }
@@ -1335,10 +1295,12 @@ bool Struct::operator == (const Struct& rhs) const {
     return m_impl.get() == rhs.m_impl.get();
 }
 
-const Struct& Struct::null() {
+Struct Struct::null(const std::string& log) {
     static Struct s_null{};
     LLVM_BUILDER_ASSERT(s_null.has_error());
-    return s_null;
+    Struct result = s_null;
+    result.M_mark_error(log);
+    return result;
 }
 
 //
@@ -1359,7 +1321,6 @@ public:
         return m_is_init;
     }
     void init() {
-        CODEGEN_FN
         if (not is_init()) {
             m_event_fn = m_runner.get_fn(m_name);
         }
@@ -1396,7 +1357,6 @@ bool EventFn::is_init() const {
 }
 
 void EventFn::init() {
-    CODEGEN_FN
     if (has_error()) {
         return;
     }
@@ -1405,16 +1365,15 @@ void EventFn::init() {
 }
 
 int32_t EventFn::on_event(const Object& o) const {
-    CODEGEN_FN
     if (has_error() or o.has_error()) {
         return -1;
     }
     if (ErrorContext::has_error()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't run event when there are outstanding error")
+        M_mark_error("can't run event when there are outstanding error");
         return -1;
     }
     if (not o.is_frozen()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't use a object which is not frozen yet")
+        M_mark_error("can't use a object which is not frozen yet");
         return -1;
     }
     LLVM_BUILDER_ASSERT(m_impl);
@@ -1428,10 +1387,12 @@ bool EventFn::operator==(const EventFn &rhs) const {
     return m_impl.get() == rhs.m_impl.get();
 }
 
-const EventFn& EventFn::null() {
+EventFn EventFn::null(const std::string& log) {
     static EventFn s_null{};
     LLVM_BUILDER_ASSERT(s_null.has_error());
-    return s_null;
+    EventFn result = s_null;
+    result.M_mark_error(log);
+    return result;
 }
 
 //
@@ -1460,7 +1421,6 @@ public:
         return m_is_global;
     }
     void bind(const Namespace& parent) {
-        CODEGEN_FN
         // TODO{vibhanshu}: to disallow circular dependency on namespace, disallow any new event addition
         //                  once a namespace is frozen. how to handle the case of global namespace ?
         //                  should we simply freeze global namespace at beginning and later only
@@ -1471,12 +1431,10 @@ public:
             }
             m_is_bind = true;
         } else {
-            CODEGEN_PUSH_ERROR(JIT, "Namespace already bound:" << m_namespace);
-            parent.M_mark_error();
+            parent.M_mark_error(LLVM_BUILDER_CONCAT << "Namespace already bound:" << m_namespace);
         }
     }
     void add_struct(const Namespace& parent, const TypeInfo &struct_type) {
-        CODEGEN_FN
         LLVM_BUILDER_ASSERT(not parent.has_error())
         LLVM_BUILDER_ASSERT(not struct_type.has_error())
         LLVM_BUILDER_ASSERT(struct_type.is_struct())
@@ -1485,13 +1443,11 @@ public:
         const std::string name = struct_type.struct_name();
         auto it = m_structs.try_emplace(name, struct_type, Struct::construct_t{});
         if (not it.second) {
-            CODEGEN_PUSH_ERROR(JIT, "Duplicate struct name found:" << name);
-            parent.M_mark_error();
+            parent.M_mark_error(LLVM_BUILDER_CONCAT << "Duplicate struct name found:" << name);
             return;
         }
     }
     void add_event(const std::string &e) {
-        CODEGEN_FN
         LLVM_BUILDER_ASSERT(not e.empty())
         LLVM_BUILDER_ASSERT(not is_bind());
         auto it = m_event_fns.try_emplace(e, m_runner, e, typename EventFn::construct_t{});
@@ -1500,7 +1456,6 @@ public:
         }
     }
     Struct struct_info(const std::string &name) const {
-        CODEGEN_FN
         LLVM_BUILDER_ASSERT(not name.empty())
         if (m_structs.contains(name)) {
             return m_structs.at(name);
@@ -1509,7 +1464,6 @@ public:
         }
     }
     EventFn event_fn_info(const std::string &name) const {
-        CODEGEN_FN
         LLVM_BUILDER_ASSERT(not name.empty())
         if (m_event_fns.contains(name)) {
             return m_event_fns.at(name);
@@ -1527,7 +1481,6 @@ Namespace::Namespace() : BaseT{State::ERROR} {
 
 Namespace::Namespace(JustInTimeRunner &runner, const std::string &ns, construct_t)
   : BaseT{State::VALID} {
-    CODEGEN_FN
     LLVM_BUILDER_ASSERT(not runner.has_error());
     m_impl = std::make_shared<Impl>(runner, ns);
 }
@@ -1557,7 +1510,6 @@ bool Namespace::is_global() const {
 }
 
 void Namespace::bind() {
-    CODEGEN_FN
     if (has_error()) {
         return;
     }
@@ -1566,16 +1518,15 @@ void Namespace::bind() {
 }
 
 void Namespace::add_struct(const TypeInfo& struct_type) {
-    CODEGEN_FN
     if (has_error() or struct_type.has_error()) {
         return;
     }
     if (not struct_type.is_struct()) {
-        CODEGEN_PUSH_ERROR(JIT, "type not a valid struct");
+        M_mark_error("type not a valid struct");
         return;
     }
     if (m_impl->is_bind()) {
-        CODEGEN_PUSH_ERROR(JIT, "Namespace already bound can't add more values");
+        M_mark_error("Namespace already bound can't add more values");
         return;
     }
     LLVM_BUILDER_ASSERT(m_impl);
@@ -1583,16 +1534,15 @@ void Namespace::add_struct(const TypeInfo& struct_type) {
 }
 
 void Namespace::add_event(const std::string &e) {
-    CODEGEN_FN
     if (has_error()) {
         return;
     }
     if (e.empty()) {
-        CODEGEN_PUSH_ERROR(JIT, "can't add empty event name");
+        M_mark_error("can't add empty event name");
         return;
     }
     if (m_impl->is_bind()) {
-        CODEGEN_PUSH_ERROR(JIT, "Namespace already bound can't add more event");
+        M_mark_error("Namespace already bound can't add more event");
         return;
     }
     LLVM_BUILDER_ASSERT(m_impl);
@@ -1622,10 +1572,12 @@ bool Namespace::operator == (const Namespace& rhs) const {
     return m_impl.get() == rhs.m_impl.get();
 }
 
-const Namespace& Namespace::null() {
+Namespace Namespace::null(const std::string& log) {
     static Namespace s_null{};
     LLVM_BUILDER_ASSERT(s_null.has_error());
-    return s_null;
+    Namespace result = s_null;
+    result.M_mark_error(log);
+    return result;
 }
 
 } // namespace runtime

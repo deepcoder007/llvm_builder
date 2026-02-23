@@ -88,9 +88,9 @@ runtime::Object gen_ctx_object(runtime::type_t rt_type, const runtime::Struct& c
 
 auto gen_ctx(const std::string& name, const TypeInfo &type) -> TypeInfo {
     CODEGEN_LINE(TypeInfo arr_type = TypeInfo::mk_array(type, 5))
-    CODEGEN_LINE(TypeInfo arr_ptr_type = arr_type.pointer_type())
+    CODEGEN_LINE(TypeInfo arr_ptr_type = arr_type.mk_ptr())
     CODEGEN_LINE(TypeInfo matrix_type = TypeInfo::mk_array(arr_ptr_type, 5))
-    CODEGEN_LINE(TypeInfo matrix_ptr_type = matrix_type.pointer_type())
+    CODEGEN_LINE(TypeInfo matrix_ptr_type = matrix_type.mk_ptr())
     std::vector<member_field_entry> l_field_list;
     l_field_list.emplace_back("arg1", type);
     l_field_list.emplace_back("arg2", type);
@@ -103,13 +103,12 @@ auto gen_ctx(const std::string& name, const TypeInfo &type) -> TypeInfo {
     l_field_list.emplace_back("mat2", matrix_ptr_type);
     l_field_list.emplace_back("mat3", matrix_ptr_type);
     CODEGEN_LINE(TypeInfo l_struct = TypeInfo::mk_struct(name, l_field_list, false))
-    CODEGEN_LINE(return l_struct.pointer_type())
+    CODEGEN_LINE(return l_struct.mk_ptr())
 };
 
 template <typename T>
 void gen_sample_fn(Function &fn) {
-    CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
-    CODEGEN_LINE(l_fn_body.enter())
+    CODEGEN_LINE(FunctionContext l_fn_ctx{fn})
     CODEGEN_LINE(ValueInfo ctx = ValueInfo::from_context())
     CODEGEN_LINE(ValueInfo arg1 = ctx.field("arg1").load())
     CODEGEN_LINE(ValueInfo arg2 = ctx.field("arg2").load())
@@ -123,13 +122,12 @@ void gen_sample_fn(Function &fn) {
     CODEGEN_LINE(ValueInfo res4 = res2.add(arg3))
     CODEGEN_LINE(ValueInfo res5 = res3.add(res4))
     CODEGEN_LINE(output.store(res5));
-    CODEGEN_LINE(CodeSectionContext::set_return_value(ValueInfo::from_constant(0)));
+    CODEGEN_LINE(FunctionContext::set_return_value(ValueInfo::from_constant(0)));
     LLVM_BUILDER_ASSERT(not ErrorContext::has_error())
 }
 
 void vector_add(Function &fn) {
-    CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
-    CODEGEN_LINE(l_fn_body.enter())
+    CODEGEN_LINE(FunctionContext l_fn_ctx{fn})
     CODEGEN_LINE(ValueInfo ctx = ValueInfo::from_context())
     CODEGEN_LINE(ValueInfo vec1 = ctx.field("vec1").load())
     CODEGEN_LINE(ValueInfo vec2 = ctx.field("vec2").load())
@@ -143,19 +141,18 @@ void vector_add(Function &fn) {
     LLVM_BUILDER_ASSERT(vec3.type().base_type().is_array());
 
     for (int i = 0; i != 5; ++i) {
-        CodeSectionContext::section_break(LLVM_BUILDER_CONCAT << "iter_" << i);
+        FunctionContext::section_break(LLVM_BUILDER_CONCAT << "iter_" << i);
         CODEGEN_LINE(ValueInfo sum = vec1.entry(i).load() + vec2.entry(i).load())
         CODEGEN_LINE(vec3.entry(i).store(sum));
         CODEGEN_LINE(output.store(sum));
     }
 
-    CODEGEN_LINE(CodeSectionContext::set_return_value(ValueInfo::from_constant(0)));
+    CODEGEN_LINE(FunctionContext::set_return_value(ValueInfo::from_constant(0)));
     LLVM_BUILDER_ASSERT(not ErrorContext::has_error())
 }
 
 void matrix_add(Function &fn) {
-    CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
-    CODEGEN_LINE(l_fn_body.enter())
+    CODEGEN_LINE(FunctionContext l_fn_ctx{fn})
     CODEGEN_LINE(ValueInfo ctx = ValueInfo::from_context())
     CODEGEN_LINE(ValueInfo mat1 = ctx.field("mat1").load())
     CODEGEN_LINE(ValueInfo mat2 = ctx.field("mat2").load())
@@ -180,7 +177,7 @@ void matrix_add(Function &fn) {
         }
     }
 
-    CODEGEN_LINE(CodeSectionContext::set_return_value(ValueInfo::from_constant(0)));
+    CODEGEN_LINE(FunctionContext::set_return_value(ValueInfo::from_constant(0)));
     LLVM_BUILDER_ASSERT(not ErrorContext::has_error())
 }
 
@@ -192,21 +189,21 @@ void gen_for_type(const TypeInfo& int_type) {
     CODEGEN_LINE(Module l_module = Module::Context::value());
     {
         const std::string fn_name{LLVM_BUILDER_CONCAT << "sample_fn_name_" << type_name};
-        CODEGEN_LINE(Function fn(fn_name, l_module))
+        CODEGEN_LINE(Function fn(fn_name))
         gen_sample_fn<T>(fn);
         Function f2 = l_module.get_function(fn_name);
         f2.verify();
     }
     {
         const std::string fn_name{LLVM_BUILDER_CONCAT << "vector_addition_" << type_name};
-        CODEGEN_LINE(Function fn(fn_name, l_module))
+        CODEGEN_LINE(Function fn(fn_name))
         vector_add(fn);
         Function f2 = l_module.get_function(fn_name);
         f2.verify();
     }
     {
         const std::string fn_name{LLVM_BUILDER_CONCAT << "matrix_addition_" << type_name};
-        CODEGEN_LINE(Function fn(fn_name, l_module))
+        CODEGEN_LINE(Function fn(fn_name))
         matrix_add(fn);
         Function f2 = l_module.get_function(fn_name);
         f2.verify();
@@ -357,8 +354,7 @@ TEST(LLVM_CODEGEN_LINALG, addition) {
         CODEGEN_LINE(Cursor::Context l_ctx{l_cursor1})
         CODEGEN_LINE(TypeInfo int32_type = TypeInfo::mk_int32())
         CODEGEN_LINE(TypeInfo l_int32_context = gen_ctx("int32_ctx", int32_type))
-        CODEGEN_LINE(l_cursor1.set_context_type(l_int32_context))
-        CODEGEN_LINE(l_cursor1.bind())
+        CODEGEN_LINE(l_cursor1.bind(l_int32_context))
         {
             CODEGEN_LINE(Module l_module = l_cursor1.main_module())
             CODEGEN_LINE(Module::Context l_module_ctx{l_module})
@@ -376,8 +372,7 @@ TEST(LLVM_CODEGEN_LINALG, addition) {
         CODEGEN_LINE(Cursor::Context l_ctx{l_cursor2})
         CODEGEN_LINE(TypeInfo int64_type = TypeInfo::mk_int64())
         CODEGEN_LINE(TypeInfo l_int64_context = gen_ctx("int64_ctx", int64_type))
-        CODEGEN_LINE(l_cursor2.set_context_type(l_int64_context))
-        CODEGEN_LINE(l_cursor2.bind())
+        CODEGEN_LINE(l_cursor2.bind(l_int64_context))
         {
             CODEGEN_LINE(Module l_module = l_cursor2.main_module())
             CODEGEN_LINE(Module::Context l_module_ctx{l_module})
@@ -393,8 +388,7 @@ TEST(LLVM_CODEGEN_LINALG, addition) {
         CODEGEN_LINE(Cursor::Context l_ctx{l_cursor3})
         CODEGEN_LINE(TypeInfo uint32_type = TypeInfo::mk_uint32())
         CODEGEN_LINE(TypeInfo l_uint32_context = gen_ctx("uint32_ctx", uint32_type))
-        CODEGEN_LINE(l_cursor3.set_context_type(l_uint32_context))
-        CODEGEN_LINE(l_cursor3.bind())
+        CODEGEN_LINE(l_cursor3.bind(l_uint32_context))
         {
             CODEGEN_LINE(Module l_module = l_cursor3.main_module())
             CODEGEN_LINE(Module::Context l_module_ctx{l_module})
@@ -410,8 +404,7 @@ TEST(LLVM_CODEGEN_LINALG, addition) {
         CODEGEN_LINE(Cursor::Context l_ctx{l_cursor4})
         CODEGEN_LINE(TypeInfo uint64_type = TypeInfo::mk_uint64())
         CODEGEN_LINE(TypeInfo l_uint64_context = gen_ctx("uint64_ctx", uint64_type))
-        CODEGEN_LINE(l_cursor4.set_context_type(l_uint64_context))
-        CODEGEN_LINE(l_cursor4.bind())
+        CODEGEN_LINE(l_cursor4.bind(l_uint64_context))
         {
             CODEGEN_LINE(Module l_module = l_cursor4.main_module())
             CODEGEN_LINE(Module::Context l_module_ctx{l_module})

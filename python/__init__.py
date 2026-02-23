@@ -32,7 +32,7 @@ from .llvm_builder_py import (
     # Functions
     Function,
     CodeSection,
-    CodeSectionContext,
+    FunctionContext,
     # Modules
     Module,
     Cursor,
@@ -66,7 +66,7 @@ __all__ = [
     # Functions
     "Function",
     "CodeSection",
-    "CodeSectionContext",
+    "FunctionContext",
     # Modules
     "Module",
     "Cursor",

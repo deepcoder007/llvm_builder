@@ -422,9 +422,12 @@ bool JustInTimeRunner::operator==(const JustInTimeRunner &o) const {
     return m_impl.get() == o.m_impl.get();
 }
 
-const JustInTimeRunner& JustInTimeRunner::null() {
-    static JustInTimeRunner s_runner{null_tag_t{}};
-    return s_runner;
+JustInTimeRunner JustInTimeRunner::null(const std::string& log) {
+    static JustInTimeRunner s_null{null_tag_t{}};
+    LLVM_BUILDER_ASSERT(s_null.has_error());
+    JustInTimeRunner result = s_null;
+    result.M_mark_error(log);
+    return result;
 }
 
 CONTEXT_DEF(JustInTimeRunner)

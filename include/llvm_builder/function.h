@@ -7,11 +7,11 @@
 
 #include "llvm_builder/defines.h"
 #include "llvm_builder/type.h"
-#include "llvm_builder/value.h"
 
+#include <functional>
+#include <string>
 #include <string_view>
 #include <vector>
-#include <list>
 #include <optional>
 #include <memory>
 
@@ -23,18 +23,21 @@ namespace llvm {
 
 LLVM_BUILDER_NS_BEGIN
 
+class ValueInfo;
 class Module;
 class Function;
 class IfElseCond;
-class CodeSectionContext;
+class FunctionContext;
 class CodeSectionImpl;
 class FunctionImpl;
 
-class CodeSection : public _BaseObject<CodeSection>  {
-    using BaseT = _BaseObject<CodeSection>;
+class CodeSection : public _BaseObject {
+    using BaseT = _BaseObject;
 public:
     class Impl;
-    friend class CodeSectionContext;
+    friend class FunctionContext;
+    friend class Function;
+    friend class ValueInfo;
 private:
     std::weak_ptr<Impl> m_impl;
 public:
@@ -45,71 +48,32 @@ public:
     const std::string& name() const;
     bool is_valid() const;
     bool is_open() const;
-    bool is_commit() const;
     bool is_sealed() const;
     void enter();
-    CodeSection detach();
     Function function();
     void jump_to_section(CodeSection dst);
     void conditional_jump(const ValueInfo& value, CodeSection then_dst, CodeSection else_dst);
-    ValueInfo intern(const ValueInfo& v);
-    void add_eval(const ValueInfo& key, llvm::Value* value);
-    llvm::Value* get_eval(const ValueInfo& key) const;
     llvm::BasicBlock* native_handle() const;
     bool operator == (const CodeSection& o) const;
-    static CodeSection null();
+    static CodeSection null(const std::string& log = "");
 private:
     void M_set_return_value(ValueInfo value);
-    void M_exit();
     void M_re_enter();
+    ValueInfo M_intern(const ValueInfo& v);
+    void M_add_eval(const ValueInfo& key, llvm::Value* value);
+    llvm::Value* M_get_eval(const ValueInfo& key) const;
 };
 
-class CodeSectionContext {
-    friend class CodeSection;
-public:
-    using vec_t = std::vector<CodeSection>;
-public:
-    explicit CodeSectionContext() = delete;
-    ~CodeSectionContext() = delete;
-public:
-    static void push_var_context();
-    static void pop_var_context();
-    static ValueInfo pop(std::string_view name);
-    static void push(std::string_view name, const ValueInfo& v);
-    static ValueInfo mk_ptr(std::string_view name, const TypeInfo& type, const ValueInfo& default_value);
-    static Function function();
-    static void set_return_value(ValueInfo value);
-    static CodeSection mk_section(const std::string& name);
-    static void define_section(const std::string& name, Function&, std::function<void()>&& defn);
-    static void jump_to_section(CodeSection &dst);
-    static void section_break(const std::string& new_section_name);
-    static CodeSection current_section();
-    static bool is_current_section(CodeSection& code);
-    static Function current_function();
-    static size_t clean_sealed_context();
-    static void assert_no_context();
-    static void print_section_stack(std::ostream& os);
-    static void print_variable_stack(std::ostream& os);
-private:
-    static vec_t &M_sections();
-    static std::list<CodeSection>& M_detached();
-    // TODO{vibhanshu}: given now sections are shared_ptr based, ensure that section
-    //     which are neither in stack nor detached are invalid, maybe have a custom
-    //     memory allocator with garbage collector for that
-    static void M_push_section(CodeSection& code);
-    static void M_pop_section(CodeSection& code);
-    static void M_re_enter_top();
-    static CodeSection M_detach(CodeSection& code);
-};
-
-class Function : public _BaseObject<Function> {
-    using BaseT = _BaseObject<Function>;
+class Function : public _BaseObject {
+    using BaseT = _BaseObject;
     struct c_construct {
     };
     friend class Module;
     friend class FunctionImpl;
-    friend class CodeSectionContext;
+    friend class FunctionContext;
     friend class ValueInfo;
+    friend class IfElseCond;
+    friend class CodeSection;
 public:
     class Impl;
 private:
@@ -117,25 +81,51 @@ private:
 public:
     explicit Function();
     explicit Function(FunctionImpl& impl);
-    explicit Function(const std::string& name, Module& mod);
-    explicit Function(const std::string& name);
+    explicit Function(const std::string& name, bool is_external = false);
     ~Function();
 public:
     bool is_valid() const;
-    const Module& parent_module() const;
+    Module parent_module() const;
     const std::string& name() const;
     bool is_external() const;
     ValueInfo call_fn() const;
-    void declare_fn(Module& src_mod, Module& dst_mod);
-    CodeSection mk_section(const std::string& name);
+    void declare_fn(Module& dst_mod);
+    CodeSection current_section();
+    bool is_current_section(CodeSection& code);
+    void assert_no_context();
     llvm::Function *native_handle() const;
     void verify();
     void remove_from_module();
     void write_to_ostream() const;
     bool operator == (const Function& o) const;
-    static Function null();
+    static Function null(const std::string& log = "");
 private:
+    CodeSection mk_section(const std::string& name);
     llvm::Value* M_eval_arg() const;
+    void M_push_section(CodeSection& code);
+    void M_pop_section(CodeSection& code);
+};
+
+class FunctionContext {
+    Function m_prev_fn;
+    static Function s_current_fn;
+public:
+    explicit FunctionContext(const Function& fn);
+    ~FunctionContext();
+public:
+    static bool set_fn(const Function& fn);
+    static void clear_fn();
+    static void push_var_context();
+    static void pop_var_context();
+    static ValueInfo pop(std::string_view name);
+    static void push(std::string_view name, const ValueInfo& v);
+    static ValueInfo mk_ptr(std::string_view name, const TypeInfo& type, const ValueInfo& default_value);
+    static void set_return_value(ValueInfo value);
+    static void jump_to_section(CodeSection &dst);
+    static void section_break(const std::string& new_section_name);
+    static Function function() {
+        return s_current_fn;
+    }
 };
 
 LLVM_BUILDER_NS_END

@@ -30,8 +30,8 @@ class Module;
 class JustInTimeRunner;
 
 // TODO{vibhanshu}: do we need one context or multiple?
-class Cursor : public _BaseObject<Cursor> {
-    using BaseT = _BaseObject<Cursor>;
+class Cursor : public _BaseObject {
+    using BaseT = _BaseObject;
     friend class CursorPtr;
 public:
     class Impl;
@@ -47,23 +47,22 @@ public:
     ~Cursor();
 public:
     const std::string& name();
-    const TypeInfo& context_type();
-    void set_context_type(const TypeInfo& ctx_type);
+    TypeInfo context_type();
     Module main_module();
     Module gen_module();
     void main_module_hook_fn(on_main_module_fn_t&& fn);
     bool is_bind_called();
-    void bind();
+    void bind(const TypeInfo& ctx_type);
     void cleanup();
     void for_each_module(on_module_fn_t&& fn);
     bool operator == (const Cursor& o) const;
-    static Cursor null();
+    static Cursor null(const std::string& log = "");
 };
 
 class ModuleImpl;
 
-class Module : public _BaseObject<Module> {
-    using BaseT = _BaseObject<Module>;
+class Module : public _BaseObject {
+    using BaseT = _BaseObject;
     friend class Cursor::Impl;
     // TODO{vibhanshu}: do we need to support inner modules ? probably inner module
     //                  can help seperate declaration and definition modules
@@ -95,7 +94,7 @@ public:
     void write_llvm_output(const std::string& suffix = "") const;
     void write_to_ostream() const;
     bool operator == (const Module& o) const;
-    static Module null();
+    static Module null(const std::string& log = "");
 };
 
 LLVM_BUILDER_NS_END

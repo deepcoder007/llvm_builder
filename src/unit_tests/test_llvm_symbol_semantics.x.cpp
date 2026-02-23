@@ -12,7 +12,6 @@
 #include "llvm_builder/type.h"
 #include "llvm_builder/jit.h"
 #include "llvm_builder/function.h"
-#include "llvm_builder/control_flow.h"
 
 #include "common_llvm_test.h"
 #include <format>
@@ -62,32 +61,30 @@ TEST(LLVM_CODEGEN_SYMBOL_SEMANTICS, basic_graph_test) {
 
     std::vector<member_field_entry> arr_args_fields;
     arr_args_fields.emplace_back("a", int32_type);
-    arr_args_fields.emplace_back("b", int32_arr_type.pointer_type());
+    arr_args_fields.emplace_back("b", int32_arr_type.mk_ptr());
     CODEGEN_LINE(TypeInfo arr_args_type = TypeInfo::mk_struct("arr_args", arr_args_fields))
 
-    CODEGEN_LINE(l_cursor.set_context_type(args3_type.pointer_type()))
-    CODEGEN_LINE(l_cursor.bind())
+    CODEGEN_LINE(l_cursor.bind(args3_type.mk_ptr()))
     CODEGEN_LINE(Module l_module = l_cursor.main_module())
     CODEGEN_LINE(Module::Context l_module_ctx{l_module})
     {
-        CODEGEN_LINE(Function fn("sample_fn_name", l_module))
+        CODEGEN_LINE(Function fn("sample_fn_name"))
         {
-            CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
-            CODEGEN_LINE(l_fn_body.enter())
-            CODEGEN_LINE(CodeSectionContext::mk_ptr("test_var"_cs, int32_type, ValueInfo::from_constant(0)))
-            CODEGEN_LINE(CodeSectionContext::mk_ptr("res5"_cs, int32_type, ValueInfo::from_constant(0)))
+            CODEGEN_LINE(FunctionContext l_fn_ctx{fn})
+            CODEGEN_LINE(FunctionContext::mk_ptr("test_var"_cs, int32_type, ValueInfo::from_constant(0)))
+            CODEGEN_LINE(FunctionContext::mk_ptr("res5"_cs, int32_type, ValueInfo::from_constant(0)))
             code_fn();
-            CODEGEN_LINE(CodeSectionContext::section_break("another_section"))
+            CODEGEN_LINE(FunctionContext::section_break("another_section"))
             {
                 CODEGEN_LINE(ValueInfo ctx = ValueInfo::from_context())
                 CODEGEN_LINE(ValueInfo arg4_ptr = ctx.field("arg4"))
                 CODEGEN_LINE(ValueInfo arg5_ptr = ctx.field("arg5"))
                 CODEGEN_LINE(ValueInfo arg6_ptr = ctx.field("arg6"))
-                CODEGEN_LINE(ValueInfo res5 = CodeSectionContext::pop("res5"))
+                CODEGEN_LINE(ValueInfo res5 = FunctionContext::pop("res5"))
                 CODEGEN_LINE(arg4_ptr.store(res5))
-                CODEGEN_LINE(arg5_ptr.store(CodeSectionContext::pop("test_var")))
+                CODEGEN_LINE(arg5_ptr.store(FunctionContext::pop("test_var")))
                 CODEGEN_LINE(arg6_ptr.store(res5))
-                CODEGEN_LINE(CodeSectionContext::set_return_value(res5))
+                CODEGEN_LINE(FunctionContext::set_return_value(res5))
             }
         }
         {
@@ -150,7 +147,7 @@ TEST(LLVM_CODEGEN_SYMBOL_SEMANTICS, lazy_load_logic) {
     CODEGEN_LINE(Cursor::Context l_cursor_ctx{l_cursor})
     CODEGEN_LINE(TypeInfo int32_type = TypeInfo::mk_int32())
     CODEGEN_LINE(TypeInfo fn_type = TypeInfo::mk_fn_type())
-    CODEGEN_LINE(TypeInfo fn_ptr_type = fn_type.pointer_type())
+    CODEGEN_LINE(TypeInfo fn_ptr_type = fn_type.mk_ptr())
 
     LLVM_BUILDER_ALWAYS_ASSERT(not fn_type.has_error());
     LLVM_BUILDER_ALWAYS_ASSERT(not fn_ptr_type.has_error());
@@ -171,15 +168,13 @@ TEST(LLVM_CODEGEN_SYMBOL_SEMANTICS, lazy_load_logic) {
     LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
 
     CODEGEN_LINE(JustInTimeRunner jit_runner)
-    CODEGEN_LINE(l_cursor.set_context_type(l_struct.pointer_type()))
-    CODEGEN_LINE(l_cursor.bind())
+    CODEGEN_LINE(l_cursor.bind(l_struct.mk_ptr()))
     CODEGEN_LINE(Module l_module = l_cursor.main_module())
     CODEGEN_LINE(Module::Context l_module_ctx{l_module})
     {
-        CODEGEN_LINE(Function fn_double("double_arg", l_module))
+        CODEGEN_LINE(Function fn_double("double_arg"))
         {
-            CODEGEN_LINE(CodeSection l_fn_body = fn_double.mk_section("body"))
-            CODEGEN_LINE(l_fn_body.enter())
+            CODEGEN_LINE(FunctionContext l_fn_ctx{fn_double})
             CODEGEN_LINE(ValueInfo ctx = ValueInfo::from_context())
             CODEGEN_LINE(ValueInfo arg1 = ctx.field("arg1").load())
             CODEGEN_LINE(ctx.field("arg1").store(arg1.add(arg1)))
@@ -196,16 +191,15 @@ TEST(LLVM_CODEGEN_SYMBOL_SEMANTICS, lazy_load_logic) {
                 CODEGEN_LINE(ctx.field("arg5").store(arg5.add(arg5)))
                 CODEGEN_LINE(ctx.field("arg5").store(arg5.add(arg5).add(arg5)))
             }
-            CODEGEN_LINE(CodeSectionContext::set_return_value(ValueInfo::from_constant(0)))
+            CODEGEN_LINE(FunctionContext::set_return_value(ValueInfo::from_constant(0)))
         }
-        CODEGEN_LINE(Function fn_double_section("double_arg_section", l_module))
+        CODEGEN_LINE(Function fn_double_section("double_arg_section"))
         {
-            CODEGEN_LINE(CodeSection l_fn_body = fn_double_section.mk_section("body"))
-            CODEGEN_LINE(l_fn_body.enter())
+            CODEGEN_LINE(FunctionContext l_fn_ctx{fn_double_section})
             for (int i = 0; i != 5; ++i) {
                 std::stringstream ss;
                 ss << "section_" << i;
-                CodeSectionContext::section_break(ss.str());
+                FunctionContext::section_break(ss.str());
                 CODEGEN_LINE(ValueInfo ctx = ValueInfo::from_context())
                 CODEGEN_LINE(ValueInfo arg1 = ctx.field("arg1").load())
                 CODEGEN_LINE(ctx.field("arg1").store(arg1.add(arg1)))
@@ -221,9 +215,9 @@ TEST(LLVM_CODEGEN_SYMBOL_SEMANTICS, lazy_load_logic) {
                 CODEGEN_LINE(ctx.field("arg5").store(arg5.add(arg5)))
                 CODEGEN_LINE(ctx.field("arg5").store(arg5.add(arg5).add(arg5)))
             }
-            CODEGEN_LINE(CodeSectionContext::set_return_value(ValueInfo::from_constant(0)))
+            CODEGEN_LINE(FunctionContext::set_return_value(ValueInfo::from_constant(0)))
         }
-        CodeSectionContext::assert_no_context();
+        FunctionContext::function().assert_no_context();
     }
     jit_runner.add_module(l_cursor);
     jit_runner.bind();
@@ -301,7 +295,7 @@ TEST(LLVM_CODEGEN_SYMBOL_SEMANTICS, value_sink_ordering_logic) {
     CODEGEN_LINE(Cursor::Context l_cursor_ctx{l_cursor})
     CODEGEN_LINE(TypeInfo int32_type = TypeInfo::mk_int32())
     CODEGEN_LINE(TypeInfo fn_type = TypeInfo::mk_fn_type())
-    CODEGEN_LINE(TypeInfo fn_ptr_type = fn_type.pointer_type())
+    CODEGEN_LINE(TypeInfo fn_ptr_type = fn_type.mk_ptr())
 
     LLVM_BUILDER_ALWAYS_ASSERT(not fn_type.has_error());
     LLVM_BUILDER_ALWAYS_ASSERT(not fn_ptr_type.has_error());
@@ -322,15 +316,13 @@ TEST(LLVM_CODEGEN_SYMBOL_SEMANTICS, value_sink_ordering_logic) {
     LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
 
     CODEGEN_LINE(JustInTimeRunner jit_runner)
-    CODEGEN_LINE(l_cursor.set_context_type(l_struct.pointer_type()))
-    CODEGEN_LINE(l_cursor.bind())
+    CODEGEN_LINE(l_cursor.bind(l_struct.mk_ptr()))
     CODEGEN_LINE(Module l_module = l_cursor.main_module())
     CODEGEN_LINE(Module::Context l_module_ctx{l_module})
     {
-        CODEGEN_LINE(Function fn_double("double_arg", l_module))
+        CODEGEN_LINE(Function fn_double("double_arg"))
         {
-            CODEGEN_LINE(CodeSection l_fn_body = fn_double.mk_section("body"))
-            CODEGEN_LINE(l_fn_body.enter())
+            CODEGEN_LINE(FunctionContext l_fn_ctx{fn_double})
             CODEGEN_LINE(ValueInfo ctx = ValueInfo::from_context())
             CODEGEN_LINE(ValueInfo arg1 = ctx.field("arg1").load())
             CODEGEN_LINE(ctx.field("arg1").store(arg1.add(arg1)))
@@ -345,12 +337,11 @@ TEST(LLVM_CODEGEN_SYMBOL_SEMANTICS, value_sink_ordering_logic) {
             CODEGEN_LINE(ctx.field("arg5").store(arg5.add(arg5).add(arg5)))
             CODEGEN_LINE(ctx.field("arg5").store(arg5.add(arg5)))
             CODEGEN_LINE(ctx.field("arg5").store(arg5.add(arg5).add(arg5)))
-            CODEGEN_LINE(CodeSectionContext::set_return_value(ValueInfo::from_constant(0)))
+            CODEGEN_LINE(FunctionContext::set_return_value(ValueInfo::from_constant(0)))
         }
         {
-            CODEGEN_LINE(Function fn("call_fn_ptr", l_module))
-            CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("body"))
-            CODEGEN_LINE(l_fn_body.enter())
+            CODEGEN_LINE(Function fn("call_fn_ptr"))
+            CODEGEN_LINE(FunctionContext l_fn_ctx{fn})
 
             CODEGEN_LINE(ValueInfo ctx = ValueInfo::from_context())
             CODEGEN_LINE(ValueInfo arg4 = ctx.field("arg4").load())
@@ -372,14 +363,14 @@ TEST(LLVM_CODEGEN_SYMBOL_SEMANTICS, value_sink_ordering_logic) {
                 CODEGEN_LINE(ValueInfo sum2 = arg1 + arg2)
                 CODEGEN_LINE(ctx.field("arg2").store(sum2))
             }
-            CODEGEN_LINE(CodeSectionContext::set_return_value(ValueInfo::from_constant(0)))
+            CODEGEN_LINE(FunctionContext::set_return_value(ValueInfo::from_constant(0)))
         }
         {
             const std::string fn_name{"call_fn_ptr"};
             Function f2 = l_module.get_function(fn_name);
             f2.verify();
         }
-        CodeSectionContext::assert_no_context();
+        FunctionContext::function().assert_no_context();
     }
     jit_runner.add_module(l_cursor);
     jit_runner.bind();
@@ -432,6 +423,154 @@ TEST(LLVM_CODEGEN_SYMBOL_SEMANTICS, value_sink_ordering_logic) {
             LLVM_BUILDER_ALWAYS_ASSERT(l_post_arg5 == 27 * l_pre_arg5);
             LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_args_obj.get<int32_t>("result"), 42);
             LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
+        }
+    }
+}
+
+TEST(LLVM_CODEGEN_SYMBOL_SEMANTICS, hierarchical_def) {
+    CODEGEN_LINE(Cursor l_cursor{"hierarchical_def"})
+    {
+        CODEGEN_LINE(Cursor::Context l_cursor_ctx{l_cursor})
+        CODEGEN_LINE(TypeInfo int32_type = TypeInfo::mk_int32())
+
+        std::vector<member_field_entry> args3_fields;
+        args3_fields.emplace_back("arg1", int32_type);
+        args3_fields.emplace_back("arg2", int32_type);
+        args3_fields.emplace_back("arg1_fn_bkp", int32_type);
+        args3_fields.emplace_back("arg2_fn_bkp", int32_type);
+        args3_fields.emplace_back("arg1_bkp_pre", int32_type);
+        args3_fields.emplace_back("arg2_bkp_pre", int32_type);
+        args3_fields.emplace_back("arg1_bkp_post", int32_type);
+        args3_fields.emplace_back("arg2_bkp_post", int32_type);
+        args3_fields.emplace_back("arg1_bkp_section_post", int32_type);
+        args3_fields.emplace_back("arg2_bkp_section_post", int32_type);
+        args3_fields.emplace_back("arr_idx", int32_type);
+        args3_fields.emplace_back("arg_arr1", TypeInfo::mk_array(int32_type, 5).mk_ptr());
+        args3_fields.emplace_back("arg_arr2", TypeInfo::mk_array(int32_type, 5).mk_ptr());
+        CODEGEN_LINE(TypeInfo args3_type = TypeInfo::mk_struct("args3", args3_fields))
+
+        CODEGEN_LINE(l_cursor.bind(args3_type.mk_ptr()))
+
+        //
+        // computation graph BEGIN
+        //
+        CODEGEN_LINE(ValueInfo ctx = ValueInfo::from_context())
+        CODEGEN_LINE(ValueInfo arr_idx = ctx.field("arr_idx").load())
+
+        CODEGEN_LINE(ValueInfo arg1_ptr = ctx.field("arg1"))
+        CODEGEN_LINE(ValueInfo arg2_ptr = ctx.field("arg2"))
+        CODEGEN_LINE(ValueInfo arg1_fn_bkp_ptr = ctx.field("arg1_fn_bkp"))
+        CODEGEN_LINE(ValueInfo arg2_fn_bkp_ptr = ctx.field("arg2_fn_bkp"))
+        CODEGEN_LINE(ValueInfo arg1_bkp_pre_ptr = ctx.field("arg1_bkp_pre"))
+        CODEGEN_LINE(ValueInfo arg2_bkp_pre_ptr = ctx.field("arg2_bkp_pre"))
+        CODEGEN_LINE(ValueInfo arg1_bkp_post_ptr = ctx.field("arg1_bkp_post"))
+        CODEGEN_LINE(ValueInfo arg2_bkp_post_ptr = ctx.field("arg2_bkp_post"))
+        CODEGEN_LINE(ValueInfo arg1_bkp_section_post_ptr = ctx.field("arg1_bkp_section_post"))
+        CODEGEN_LINE(ValueInfo arg2_bkp_section_post_ptr = ctx.field("arg2_bkp_section_post"))
+        // CODEGEN_LINE(ValueInfo arr_idx = ctx.field("arr_idx").load())
+        CODEGEN_LINE(ValueInfo arg_arr1_ptr = ctx.field("arg_arr1").load())
+        CODEGEN_LINE(ValueInfo arg_arr2_ptr = ctx.field("arg_arr2").load())
+        CODEGEN_LINE(ValueInfo arg1 = arg1_ptr.load())
+        CODEGEN_LINE(ValueInfo arg2 = arg2_ptr.load())
+        //
+        //  computation graph END
+        //
+
+        CODEGEN_LINE(Module l_module = l_cursor.main_module())
+        CODEGEN_LINE(Module::Context l_module_ctx{l_module})
+        CODEGEN_LINE(Function on_event_fn("on_big_event"))
+        CODEGEN_LINE(Function fibo_fn("fibonacci_calc"))
+        CODEGEN_LINE(Function arr_copy_fn("arr_copy_fn"))
+
+        CODEGEN_LINE(FunctionContext::set_fn(on_event_fn))
+
+        {
+            CODEGEN_LINE(FunctionContext l_local_fibo_ctx{fibo_fn})
+            CODEGEN_LINE(arg1_ptr.store(arg2))
+            CODEGEN_LINE(arg2_ptr.store(arg1.add(arg2)))
+            CODEGEN_LINE(arg1_fn_bkp_ptr.store(arg1))
+            CODEGEN_LINE(arg2_fn_bkp_ptr.store(arg2))
+            CODEGEN_LINE(FunctionContext::set_return_value(ValueInfo::from_constant(0)))
+        }
+        {
+            CODEGEN_LINE(FunctionContext l_local_fn_ctx{arr_copy_fn})
+            CODEGEN_LINE(arg_arr2_ptr.entry(arr_idx).store(arg_arr1_ptr.entry(arr_idx).load()))
+            CODEGEN_LINE(FunctionContext::set_return_value(ValueInfo::from_constant(0)))
+        }
+        CODEGEN_LINE(arg1_bkp_pre_ptr.store(arg1))
+        CODEGEN_LINE(arg2_bkp_pre_ptr.store(arg2))
+        CODEGEN_LINE(fibo_fn.call_fn())
+        CODEGEN_LINE(arr_copy_fn.call_fn())
+        CODEGEN_LINE(arg1_bkp_post_ptr.store(arg1))
+        CODEGEN_LINE(arg2_bkp_post_ptr.store(arg2))
+
+        CODEGEN_LINE(FunctionContext::section_break("section_break"))
+
+        CODEGEN_LINE(arg1_bkp_section_post_ptr.store(arg1))
+        CODEGEN_LINE(arg2_bkp_section_post_ptr.store(arg2))
+
+        CODEGEN_LINE(FunctionContext::set_return_value(arg1_ptr.load()))
+        // CODEGEN_LINE(FunctionContext::set_return_value(ValueInfo::from_constant(0)))
+        {
+            const std::string fn_name{"on_big_event"};
+            Function f2 = l_module.get_function(fn_name);
+            f2.verify();
+        }
+    }
+
+    LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error())
+    {
+        CODEGEN_LINE(JustInTimeRunner jit_runner)
+        CODEGEN_LINE(jit_runner.add_module(l_cursor))
+        CODEGEN_LINE(jit_runner.bind())
+        LLVM_BUILDER_ALWAYS_ASSERT(not jit_runner.has_error())
+
+        CODEGEN_LINE(const runtime::Namespace& l_runtime_module = jit_runner.get_global_namespace())
+        CODEGEN_LINE(const runtime::Struct& l_args3_struct = l_runtime_module.struct_info("args3"))
+        LLVM_BUILDER_ALWAYS_ASSERT(not l_runtime_module.has_error());
+        CODEGEN_LINE(const runtime::EventFn& sample_fn = l_runtime_module.event_fn_info("on_big_event"))
+        LLVM_BUILDER_ALWAYS_ASSERT(not sample_fn.has_error());
+
+        {
+            CODEGEN_LINE(runtime::Object l_args_obj = l_args3_struct.mk_object())
+            CODEGEN_LINE(runtime::Array l_arg_arr1 = runtime::Array::from(runtime::type_t::int32, 5))
+            CODEGEN_LINE(runtime::Array l_arg_arr2 = runtime::Array::from(runtime::type_t::int32, 5))
+            CODEGEN_LINE(l_arg_arr1.freeze())
+            CODEGEN_LINE(l_arg_arr2.freeze())
+            CODEGEN_LINE(l_args_obj.set_array("arg_arr1", l_arg_arr1))
+            CODEGEN_LINE(l_args_obj.set_array("arg_arr2", l_arg_arr2))
+            bool is_frozen = l_args_obj.freeze();
+            LLVM_BUILDER_ASSERT(is_frozen);
+            l_args_obj.set<int32_t>("arg1", 1);
+            l_args_obj.set<int32_t>("arg2", 1);
+            for (int32_t i = 0; i != 30; ++i) {
+
+                LLVM_BUILDER_ASSERT(not l_arg_arr1.has_error());
+                LLVM_BUILDER_ASSERT(not l_arg_arr2.has_error());
+                const int32_t l_arg1_prev = l_args_obj.get<int32_t>("arg1");
+                const int32_t l_arg2_prev = l_args_obj.get<int32_t>("arg2");
+                l_args_obj.set<int32_t>("arg1_fn_bkp", i + 2);
+                l_args_obj.set<int32_t>("arr_idx", i % 5);
+                for (uint32_t j = 0; j != 5; ++j) {
+                    l_arg_arr1.set<int32_t>(j, i * 10 + 1);
+                    l_arg_arr2.set<int32_t>(j, -1);
+                }
+                const int32_t new_value = l_arg1_prev + l_arg2_prev;
+                LLVM_BUILDER_ALWAYS_ASSERT(not l_args_obj.has_error())
+                CODEGEN_LINE(int32_t result = sample_fn.on_event(l_args_obj))
+                LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_arg2_prev, l_args_obj.get<int32_t>("arg1"))
+                LLVM_BUILDER_ALWAYS_ASSERT_EQ(new_value, l_args_obj.get<int32_t>("arg2"))
+                LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_arg1_prev, l_args_obj.get<int32_t>("arg1_fn_bkp"))
+                LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_arg2_prev, l_args_obj.get<int32_t>("arg2_fn_bkp"))
+                LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_arg1_prev, l_args_obj.get<int32_t>("arg1_bkp_pre"))
+                LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_arg2_prev, l_args_obj.get<int32_t>("arg2_bkp_pre"))
+                LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_arg1_prev, l_args_obj.get<int32_t>("arg1_bkp_post"))
+                LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_arg2_prev, l_args_obj.get<int32_t>("arg2_bkp_post"))
+                LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_args_obj.get<int32_t>("arg1"), l_args_obj.get<int32_t>("arg1_bkp_section_post"))
+                LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_args_obj.get<int32_t>("arg2"), l_args_obj.get<int32_t>("arg2_bkp_section_post"))
+                LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_arg_arr1.get<int32_t>(i % 5), l_arg_arr2.get<int32_t>(i % 5))
+                LLVM_BUILDER_ALWAYS_ASSERT_EQ(result, l_args_obj.get<int32_t>("arg1"));
+            }
         }
     }
 }

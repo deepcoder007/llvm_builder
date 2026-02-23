@@ -1,7 +1,41 @@
 #+title: Tasks
 
-* Priority list of tasks[0/4]
-** [ ] if-else condition redesign, nested and inplace expansion 
-** [ ] function call to internal functions
-** [ ] function call to external C functions
+* Priority list of tasks[5/9]
+** [X] if-else condition redesign, nested and inplace expansion 
+** [X] function call to internal functions
+** [X] function call to external C functions
 ** [ ] cross language integration
+** [X] hierachical representation of code sections
+:FEATURE_DESCRIPTION:
+ability to specific sections inside sections in hierarchical manner
+this way we can avoid the issue of too big event function.
+inner functions can change the values of input and outer
+functions need to pre-cache values if they need original values.
+flat partitioning via dependency graph is too complicated a
+situation
+:END:
+** [X] make it easier for users to break code in sections
+:FEATURE_DESCRIPTION:
+instead of compiler deciding hierarchical representation, we need to give
+users to break down logic in modules/sub-routines, so external functions
+can be done in subroutine and then it can be applied in abstract manner
+on all the list of operations maybe?
+:END:
+** [ ] resilient runtime api
+:FEATURE_DESCRIPTION:
+runtime api which is second level is higher level resilient, should always
+work and pass error code and condition for wrong error instead of ever generating
+codegen-error
+:END:
+** [ ] match type of runtime array and object with compiled types
+:FEATURE_DESCRIPTION:
+curently it's upto user to query the correct type of a value which is unsafe
+instead pass on type information in runtime api and any incorrect type query
+should return invalid value
+:END:
+** [ ] fix namespace in public api
+:FEATURE_DESCRIPTION:
+currently because of compile time flags LLVM_BUILDER namespace
+has name like llvm_builder01000. instead public api should have abi
+stable namespace
+:END:

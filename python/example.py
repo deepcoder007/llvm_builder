@@ -28,17 +28,15 @@ def main():
     module.add_struct_definition(point_type)
 
     # Set context type on cursor (pointer to Point as parameter)
-    cursor.set_context_type(point_type.pointer_type())
+    cursor.set_context_type(point_type.mk_ptr())
 
     # Build a function: int32 add_coords(Point* p) { return p->x + p->y; }
     fn = llvm.Function("add_coords", module)
 
-    # Create the function body
-    body = fn.mk_section("body")
-    body.enter()
+    FunctionContext.set_fn(fn)
 
     # Get the function parameter
-    param = CodeSectionContext.current_context()
+    param = FunctionContext.current_context()
 
     # Access fields: p->x and p->y
     x_ptr = param.field("x")
@@ -52,7 +50,7 @@ def main():
     result = x_val + y_val
 
     # Set return value
-    llvm.CodeSectionContext.set_return_value(result)
+    llvm.FunctionContext.set_return_value(result)
 
     # Verify and finalize
     fn.verify()
@@ -101,13 +99,12 @@ def arithmetic_example():
     module.add_struct_definition(input_type)
 
     # Build function: void compute(Input* i) { i->result = i->a * i->b + i->a; }
-    cursor.set_context_type(input_type.pointer_type())
+    cursor.set_context_type(input_type.mk_ptr())
     fn = llvm.Function("compute", module)
 
-    body = fn.mk_section("body")
-    body.enter()
+    FunctionContext.set_fn(fn)
 
-    param = CodeSectionContext.current_context()
+    param = FunctionContext.current_context()
     a = param.field("a").load()
     b = param.field("b").load()
 
@@ -116,7 +113,7 @@ def arithmetic_example():
     param.field("result").store(result)
 
     # Return 0 (success)
-    llvm.CodeSectionContext.set_return_value(llvm.ValueInfo.from_int32(0))
+    llvm.FunctionContext.set_return_value(llvm.ValueInfo.from_int32(0))
 
     fn.verify()
     cursor.bind()
@@ -159,13 +156,12 @@ def conditional_example():
     module.add_struct_definition(data_type)
 
     # Build function: int32 select(Data* d) { return d->cond ? d->a : d->b; }
-    cursor.set_context_type(data_type.pointer_type())
+    cursor.set_context_type(data_type.mk_ptr())
     fn = llvm.Function("select", module)
 
-    body = fn.mk_section("body")
-    body.enter()
+    FunctionContext.set_fn(fn)
 
-    param = CodeSectionContext.current_context()
+    param = FunctionContext.current_context()
     cond = param.field("cond").load()
     a = param.field("a").load()
     b = param.field("b").load()
@@ -173,7 +169,7 @@ def conditional_example():
     # Use conditional select: cond ? a : b
     result = cond.cond(a, b, "select")
 
-    llvm.CodeSectionContext.set_return_value(result)
+    llvm.FunctionContext.set_return_value(result)
 
     fn.verify()
     cursor.bind()

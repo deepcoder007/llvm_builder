@@ -59,21 +59,6 @@
 #define LLVM_BUILDER_NS_BEGIN namespace LLVM_BUILDER_NS() {
 #define LLVM_BUILDER_NS_END   }
 
-#define OSTREAM_FRIEND(cls_t)                                                                                          \
-    inline friend std::ostream& operator<<(std::ostream& os, const cls_t& x) {                                         \
-        x.print(os);                                                                                                   \
-        return os;                                                                                                     \
-    }                                                                                                                  \
-    /**/
-
-namespace llvm_builder_types {
-using bool_t = bool;
-using float32_t = float;
-using float64_t = double;
-static_assert(sizeof(bool_t) == 1);
-static_assert(sizeof(float32_t) == 4);
-static_assert(sizeof(float64_t) == 8);
-}
 
 #if !__has_include(<unistd.h>)
 static_assert(false, "system not posix compliant");
@@ -81,7 +66,12 @@ static_assert(false, "system not posix compliant");
 
 LLVM_BUILDER_NS_BEGIN
 
-using namespace llvm_builder_types;
+using bool_t = bool;
+using float32_t = float;
+using float64_t = double;
+static_assert(sizeof(bool_t) == 1);
+static_assert(sizeof(float32_t) == 4);
+static_assert(sizeof(float64_t) == 8);
 
 LLVM_BUILDER_NS_END
 

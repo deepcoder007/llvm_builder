@@ -22,9 +22,9 @@ TEST(LLVM_CODEGEN_JIT_API, hello_api) {
     CODEGEN_LINE(Cursor::Context l_cursor_ctx{l_cursor})
     CODEGEN_LINE(TypeInfo int32_type = TypeInfo::mk_int32())
     CODEGEN_LINE(TypeInfo int32_arr5_type = TypeInfo::mk_array(int32_type, 5))
-    CODEGEN_LINE(TypeInfo int32_arr5_ptr_type = int32_arr5_type.pointer_type())
+    CODEGEN_LINE(TypeInfo int32_arr5_ptr_type = int32_arr5_type.mk_ptr())
     CODEGEN_LINE(TypeInfo int32_2d_type = TypeInfo::mk_array(int32_arr5_ptr_type, 5))
-    CODEGEN_LINE(TypeInfo int32_2d_ptr_type = int32_2d_type.pointer_type())
+    CODEGEN_LINE(TypeInfo int32_2d_ptr_type = int32_2d_type.mk_ptr())
     CODEGEN_LINE(TypeInfo bool_type = TypeInfo::mk_bool())
     CODEGEN_LINE(TypeInfo l_struct)
     {
@@ -40,23 +40,21 @@ TEST(LLVM_CODEGEN_JIT_API, hello_api) {
     LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
 
     CODEGEN_LINE(JustInTimeRunner jit_runner)
-    CODEGEN_LINE(l_cursor.set_context_type(l_struct.pointer_type()))
-    CODEGEN_LINE(l_cursor.bind())
+    CODEGEN_LINE(l_cursor.bind(l_struct.mk_ptr()))
     CODEGEN_LINE(Module l_module = l_cursor.main_module())
     CODEGEN_LINE(Module::Context l_module_ctx{l_module})
     {
-        CODEGEN_LINE(Function fn("test_fn", l_module))
+        CODEGEN_LINE(Function fn("test_fn"))
 
         {
-            CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
-            CODEGEN_LINE(l_fn_body.enter())
+            CODEGEN_LINE(FunctionContext l_fn_ctx{fn})
 
             CODEGEN_LINE(ValueInfo ctx = ValueInfo::from_context())
-            LLVM_BUILDER_ALWAYS_ASSERT(l_struct.pointer_type() == ctx.type());
+            LLVM_BUILDER_ALWAYS_ASSERT(l_struct.mk_ptr() == ctx.type());
             CODEGEN_LINE(ctx.field("field_3").store(ctx.field("field_1").load()))
             CODEGEN_LINE(ctx.field("field_4").store(ctx.field("field_2").load()))
             CODEGEN_LINE(ctx.field("field_5").store(ValueInfo::from_constant(true)))
-            CODEGEN_LINE(CodeSectionContext::set_return_value(ValueInfo::from_constant(0)))
+            CODEGEN_LINE(FunctionContext::set_return_value(ValueInfo::from_constant(0)))
         }
         CODEGEN_LINE(jit_runner.process_module_fn(fn))
         {
@@ -65,7 +63,7 @@ TEST(LLVM_CODEGEN_JIT_API, hello_api) {
             f2.verify();
         }
         INIT_MODULE(l_module)
-        CodeSectionContext::assert_no_context();
+        FunctionContext::function().assert_no_context();
     }
     jit_runner.add_module(l_cursor);
     jit_runner.bind();
@@ -125,37 +123,35 @@ TEST(LLVM_CODEGEN_JIT_API, inner_struct) {
         CODEGEN_LINE(l_field_list.emplace_back("inner_field_3", int32_type))
         CODEGEN_LINE(l_field_list.emplace_back("inner_field_4", int32_type))
         CODEGEN_LINE(l_field_list.emplace_back("inner_field_5", int32_type))
-        CODEGEN_LINE(l_field_list.emplace_back("inner_field_6", l_inner_struct.pointer_type()))
+        CODEGEN_LINE(l_field_list.emplace_back("inner_field_6", l_inner_struct.mk_ptr()))
         CODEGEN_LINE(l_field_list.emplace_back("inner_field_7", int32_type))
         CODEGEN_LINE(l_field_list.emplace_back("inner_field_8", int32_type))
-        CODEGEN_LINE(l_field_list.emplace_back("inner_field_9", l_inner_struct.pointer_type()))
+        CODEGEN_LINE(l_field_list.emplace_back("inner_field_9", l_inner_struct.mk_ptr()))
         CODEGEN_LINE(l_field_list.emplace_back("inner_field_10", int32_type))
         CODEGEN_LINE(l_outer_struct = TypeInfo::mk_struct("outer_struct", l_field_list, false))
     }
     // Create struct type for big_struct_test_fn arguments
     std::vector<member_field_entry> args_fields;
-    args_fields.emplace_back("arg_inner", l_inner_struct.pointer_type());
-    args_fields.emplace_back("arg_outer", l_outer_struct.pointer_type());
+    args_fields.emplace_back("arg_inner", l_inner_struct.mk_ptr());
+    args_fields.emplace_back("arg_outer", l_outer_struct.mk_ptr());
     CODEGEN_LINE(TypeInfo args_type = TypeInfo::mk_struct("args", args_fields))
     LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
 
     CODEGEN_LINE(JustInTimeRunner jit_runner)
-    CODEGEN_LINE(l_cursor.set_context_type(args_type.pointer_type()))
-    CODEGEN_LINE(l_cursor.bind())
+    CODEGEN_LINE(l_cursor.bind(args_type.mk_ptr()))
     CODEGEN_LINE(Module l_module = l_cursor.main_module())
     CODEGEN_LINE(Module::Context l_module_ctx{l_module})
     {
-        CODEGEN_LINE(Function fn("test_fn", l_module))
+        CODEGEN_LINE(Function fn("test_fn"))
 
         {
-            CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
-            CODEGEN_LINE(l_fn_body.enter())
+            CODEGEN_LINE(FunctionContext l_fn_ctx{fn})
 
             CODEGEN_LINE(ValueInfo ctx = ValueInfo::from_context())
             CODEGEN_LINE(ValueInfo arg_inner = ctx.field("arg_inner").load())
             CODEGEN_LINE(ValueInfo arg_outer = ctx.field("arg_outer").load())
-            LLVM_BUILDER_ALWAYS_ASSERT(l_inner_struct.pointer_type() == arg_inner.type());
-            LLVM_BUILDER_ALWAYS_ASSERT(l_outer_struct.pointer_type() == arg_outer.type());
+            LLVM_BUILDER_ALWAYS_ASSERT(l_inner_struct.mk_ptr() == arg_inner.type());
+            LLVM_BUILDER_ALWAYS_ASSERT(l_outer_struct.mk_ptr() == arg_outer.type());
 
             CODEGEN_LINE(ValueInfo inner_field_6 = arg_outer.field("inner_field_6").load())
             for (const std::string& fname : std::initializer_list<std::string>{{"field_1", "field_2", "field_3", "field_4"}}) {
@@ -175,7 +171,7 @@ TEST(LLVM_CODEGEN_JIT_API, inner_struct) {
             }
             CODEGEN_LINE(inner_field_9.field("field_5").store(ValueInfo::from_constant(true)))
             CODEGEN_LINE(arg_inner.field("field_5").store(ValueInfo::from_constant(true)))
-            CODEGEN_LINE(CodeSectionContext::set_return_value(ValueInfo::from_constant(0)))
+            CODEGEN_LINE(FunctionContext::set_return_value(ValueInfo::from_constant(0)))
         }
         CODEGEN_LINE(jit_runner.process_module_fn(fn))
         {
@@ -184,7 +180,7 @@ TEST(LLVM_CODEGEN_JIT_API, inner_struct) {
             f2.verify();
         }
         INIT_MODULE(l_module)
-        CodeSectionContext::assert_no_context();
+        FunctionContext::function().assert_no_context();
     }
     jit_runner.add_module(l_cursor);
     jit_runner.bind();
@@ -271,9 +267,9 @@ TEST(LLVM_CODEGEN_JIT_API, array_basic_1d) {
     CODEGEN_LINE(Cursor::Context l_cursor_ctx{l_cursor})
     CODEGEN_LINE(TypeInfo int32_type = TypeInfo::mk_int32())
     CODEGEN_LINE(TypeInfo int32_arr5_type = TypeInfo::mk_array(int32_type, 5))
-    CODEGEN_LINE(TypeInfo int32_arr5_ptr_type = int32_arr5_type.pointer_type())
+    CODEGEN_LINE(TypeInfo int32_arr5_ptr_type = int32_arr5_type.mk_ptr())
     CODEGEN_LINE(TypeInfo int32_2d_type = TypeInfo::mk_array(int32_arr5_ptr_type, 5))
-    CODEGEN_LINE(TypeInfo int32_2d_ptr_type = int32_2d_type.pointer_type())
+    CODEGEN_LINE(TypeInfo int32_2d_ptr_type = int32_2d_type.mk_ptr())
     CODEGEN_LINE(TypeInfo bool_type = TypeInfo::mk_bool())
     CODEGEN_LINE(TypeInfo l_inner_struct)
     CODEGEN_LINE(TypeInfo l_outer_struct)
@@ -293,10 +289,10 @@ TEST(LLVM_CODEGEN_JIT_API, array_basic_1d) {
         CODEGEN_LINE(l_field_list.emplace_back("inner_field_3", int32_type))
         CODEGEN_LINE(l_field_list.emplace_back("inner_field_4", int32_type))
         CODEGEN_LINE(l_field_list.emplace_back("inner_field_5", int32_type))
-        CODEGEN_LINE(l_field_list.emplace_back("inner_field_6", l_inner_struct.pointer_type()))
+        CODEGEN_LINE(l_field_list.emplace_back("inner_field_6", l_inner_struct.mk_ptr()))
         CODEGEN_LINE(l_field_list.emplace_back("inner_field_7", int32_type))
         CODEGEN_LINE(l_field_list.emplace_back("inner_field_8", int32_type))
-        CODEGEN_LINE(l_field_list.emplace_back("inner_field_9", l_inner_struct.pointer_type()))
+        CODEGEN_LINE(l_field_list.emplace_back("inner_field_9", l_inner_struct.mk_ptr()))
         CODEGEN_LINE(l_field_list.emplace_back("inner_field_10", int32_type))
         CODEGEN_LINE(l_field_list.emplace_back("inner_field_11", int32_arr5_ptr_type))
         CODEGEN_LINE(l_field_list.emplace_back("inner_field_12", int32_arr5_ptr_type))
@@ -304,28 +300,26 @@ TEST(LLVM_CODEGEN_JIT_API, array_basic_1d) {
     }
     // Create struct type for big_struct_test_fn arguments
     std::vector<member_field_entry> args_fields;
-    args_fields.emplace_back("arg_inner", l_inner_struct.pointer_type());
-    args_fields.emplace_back("arg_outer", l_outer_struct.pointer_type());
+    args_fields.emplace_back("arg_inner", l_inner_struct.mk_ptr());
+    args_fields.emplace_back("arg_outer", l_outer_struct.mk_ptr());
     CODEGEN_LINE(TypeInfo args_type = TypeInfo::mk_struct("args", args_fields))
     LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
 
     CODEGEN_LINE(JustInTimeRunner jit_runner)
-    CODEGEN_LINE(l_cursor.set_context_type(args_type.pointer_type()))
-    CODEGEN_LINE(l_cursor.bind())
+    CODEGEN_LINE(l_cursor.bind(args_type.mk_ptr()))
     CODEGEN_LINE(Module l_module = l_cursor.main_module())
     CODEGEN_LINE(Module::Context l_module_ctx{l_module})
     {
-        CODEGEN_LINE(Function fn("big_struct_test_fn", l_module))
+        CODEGEN_LINE(Function fn("big_struct_test_fn"))
 
         {
-            CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
-            CODEGEN_LINE(l_fn_body.enter())
+            CODEGEN_LINE(FunctionContext l_fn_ctx{fn})
 
             CODEGEN_LINE(ValueInfo ctx = ValueInfo::from_context())
             CODEGEN_LINE(ValueInfo arg_inner = ctx.field("arg_inner").load())
             CODEGEN_LINE(ValueInfo arg_outer = ctx.field("arg_outer").load())
-            LLVM_BUILDER_ALWAYS_ASSERT(l_inner_struct.pointer_type() == arg_inner.type());
-            LLVM_BUILDER_ALWAYS_ASSERT(l_outer_struct.pointer_type() == arg_outer.type());
+            LLVM_BUILDER_ALWAYS_ASSERT(l_inner_struct.mk_ptr() == arg_inner.type());
+            LLVM_BUILDER_ALWAYS_ASSERT(l_outer_struct.mk_ptr() == arg_outer.type());
 
             CODEGEN_LINE(ValueInfo inner_field_6 = arg_outer.field("inner_field_6").load())
             for (const std::string& fname : std::initializer_list<std::string>{{"field_1", "field_2", "field_3", "field_4"}}) {
@@ -352,7 +346,7 @@ TEST(LLVM_CODEGEN_JIT_API, array_basic_1d) {
             }
             CODEGEN_LINE(inner_field_9.field("field_5").store(ValueInfo::from_constant(true)))
             CODEGEN_LINE(arg_inner.field("field_5").store(ValueInfo::from_constant(true)))
-            CODEGEN_LINE(CodeSectionContext::set_return_value(ValueInfo::from_constant(0)))
+            CODEGEN_LINE(FunctionContext::set_return_value(ValueInfo::from_constant(0)))
         }
         CODEGEN_LINE(jit_runner.process_module_fn(fn))
         {
@@ -361,7 +355,7 @@ TEST(LLVM_CODEGEN_JIT_API, array_basic_1d) {
             f2.verify();
         }
         INIT_MODULE(l_module)
-        CodeSectionContext::assert_no_context();
+        FunctionContext::function().assert_no_context();
     }
     jit_runner.add_module(l_cursor);
     jit_runner.bind();
@@ -455,9 +449,9 @@ TEST(LLVM_CODEGEN_JIT_API, full_test) {
     CODEGEN_LINE(Cursor::Context l_cursor_ctx{l_cursor})
     CODEGEN_LINE(TypeInfo int32_type = TypeInfo::mk_int32())
     CODEGEN_LINE(TypeInfo int32_arr5_type = TypeInfo::mk_array(int32_type, 5))
-    CODEGEN_LINE(TypeInfo int32_arr5_ptr_type = int32_arr5_type.pointer_type())
+    CODEGEN_LINE(TypeInfo int32_arr5_ptr_type = int32_arr5_type.mk_ptr())
     CODEGEN_LINE(TypeInfo int32_2d_type = TypeInfo::mk_array(int32_arr5_ptr_type, 5))
-    CODEGEN_LINE(TypeInfo int32_2d_ptr_type = int32_2d_type.pointer_type())
+    CODEGEN_LINE(TypeInfo int32_2d_ptr_type = int32_2d_type.mk_ptr())
     CODEGEN_LINE(TypeInfo l_outer_struct)
     {
         std::vector<member_field_entry> l_field_list;
@@ -469,19 +463,17 @@ TEST(LLVM_CODEGEN_JIT_API, full_test) {
     LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
 
     CODEGEN_LINE(JustInTimeRunner jit_runner)
-    CODEGEN_LINE(l_cursor.set_context_type(l_outer_struct.pointer_type()))
-    CODEGEN_LINE(l_cursor.bind())
+    CODEGEN_LINE(l_cursor.bind(l_outer_struct.mk_ptr()))
     CODEGEN_LINE(Module l_module = l_cursor.main_module())
     CODEGEN_LINE(Module::Context l_module_ctx{l_module})
     {
-        CODEGEN_LINE(Function fn("test_fn", l_module))
+        CODEGEN_LINE(Function fn("test_fn"))
 
         {
-            CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("test_fn_body"))
-            CODEGEN_LINE(l_fn_body.enter())
+            CODEGEN_LINE(FunctionContext l_fn_ctx{fn})
 
             CODEGEN_LINE(ValueInfo arg_outer = ValueInfo::from_context())
-            LLVM_BUILDER_ALWAYS_ASSERT(l_outer_struct.pointer_type() == arg_outer.type());
+            LLVM_BUILDER_ALWAYS_ASSERT(l_outer_struct.mk_ptr() == arg_outer.type());
 
             CODEGEN_LINE(ValueInfo inner_field_2 = arg_outer.field("inner_field_2").load())
             CODEGEN_LINE(ValueInfo inner_field_3 = arg_outer.field("inner_field_3").load())
@@ -492,7 +484,7 @@ TEST(LLVM_CODEGEN_JIT_API, full_test) {
                 CODEGEN_LINE(ValueInfo l_dst_entry_2 = inner_field_3.entry(3).load().entry(i))
                 CODEGEN_LINE(l_dst_entry_2.store(l_src_entry))
             }
-            CODEGEN_LINE(CodeSectionContext::set_return_value(ValueInfo::from_constant(0)))
+            CODEGEN_LINE(FunctionContext::set_return_value(ValueInfo::from_constant(0)))
         }
         CODEGEN_LINE(jit_runner.process_module_fn(fn))
         {
@@ -501,7 +493,7 @@ TEST(LLVM_CODEGEN_JIT_API, full_test) {
             f2.verify();
         }
         INIT_MODULE(l_module)
-        CodeSectionContext::assert_no_context();
+        FunctionContext::function().assert_no_context();
     }
     jit_runner.add_module(l_cursor);
     jit_runner.bind();
@@ -562,7 +554,7 @@ TEST(LLVM_CODEGEN_JIT_API, fn_pointer) {
     CODEGEN_LINE(Cursor::Context l_cursor_ctx{l_cursor})
     CODEGEN_LINE(TypeInfo int32_type = TypeInfo::mk_int32())
     CODEGEN_LINE(TypeInfo fn_type = TypeInfo::mk_fn_type())
-    CODEGEN_LINE(TypeInfo fn_ptr_type = fn_type.pointer_type())
+    CODEGEN_LINE(TypeInfo fn_ptr_type = fn_type.mk_ptr())
 
     LLVM_BUILDER_ALWAYS_ASSERT(not fn_type.has_error());
     LLVM_BUILDER_ALWAYS_ASSERT(not fn_ptr_type.has_error());
@@ -578,21 +570,19 @@ TEST(LLVM_CODEGEN_JIT_API, fn_pointer) {
     LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error());
 
     CODEGEN_LINE(JustInTimeRunner jit_runner)
-    CODEGEN_LINE(l_cursor.set_context_type(l_struct.pointer_type()))
-    CODEGEN_LINE(l_cursor.bind())
+    CODEGEN_LINE(l_cursor.bind(l_struct.mk_ptr()))
     CODEGEN_LINE(Module l_module = l_cursor.main_module())
     CODEGEN_LINE(Module::Context l_module_ctx{l_module})
     {
-        CODEGEN_LINE(Function fn("call_fn_ptr", l_module))
+        CODEGEN_LINE(Function fn("call_fn_ptr"))
         {
-            CODEGEN_LINE(CodeSection l_fn_body = fn.mk_section("body"))
-            CODEGEN_LINE(l_fn_body.enter())
+            CODEGEN_LINE(FunctionContext l_fn_ctx{fn})
 
             CODEGEN_LINE(ValueInfo ctx = ValueInfo::from_context())
             CODEGEN_LINE(ValueInfo fn_ptr_val = ctx.field("fn_ptr_field").load())
             CODEGEN_LINE(ValueInfo call_result = fn_ptr_val.call_fn())
             CODEGEN_LINE(ctx.field("result").store(call_result))
-            CODEGEN_LINE(CodeSectionContext::set_return_value(ValueInfo::from_constant(0)))
+            CODEGEN_LINE(FunctionContext::set_return_value(ValueInfo::from_constant(0)))
         }
         CODEGEN_LINE(jit_runner.process_module_fn(fn))
         {
@@ -601,7 +591,7 @@ TEST(LLVM_CODEGEN_JIT_API, fn_pointer) {
             f2.verify();
         }
         INIT_MODULE(l_module)
-        CodeSectionContext::assert_no_context();
+        FunctionContext::function().assert_no_context();
     }
     jit_runner.add_module(l_cursor);
     jit_runner.bind();

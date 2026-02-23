@@ -82,7 +82,7 @@ public:
         return m_section_name;
     }
     void print(std::ostream& os) const;
-    OSTREAM_FRIEND(SourceLoc)
+    friend std::ostream& operator<<(std::ostream& os, const SourceLoc& x) { x.print(os); return os; }
     bool operator == (const SourceLoc& rhs) const;
 };
 
@@ -139,7 +139,7 @@ public:
         return m_msg;
     }
     void print(std::ostream &os) const;
-    OSTREAM_FRIEND(Error);
+    friend std::ostream& operator<<(std::ostream& os, const Error& x) { x.print(os); return os; }
     static std::string error_code(ErrorCode e);
 };
 

@@ -10,7 +10,7 @@
 
 LLVM_BUILDER_NS_BEGIN
 
-// static_assert(std::is_base_of_v<_BaseObject<NAME>, NAME>);  
+// static_assert(std::is_base_of_v<_BaseObject, NAME>);
 #define CONTEXT_DECL(NAME)                    \
 public:                                       \
     class Context {                           \
@@ -122,7 +122,6 @@ public:
 };
 
 // NOTE{vibhanshu}: common interface of API public interface
-template <typename DerivT>
 class _BaseObject {
 public:
     enum class State : uint32_t {
@@ -130,6 +129,7 @@ public:
         ERROR
     };
 private:
+    mutable std::string m_log;
     mutable State m_state = State::VALID;
 protected:
     _BaseObject(State state) : m_state{state} {
@@ -147,16 +147,17 @@ protected:
         return *this;
     }
 public:
-    void M_mark_error() const {
+    void M_mark_error(const std::string& log = "") const {
         m_state = State::ERROR;
+        m_log = log;
     }
     bool has_error() const {
         return m_state == State::ERROR or ErrorContext::has_error();
     }
-    const Error& error() const;
-    bool is_null() const {
-        return static_cast<const DerivT&>(*this) == DerivT::null();
+    const std::string &error_log() const {
+        return m_log;
     }
+    const Error& error() const;
 };
 
 LLVM_BUILDER_NS_END

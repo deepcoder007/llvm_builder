@@ -6,6 +6,7 @@ SCRIPT_DIR=$(dirname $(dirname ${BASH_SOURCE[0]}))
 
 export BUILD_TYPE=Debug
 export BUILD_TYPE=RelWithDebInfo
+export BUILD_TYPE=Debug
 
 pushd $SCRIPT_DIR
 mkdir -p build

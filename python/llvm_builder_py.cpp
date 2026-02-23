@@ -13,7 +13,6 @@
 #include "llvm_builder/type.h"
 #include "llvm_builder/value.h"
 #include "llvm_builder/function.h"
-#include "llvm_builder/control_flow.h"
 #include "llvm_builder/jit.h"
 
 namespace nb = nanobind;
@@ -110,7 +109,9 @@ void bind_types(nb::module_& m) {
         .def("short_name", &TypeInfo::short_name)
         // Related types
         .def("base_type", &TypeInfo::base_type)
-        .def("pointer_type", &TypeInfo::pointer_type)
+        .def("mk_ptr", &TypeInfo::mk_ptr)
+        .def("mk_arr", &TypeInfo::mk_arr, "num_elements"_a)
+        .def("mk_vec", &TypeInfo::mk_vec, "num_elements"_a)
         // Field access
         .def("__getitem__", nb::overload_cast<uint32_t>(&TypeInfo::operator[], nb::const_), "i"_a)
         .def("__getitem__", nb::overload_cast<const std::string&>(&TypeInfo::operator[], nb::const_), "name"_a)
@@ -235,9 +236,6 @@ void bind_values(nb::module_& m) {
         .def_static("mk_pointer", &ValueInfo::mk_pointer, "type"_a)
         .def_static("mk_array", &ValueInfo::mk_array, "type"_a)
         .def_static("mk_struct", &ValueInfo::mk_struct, "type"_a)
-        .def_static("calc_struct_size", &ValueInfo::calc_struct_size, "type"_a)
-        .def_static("calc_struct_field_count", &ValueInfo::calc_struct_field_count, "type"_a)
-        .def_static("calc_struct_field_offset", &ValueInfo::calc_struct_field_offset, "type"_a, "idx"_a)
         // Template specializations for from_constant
         .def_static("from_bool", &ValueInfo::from_constant<bool>, "v"_a)
         .def_static("from_int8", &ValueInfo::from_constant<int8_t>, "v"_a)
@@ -265,49 +263,45 @@ void bind_functions(nb::module_& m) {
         .def("name", &CodeSection::name)
         .def("is_valid", &CodeSection::is_valid)
         .def("is_open", &CodeSection::is_open)
-        .def("is_commit", &CodeSection::is_commit)
         .def("is_sealed", &CodeSection::is_sealed)
         .def("enter", &CodeSection::enter)
-        .def("detach", &CodeSection::detach)
         .def("function", &CodeSection::function)
         .def("jump_to_section", &CodeSection::jump_to_section, "dst"_a)
         .def("conditional_jump", &CodeSection::conditional_jump, "value"_a, "then_dst"_a, "else_dst"_a)
         .def("__eq__", &CodeSection::operator==)
         .def_static("null", &CodeSection::null);
 
-    // CodeSectionContext (static methods only)
-    nb::class_<CodeSectionContext>(m, "CodeSectionContext")
-        .def_static("push_var_context", &CodeSectionContext::push_var_context)
-        .def_static("pop_var_context", &CodeSectionContext::pop_var_context)
-        .def_static("pop", &CodeSectionContext::pop, "name"_a)
-        .def_static("push", &CodeSectionContext::push, "name"_a, "v"_a)
-        .def_static("mk_ptr", &CodeSectionContext::mk_ptr, "name"_a, "type"_a, "default_value"_a)
-        .def_static("function", &CodeSectionContext::function)
-        .def_static("set_return_value", &CodeSectionContext::set_return_value, "value"_a)
-        .def_static("mk_section", &CodeSectionContext::mk_section, "name"_a)
-        .def_static("jump_to_section", &CodeSectionContext::jump_to_section, "dst"_a)
-        .def_static("section_break", &CodeSectionContext::section_break, "new_section_name"_a)
-        .def_static("current_section", &CodeSectionContext::current_section)
-        .def_static("is_current_section", &CodeSectionContext::is_current_section, "code"_a)
-        .def_static("current_function", &CodeSectionContext::current_function)
-        .def_static("clean_sealed_context", &CodeSectionContext::clean_sealed_context)
-        .def_static("assert_no_context", &CodeSectionContext::assert_no_context);
+    // FunctionContext
+    nb::class_<FunctionContext>(m, "FunctionContext")
+        .def(nb::init<const Function&>(), "fn"_a)
+        .def_static("set_fn", &FunctionContext::set_fn, "fn"_a)
+        .def_static("clear_fn", &FunctionContext::clear_fn)
+        .def_static("push_var_context", &FunctionContext::push_var_context)
+        .def_static("pop_var_context", &FunctionContext::pop_var_context)
+        .def_static("pop", &FunctionContext::pop, "name"_a)
+        .def_static("push", &FunctionContext::push, "name"_a, "v"_a)
+        .def_static("mk_ptr", &FunctionContext::mk_ptr, "name"_a, "type"_a, "default_value"_a)
+        .def_static("function", &FunctionContext::function)
+        .def_static("set_return_value", &FunctionContext::set_return_value, "value"_a)
+        .def_static("jump_to_section", &FunctionContext::jump_to_section, "dst"_a)
+        .def_static("section_break", &FunctionContext::section_break, "new_section_name"_a);
 
     // Function - complete the definition
     function_class
         .def(nb::init<>())
-        .def(nb::init<const std::string&, Module&>(), "name"_a, "mod"_a)
-        .def(nb::init<const std::string&>(), "name"_a)
+        .def(nb::init<const std::string&, bool>(), "name"_a, "is_external"_a = false)
         .def("is_valid", &Function::is_valid)
         .def("parent_module", &Function::parent_module, nb::rv_policy::reference)
         .def("name", &Function::name)
         .def("is_external", &Function::is_external)
         .def("call_fn", &Function::call_fn)
-        .def("declare_fn", &Function::declare_fn, "src_mod"_a, "dst_mod"_a)
-        .def("mk_section", &Function::mk_section, "name"_a)
+        .def("declare_fn", &Function::declare_fn, "dst_mod"_a)
         .def("verify", &Function::verify)
         .def("remove_from_module", &Function::remove_from_module)
         .def("write_to_ostream", &Function::write_to_ostream)
+        .def("current_section", &Function::current_section)
+        .def("is_current_section", &Function::is_current_section, "code"_a)
+        .def("assert_no_context", &Function::assert_no_context)
         .def("__eq__", &Function::operator==)
         .def_static("null", &Function::null);
 
@@ -342,11 +336,10 @@ void bind_modules(nb::module_& m) {
         .def(nb::init<>())
         .def(nb::init<const std::string&>(), "name"_a)
         .def("name", &Cursor::name)
-        .def("set_context_type", &Cursor::set_context_type, "ctx_type"_a)
         .def("main_module", &Cursor::main_module)
         .def("gen_module", &Cursor::gen_module)
         .def("is_bind_called", &Cursor::is_bind_called)
-        .def("bind", &Cursor::bind)
+        .def("bind", &Cursor::bind, "ctx_type"_a)
         .def("cleanup", &Cursor::cleanup)
         .def("__eq__", &Cursor::operator==)
         .def_static("null", &Cursor::null);

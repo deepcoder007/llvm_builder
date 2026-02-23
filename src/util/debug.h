@@ -114,7 +114,7 @@ class concat_t {
     void print(std::ostream& os) const {
         os << str();
     }
-    OSTREAM_FRIEND(concat_t)
+    friend std::ostream& operator<<(std::ostream& os, const concat_t& x) { x.print(os); return os; }
   private:
     void operator=(const concat_t&) = delete;
     void operator=(concat_t&&) = delete;
