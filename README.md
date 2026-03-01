@@ -3,6 +3,10 @@
 A C++ library to generate low latency binary code at runtime based on user input.
 providing high-level abstractions for building, compiling, and execution with JIT support.
 
+[Motivation](./doc/motivation.md)  
+[Proposed Solution](./doc/solution.md)  
+[Domain-Specific Language(DSL) ref](./doc/language_ref.md)  
+
 ## Features
 
 - **Type System** — Primitives (bool, int8–int64, uint8–uint64, float32, float64), pointers, arrays, vectors, structs, and function types
