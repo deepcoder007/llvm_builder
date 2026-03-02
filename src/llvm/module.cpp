@@ -63,12 +63,10 @@ public:
       : m_name{name}, m_ts_context{std::make_unique<llvm::LLVMContext>()},
         m_context{*m_ts_context.withContextDo([](llvm::LLVMContext* ctx) { return ctx; })},
         m_ir_builder{m_context} {
-        CODEGEN_FN
         LLVM_BUILDER_ASSERT(not name.empty());
         object::Counter::singleton().on_new(object::Callback::object_t::CURSOR, (uint64_t)this, m_name);
     }
     ~Impl() {
-        CODEGEN_FN
         m_ir_builder.ClearInsertionPoint();
         object::Counter::singleton().on_delete(object::Callback::object_t::CURSOR, (uint64_t)this, m_name);
     }
@@ -257,14 +255,16 @@ FOR_EACH_LLVM_TYPE(DECL_MK_TYPE)
         return m_int_context;
     }
     TypeInfo mk_type_struct(const std::string& name, const std::vector<member_field_entry>& element_list, bool is_packed, CursorPtr parent) {
-        CODEGEN_FN
         LLVM_BUILDER_ASSERT(is_valid());
         LLVM_BUILDER_ASSERT(not name.empty());
         LLVM_BUILDER_ASSERT(element_list.size() > 0);
         LLVM_BUILDER_ASSERT(not is_bind_called());
+        std::unordered_set<std::string> l_field_types_set;
         for ([[maybe_unused]] const member_field_entry& l_entry : element_list) {
             LLVM_BUILDER_ASSERT(l_entry.is_valid());
             LLVM_BUILDER_ASSERT(l_entry.type().is_valid_struct_field());
+            auto it = l_field_types_set.emplace(l_entry.name());
+            LLVM_BUILDER_ASSERT(it.second);
         }
         TypeInfoImpl l_type_impl = m_type_list.emplace_back(typename TypeInfoImpl::struct_construct_t{}, parent, name, element_list, is_packed);
         TypeInfo l_type{l_type_impl};
@@ -360,7 +360,7 @@ auto CursorPtr::context_type() const -> TypeInfo {
             if (ptr->is_bind_called()) {
                 return ptr->context_type();
             } else {
-                CODEGEN_PUSH_ERROR(MODULE, " bind not called for Cursor:" << name());
+                return TypeInfo::null(LLVM_BUILDER_CONCAT << " bind not called for Cursor:" << name());
             }
         }
     }
@@ -373,8 +373,7 @@ Module CursorPtr::main_module() {
             if (ptr->is_bind_called()) {
                 return ptr->main_module();
             } else {
-                CODEGEN_PUSH_ERROR(MODULE, " bind not called for Cursor:" << name());
-                return Module::null();
+                return Module::null(LLVM_BUILDER_CONCAT << " bind not called for Cursor:" << name());
             }
         } else {
             return Module::null();
@@ -390,8 +389,7 @@ Module CursorPtr::gen_module() {
             if (ptr->is_bind_called()) {
                 return ptr->gen_module(m_impl);
             } else {
-                CODEGEN_PUSH_ERROR(MODULE, " bind not called for Cursor:" << name());
-                return Module::null();
+                return Module::null(LLVM_BUILDER_CONCAT << " bind not called for Cursor:" << name());
             }
         } else {
             return Module::null();
@@ -423,8 +421,7 @@ Function CursorPtr::find_function(const std::string& name) {
 
 TypeInfo CursorPtr::mk_type_pointer(const TypeInfo& base_type) {
     if (base_type.has_error()) {
-        CODEGEN_PUSH_ERROR(MODULE, " can't define pointer to an invalid type");
-        return TypeInfo::null();
+        return TypeInfo::null("can't define pointer to an invalid type");
     }
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         if (ptr->is_valid()) {
@@ -469,18 +466,14 @@ TypeInfo CursorPtr::mk_int_context() {
 }
 
 TypeInfo CursorPtr::mk_type_array(TypeInfo element_type, uint32_t num_elements) {
-    CODEGEN_FN
     if (element_type.has_error()) {
-        CODEGEN_PUSH_ERROR(MODULE, " can't define array to an invalid type");
-        return TypeInfo::null();
+        return TypeInfo::null(" can't define array to an invalid type");
     }
     if (num_elements == 0) {
-        CODEGEN_PUSH_ERROR(MODULE, " can't define array of 0 elements");
-        return TypeInfo::null();
+        return TypeInfo::null(" can't define array of 0 elements");
     }
     if (not element_type.is_valid_struct_field()) {
-        CODEGEN_PUSH_ERROR(MODULE, "array can't be defined for this field type:" << element_type.short_name());
-        return TypeInfo::null();
+        return TypeInfo::null(LLVM_BUILDER_CONCAT << "array can't be defined for this field type:" << element_type.short_name());
     }
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         if (ptr->is_valid()) {
@@ -491,18 +484,14 @@ TypeInfo CursorPtr::mk_type_array(TypeInfo element_type, uint32_t num_elements) 
 }
 
 TypeInfo CursorPtr::mk_type_vector(TypeInfo element_type, uint32_t num_elements) {
-    CODEGEN_FN
     if (element_type.has_error()) {
-        CODEGEN_PUSH_ERROR(MODULE, " can't define vector to an invalid type");
-        return TypeInfo::null();
+        return TypeInfo::null("can't define vector to an invalid type");
     }
     if (num_elements == 0) {
-        CODEGEN_PUSH_ERROR(MODULE, " can't define vector of 0 elements");
-        return TypeInfo::null();
+        return TypeInfo::null(" can't define vector of 0 elements");
     }
     if (not element_type.is_scalar()) {
-        CODEGEN_PUSH_ERROR(MODULE, "vector can be defined of only scalar type");
-        return TypeInfo::null();
+        return TypeInfo::null("vector can be defined of only scalar type");
     }
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         if (ptr->is_valid()) {
@@ -513,25 +502,24 @@ TypeInfo CursorPtr::mk_type_vector(TypeInfo element_type, uint32_t num_elements)
 }
 
 TypeInfo CursorPtr::mk_type_struct(const std::string& name, const std::vector<member_field_entry>& element_list, bool is_packed) {
-    CODEGEN_FN
     if (name.empty()) {
-        CODEGEN_PUSH_ERROR(CONTEXT, "can't define struct without name");
-        return TypeInfo::null();
+        return TypeInfo::null("can't define struct without name");
     }
     if (element_list.size() == 0) {
-        CODEGEN_PUSH_ERROR(CONTEXT, "can't define struct without fields");
-        return TypeInfo::null();
+        return TypeInfo::null("can't define struct without fields");
     }
-    bool has_error = false;
+    std::unordered_set<std::string> l_field_types_set;
     for (const member_field_entry &l_element : element_list) {
         if (not l_element.is_valid()) {
-            CODEGEN_PUSH_ERROR(CONTEXT, "can't define struct with invalid entry");
-            return TypeInfo::null();
+            return TypeInfo::null("can't define struct with invalid entry");
         }
         const TypeInfo& l_element_type = l_element.type();
         if (l_element_type.has_error() or not l_element_type.is_valid_struct_field()) {
-            CODEGEN_PUSH_ERROR(CONTEXT, "fields of struct is not of valid type:" << l_element.name());
-            has_error = true;
+            return TypeInfo::null(LLVM_BUILDER_CONCAT << "fields of struct is not of valid type:" << l_element.name());
+        }
+        auto it = l_field_types_set.emplace(l_element.name());
+        if (not it.second) {
+            return TypeInfo::null(LLVM_BUILDER_CONCAT << "field with duplicate name found:" << l_element.name());
         }
         // TODO{vibhanshu}: test the whole hierarchy of struct deeply
         // rules are:
@@ -540,15 +528,12 @@ TypeInfo CursorPtr::mk_type_struct(const std::string& name, const std::vector<me
         // this rule needs to be tested recursively over struct definition
         // any failure rejects this structure
     }
-    if (has_error) {
-        return TypeInfo::null();
-    }
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         if (ptr->is_valid()) {
             if (not ptr->is_bind_called()) {
                 return ptr->mk_type_struct(name, element_list, is_packed, *this);
             } else {
-                CODEGEN_PUSH_ERROR(MODULE, " can't create new type after binding cursor:" << this->name());
+                return TypeInfo::null(LLVM_BUILDER_CONCAT << " can't create new type after binding cursor:" << this->name());
             }
         }
     }
@@ -594,8 +579,6 @@ void CursorPtr::cleanup() {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         if (ptr->is_valid()) {
             ptr->cleanup();
-        } else {
-            CODEGEN_PUSH_ERROR(MODULE, " Cursor already deleted:" << name());
         }
     }
 }
@@ -659,7 +642,6 @@ auto Cursor::name() -> const std::string& {
 }
 
 auto Cursor::context_type() -> TypeInfo {
-    CODEGEN_FN
     if (has_error()) {
         return TypeInfo::null();
     }
@@ -711,7 +693,6 @@ void Cursor::bind(const TypeInfo& ctx_type) {
 }
 
 void Cursor::cleanup() {
-    CODEGEN_FN
     if (has_error()) {
         return;
     }
@@ -765,7 +746,6 @@ private:
 public:
     explicit Impl(const std::string& name, const std::weak_ptr<Cursor::Impl>& cursor_impl)
         : m_name{name}, m_cursor_impl{cursor_impl} {
-        CODEGEN_FN
         LLVM_BUILDER_ASSERT(not name.empty());
         LLVM_BUILDER_ASSERT(m_cursor_impl.is_valid());
         FunctionContext::function().assert_no_context();
@@ -789,27 +769,23 @@ public:
         return m_public_symbols;
     }
     TypeInfo struct_type(const std::string &name) const {
-        CODEGEN_FN
         LLVM_BUILDER_ASSERT(not name.empty());
         if (m_structs.contains(name)) {
             return m_structs.at(name);
         } else {
-            CODEGEN_PUSH_ERROR(MODULE, " struct not found :" << name);
-            return TypeInfo::null();
+            return TypeInfo::null(LLVM_BUILDER_CONCAT << "struct not found :" << name);
         }
     }
     llvm::Module *native_handle() const {
         return m_raw_module.get();
     }
     std::vector<std::string> exported_symbol_names() const {
-        CODEGEN_FN
         LLVM_BUILDER_ASSERT(is_init());
         return transformed_public_symbols([this] (const LinkSymbol& symbol) -> std::string {
             return symbol.full_name();
         });
     }
     std::vector<std::string> transformed_public_symbols(std::function<std::string(const LinkSymbol &)> &&fn) const {
-        CODEGEN_FN
         LLVM_BUILDER_ASSERT(is_init());
         LLVM_BUILDER_ASSERT(fn);
         std::vector<std::string> l_ret;
@@ -819,12 +795,10 @@ public:
         return l_ret;
     }
     std::string public_symbol_name(const std::string &symbol) const {
-        CODEGEN_FN
         LLVM_BUILDER_ASSERT(not symbol.empty());
         if (contains(symbol)) {
             return LinkSymbolName{symbol}.full_name();
         } else {
-            CODEGEN_PUSH_ERROR(MODULE, "Symbol not found:" << symbol);
             return std::string{};
         }
     }
@@ -838,7 +812,6 @@ public:
         return false;
     }
     void register_symbol(const LinkSymbol &link_symbol) {
-        CODEGEN_FN
         LLVM_BUILDER_ASSERT(not link_symbol.has_error());
         LLVM_BUILDER_ASSERT(not link_symbol.full_name().empty());
         LLVM_BUILDER_ASSERT(not contains(link_symbol.full_name()));
@@ -846,7 +819,6 @@ public:
         m_public_symbols.emplace_back(link_symbol);
     }
     void init_standard() {
-        CODEGEN_FN
         LLVM_BUILDER_ASSERT(not is_init());
         llvm::DataLayout l_data_layout = CursorContextImpl::get_host_data_layout();
         LLVM_BUILDER_ASSERT(m_raw_module);
@@ -860,7 +832,6 @@ public:
         m_is_init = true;
     }
     Function get_function(Module& parent, const std::string &name) {
-        CODEGEN_FN
         LLVM_BUILDER_ASSERT(not parent.has_error());
         LLVM_BUILDER_ASSERT(not name.empty());
         const std::string l_full_name = LinkSymbolName{name}.full_name();
@@ -881,11 +852,9 @@ public:
     }
     // TODO{vibhanshu}: remove usage of C files as much possible, if not remove, reduce the size
     void write_to_file() const {
-        CODEGEN_FN
         write_llvm_output("");
     }
     void write_llvm_output(const std::string& suffix) const {
-        CODEGEN_FN
         const std::string stage_file_path = [suffix, this]() -> std::string {
             const std::string l_base_dir{"."};
             if (suffix.empty()) {
@@ -920,7 +889,6 @@ ModuleImpl::ModuleImpl(const std::string& name, const std::weak_ptr<Cursor::Impl
 //
 Module::Module(const ModuleImpl& impl)
     : BaseT{State::VALID} {
-    CODEGEN_FN
     m_impl = impl.ptr();
 }
 
@@ -942,21 +910,18 @@ bool Module::is_init() const {
 }
 
 const std::string& Module::name() const {
-    CODEGEN_FN
     if (has_error()) {
         return StringManager::null();
     }
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->name();
     } else {
-        CODEGEN_PUSH_ERROR(MODULE, "module already deleted");
         M_mark_error();
         return StringManager::null();
     }
 }
 
 auto Module::public_symbols() const -> const std::vector<LinkSymbol>& {
-    CODEGEN_FN
     static const std::vector<LinkSymbol> s_null{};
     if (has_error()) {
         return s_null;
@@ -964,47 +929,40 @@ auto Module::public_symbols() const -> const std::vector<LinkSymbol>& {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->public_symbols();
     } else {
-        CODEGEN_PUSH_ERROR(MODULE, "module already deleted");
         M_mark_error();
         return s_null;
     }
 }
 
 auto Module::struct_type(const std::string& name) const -> TypeInfo {
-    CODEGEN_FN
     if (has_error()) {
         return TypeInfo::null();
     }
     if (name.empty()) {
-        CODEGEN_PUSH_ERROR(MODULE, "can't search an empty string in a module");
         M_mark_error();
-        return TypeInfo::null();
+        return TypeInfo::null("can't search an empty string in a module");
     }
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->struct_type(name);
     } else {
-        CODEGEN_PUSH_ERROR(MODULE, "module already deleted");
         M_mark_error();
         return TypeInfo::null();
     }
 }
 
 llvm::Module* Module::native_handle() const {
-    CODEGEN_FN
     if (has_error()) {
         return nullptr;
     }
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->native_handle();
     } else {
-        CODEGEN_PUSH_ERROR(MODULE, "module already deleted");
         M_mark_error();
         return nullptr;
     }
 }
 
 std::vector<std::string> Module::exported_symbol_names() const {
-    CODEGEN_FN
     if (has_error()) {
         return std::vector<std::string>{};
     }
@@ -1016,7 +974,6 @@ std::vector<std::string> Module::exported_symbol_names() const {
             return std::vector<std::string>{};
         }
     } else {
-        CODEGEN_PUSH_ERROR(MODULE, "module already deleted");
         M_mark_error();
         return std::vector<std::string>{};
     }
@@ -1040,7 +997,6 @@ std::vector<std::string> Module::transformed_public_symbols(std::function<std::s
             return std::vector<std::string>{};
         }
     } else {
-        CODEGEN_PUSH_ERROR(MODULE, "module already deleted");
         M_mark_error();
         return std::vector<std::string>{};
     }
@@ -1059,7 +1015,6 @@ auto Module::public_symbol_name(const std::string& symbol) const -> std::string 
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->public_symbol_name(symbol);
     } else {
-        CODEGEN_PUSH_ERROR(MODULE, "module already deleted");
         M_mark_error();
         return StringManager::null();
     }
@@ -1071,14 +1026,11 @@ bool Module::contains(const std::string& symbol) const {
         return false;
     }
     if (symbol.empty()) {
-        CODEGEN_PUSH_ERROR(MODULE, "can't search for an empty symbol");
-        M_mark_error();
         return false;
     }
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->contains(symbol);
     } else {
-        CODEGEN_PUSH_ERROR(MODULE, "module already deleted");
         M_mark_error();
         return false;
     }
@@ -1112,7 +1064,6 @@ void Module::register_symbol(const LinkSymbol& link_symbol) {
         }
         return ptr->register_symbol(link_symbol);
     } else {
-        CODEGEN_PUSH_ERROR(MODULE, "module already deleted");
         M_mark_error();
         return;
     }
@@ -1131,7 +1082,6 @@ void Module::init_standard() {
         }
         ptr->init_standard();
     } else {
-        CODEGEN_PUSH_ERROR(MODULE, "module already deleted");
         M_mark_error();
     }
 }
@@ -1152,26 +1102,21 @@ std::unique_ptr<llvm::orc::ThreadSafeModule> Module::take_thread_safe_module() {
         ptr->m_is_init = false;
         return tsm;
     } else {
-        CODEGEN_PUSH_ERROR(MODULE, "module already deleted");
         M_mark_error();
         return nullptr;
     }
 }
 
 Function Module::get_function(const std::string& name) {
-    CODEGEN_FN
     if (has_error()) {
         return Function::null();
     }
     if (name.empty()) {
-        CODEGEN_PUSH_ERROR(MODULE, "Trying to search function with empty name");
-        M_mark_error();
         return Function::null();
     }
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->get_function(*this, name);
     } else {
-        CODEGEN_PUSH_ERROR(MODULE, "module already deleted");
         M_mark_error();
         return Function::null();
     }
@@ -1195,7 +1140,6 @@ void Module::add_struct_definition(const TypeInfo& struct_type) {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         ptr->add_struct_definition(*this, struct_type);
     } else {
-        CODEGEN_PUSH_ERROR(MODULE, "module already deleted");
         M_mark_error();
     }
 }
@@ -1213,7 +1157,6 @@ void Module::write_llvm_output(const std::string& suffix) const {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         ptr->write_llvm_output(suffix);
     } else {
-        CODEGEN_PUSH_ERROR(MODULE, "module already deleted");
         M_mark_error();
     }
 }
@@ -1231,7 +1174,6 @@ void Module::write_to_file() const {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         ptr->write_to_file();
     } else {
-        CODEGEN_PUSH_ERROR(MODULE, "module already deleted");
         M_mark_error();
     }
 }
@@ -1249,7 +1191,6 @@ void Module::write_to_ostream() const {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         ptr->write_to_ostream();
     } else {
-        CODEGEN_PUSH_ERROR(MODULE, "module already deleted");
         M_mark_error();
     }
 }

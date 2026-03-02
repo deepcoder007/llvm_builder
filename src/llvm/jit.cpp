@@ -282,6 +282,7 @@ public:
             dump_symbol_info(core_error);
             CODEGEN_PUSH_ERROR(JIT, core_error.str());
             object.M_mark_error();
+            return 0;
         }
         // TODO{vibhanshu}: collect lookup metric
         llvm::Expected<llvm::orc::ExecutorAddr> lookup_result = m_handle->lookup(symbol);

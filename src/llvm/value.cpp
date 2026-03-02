@@ -636,8 +636,7 @@ ValueInfo ValueInfo::cast(TypeInfo target_type) const {
     }                                                                                            \
     if (not equals_type(v2)) {                                                                   \
         M_mark_error();                                                                          \
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, #FN_NAME << " can't be defined for different type");     \
-        return ValueInfo::null();                                                                \
+        return ValueInfo::null(LLVM_BUILDER_CONCAT << #FN_NAME << " can't be defined for different type");    \
     }                                                                                            \
     TagInfo l_tag_info = tag_info();                                                             \
     l_tag_info = l_tag_info.set_union(v2.tag_info());                                            \
@@ -665,13 +664,11 @@ ValueInfo ValueInfo::cond(ValueInfo then_value, ValueInfo else_value) const {
     }
     if (not type().is_boolean()) {
         M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define cond operation for non boolean type");
-        return ValueInfo::null();
+        return ValueInfo::null("can't define cond operation for non boolean type");
     }
     if (not then_value.equals_type(else_value)) {
         M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "then and else value not of same type");
-        return ValueInfo::null();
+        return ValueInfo::null("then and else value not of same type");
     }
     TagInfo l_tag_info = tag_info().set_union(then_value.tag_info()).set_union(else_value.tag_info());
     ValueInfo v{value_type_t::conditional, then_value.type(), std::vector<ValueInfo>{{*this, then_value, else_value}}};
@@ -697,9 +694,7 @@ ValueInfo ValueInfo::load() const {
         return ValueInfo::null();
     }
     if (not this->type().is_pointer()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define load underlying operation for non pointer type");
-        return ValueInfo::null();
+        return ValueInfo::null("can't define load underlying operation for non pointer type");
     }
     ValueInfo v{value_type_t::load, type().base_type(), std::vector<ValueInfo>{{*this}}};
     return v;
@@ -711,20 +706,14 @@ ValueInfo ValueInfo::entry(uint32_t i) const {
         return ValueInfo::null();
     }
     if (not type().is_pointer()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define array-entry operation for non-pointer type");
-        return ValueInfo::null();
+        return ValueInfo::null("can't define array-entry operation for non-pointer type");
     }
     const TypeInfo& base_type = type().base_type();
     if (not base_type.is_array()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define array-entry operation for non-array pointer type");
-        return ValueInfo::null();
+        return ValueInfo::null("can't define array-entry operation for non-array pointer type");
     }
     if (i >= base_type.num_elements()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "Array is of size: " << base_type.num_elements() << ", can't access element:" << i);
-        return ValueInfo::null();
+        return ValueInfo::null(LLVM_BUILDER_CONCAT << "Array is of size: " << base_type.num_elements() << ", can't access element:" << i);
     }
     return ValueInfo{*this, base_type.base_type(), ValueInfo::from_constant(i), construct_entry_t{}};
 }
@@ -736,15 +725,11 @@ ValueInfo ValueInfo::entry(const ValueInfo& i) const {
         return ValueInfo::null();
     }
     if (not type().is_pointer()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define array-entry operation for non-pointer type");
-        return ValueInfo::null();
+        return ValueInfo::null("can't define array-entry operation for non-pointer type");
     }
     const TypeInfo& base_type = type().base_type();
     if (not base_type.is_array()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define array-entry operation for non-array pointer type");
-        return ValueInfo::null();
+        return ValueInfo::null("can't define array-entry operation for non-array pointer type");
     }
     // TODO{vibhanshu}: check if i is of type integer
     return ValueInfo{*this, base_type.base_type(), i, construct_entry_t{}};
@@ -756,20 +741,14 @@ ValueInfo ValueInfo::field(const std::string& s) const {
         return ValueInfo::null();
     }
     if (not type().is_pointer()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define struct-field access operation for non-pointer type");
-        return ValueInfo::null();
+        return ValueInfo::null("can't define struct-field access operation for non-pointer type");
     }
     if (s.empty()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define struct-field access operation for emptry field name");
-        return ValueInfo::null();
+        return ValueInfo::null("can't define struct-field access operation for emptry field name");
     }
     const TypeInfo& base_type = type().base_type();
     if (not base_type.is_struct()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define struct-field access operation for non-struct pointer type");
-        return ValueInfo::null();
+        return ValueInfo::null("can't define struct-field access operation for non-struct pointer type");
     }
     TypeInfo::field_entry_t field_entry = base_type[s];
     ValueInfo tgt_idx = ValueInfo::from_constant((int32_t)field_entry.idx());
@@ -783,9 +762,7 @@ ValueInfo ValueInfo::load_vector_entry(const ValueInfo& idx_v) const {
         return ValueInfo::null();
     }
     if (not type().is_vector()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define vector entry access operation for non-vector type");
-        return ValueInfo::null();
+        return ValueInfo::null("can't define vector entry access operation for non-vector type");
     }
     ValueInfo v{value_type_t::load_vector_entry, type().base_type(), std::vector<ValueInfo>{{*this, idx_v}}};
     v.add_tag(tag_info());
@@ -807,14 +784,10 @@ ValueInfo ValueInfo::call_fn() const {
         return ValueInfo::null();
     }
     if (not type().is_pointer()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't call non-pointer type as function");
-        return ValueInfo::null();
+        return ValueInfo::null("can't call non-pointer type as function");
     }
     if (not type().base_type().is_function()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't call non-function pointer type");
-        return ValueInfo::null();
+        return ValueInfo::null("can't call non-function pointer type");
     }
     return ValueInfo{value_type_t::fn_ptr_call, TypeInfo::mk_int32(), std::vector<ValueInfo>{{*this}}};
 }
@@ -826,18 +799,15 @@ void ValueInfo::store(const ValueInfo& value) const {
         return;
     }
     if (not type().is_pointer()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define store operation for non pointer type");
+        M_mark_error("can't define store operation for non pointer type");
         return;
     }
     if (not type().base_type().is_scalar() and not type().base_type().is_vector()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define store operation for non scalar(bool, int, float) and non-vector object");
+        M_mark_error("can't define store operation for non scalar(bool, int, float) and non-vector object");
         return;
     }
     if (type().base_type() != value.type()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "type mis-match between pointer and value type: expected:" << type().base_type().short_name() << " found:" << value.type().short_name());
+        M_mark_error(LLVM_BUILDER_CONCAT << "type mis-match between pointer and value type: expected:" << type().base_type().short_name() << " found:" << value.type().short_name());
         return;
     }
     ValueInfo{value_type_t::store, type(), std::vector<ValueInfo>{{*this, value}}};
@@ -866,14 +836,10 @@ ValueInfo ValueInfo::load_vector_entry(uint32_t i) const {
         return ValueInfo::null();
     }
     if (not type().is_vector()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define vector entry access operation for non-vector type");
-        return ValueInfo::null();
+        return ValueInfo::null("can't define vector entry access operation for non-vector type");
     }
-    if (i > type().num_elements()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't access entry:" << i << ", total elements:" << type().num_elements());
-        return ValueInfo::null();
+    if (i >= type().num_elements()) {
+        return ValueInfo::null(LLVM_BUILDER_CONCAT << "can't access entry:" << i << ", total elements:" << type().num_elements());
     }
     ValueInfo v{value_type_t::load_vector_entry, type().base_type(), std::vector<ValueInfo>{{*this, ValueInfo::from_constant<int32_t>(i)}}};
     v.add_tag(tag_info());
@@ -886,14 +852,10 @@ ValueInfo ValueInfo::store_vector_entry(uint32_t i, ValueInfo value) const {
         return ValueInfo::null();
     }
     if (not type().is_vector()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't define vector entry access operation for non-vector type");
-        return ValueInfo::null();
+        return ValueInfo::null("can't define vector entry access operation for non-vector type");
     }
-    if (i > type().num_elements()) {
-        M_mark_error();
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "can't access entry:" << i << ", total elements:" << type().num_elements());
-        return ValueInfo::null();
+    if (i >= type().num_elements()) {
+        return ValueInfo::null(LLVM_BUILDER_CONCAT << "can't access entry:" << i << ", total elements:" << type().num_elements());
     }
     ValueInfo v{value_type_t::store_vector_entry, type(), std::vector<ValueInfo>{{*this, ValueInfo::from_constant<int32_t>(i), value}}};
     v.add_tag(tag_info());

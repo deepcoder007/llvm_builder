@@ -472,6 +472,8 @@ TEST(LLVM_CODEGEN_SYMBOL_SEMANTICS, hierarchical_def) {
         CODEGEN_LINE(ValueInfo arg_arr2_ptr = ctx.field("arg_arr2").load())
         CODEGEN_LINE(ValueInfo arg1 = arg1_ptr.load())
         CODEGEN_LINE(ValueInfo arg2 = arg2_ptr.load())
+        CODEGEN_LINE(ValueInfo arg2_type = arg2.cast(int32_type.mk_ptr()))
+        LLVM_BUILDER_ASSERT(not arg2_type.has_error())
         //
         //  computation graph END
         //

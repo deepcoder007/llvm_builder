@@ -98,8 +98,7 @@ public:
             } else if (m_parent) {
                 return m_parent->try_get_value(name);
             } else {
-                CODEGEN_PUSH_ERROR(VALUE_ERROR, "value not found:" << name);
-                return ValueInfo::null();
+                return ValueInfo::null(LLVM_BUILDER_CONCAT << "value not found:" << name);
             }
         }
     }
@@ -288,8 +287,7 @@ public:
         LLVM_BUILDER_ASSERT(fn.name() == m_fn_name);
         for (CodeSectionImpl& section : m_section_list) {
             if (section.name() == name) {
-                CODEGEN_PUSH_ERROR(CODE_SECTION, "Duplicate code-section name:" << name);
-                return CodeSection::null();
+                return CodeSection::null(LLVM_BUILDER_CONCAT << "Duplicate code-section name:" << name);
             }
         }
         CodeSectionImpl& l_entry = m_section_list.emplace_back(name, fn);
@@ -326,9 +324,7 @@ public:
     CodeSection current_section() {
         CODEGEN_FN
         if (m_section_stack.size() == 0) {
-            // TODO{vibhanshu}: not really sure if we should throw an eror here or not
-            // CODEGEN_PUSH_ERROR(CODE_SECTION, "No section found");
-            return CodeSection::null();
+            return CodeSection::null("No section found");
         }
         return m_section_stack.back();
     }
@@ -402,18 +398,15 @@ Function::Function(const std::string& name, bool is_external)
   : BaseT{State::VALID} {
     CODEGEN_FN
     if (not CursorContextImpl::has_value()) {
-        CODEGEN_PUSH_ERROR(CONTEXT, "function can't be compiled as context not found");
-        M_mark_error();
+        M_mark_error("function can't be compiled as context not found");
         return;
     }
     if (name.empty()) {
-        CODEGEN_PUSH_ERROR(FUNCTION, "Function name not set");
-        M_mark_error();
+        M_mark_error("Function name not set");
         return;
     }
     if (not Module::Context::has_value()) {
-        CODEGEN_PUSH_ERROR(FUNCTION, "no active module found");
-        M_mark_error();
+        M_mark_error("no active module found");
         return;
     }
     FunctionImpl impl(name, is_external, c_construct{});
@@ -512,9 +505,7 @@ CodeSection Function::mk_section(const std::string& name) {
         return CodeSection::null();
     }
     if (name.empty()) {
-        CODEGEN_PUSH_ERROR(FUNCTION, "code-section name can't be empty");
-        M_mark_error();
-        return CodeSection::null();
+        return CodeSection::null("code-section name can't be empty");
     }
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->mk_section(name, *this);
@@ -855,7 +846,6 @@ auto CodeSection::name() const -> const std::string& {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->name();
     } else {
-        CODEGEN_PUSH_ERROR(FUNCTION, "function already deleted");
         M_mark_error();
         return s_name;
     }
@@ -1161,8 +1151,7 @@ ValueInfo FunctionContext::pop(std::string_view name) {
     CODEGEN_FN
     CString cname{name};
     if (cname.empty()) {
-        CODEGEN_PUSH_ERROR(CODE_SECTION, "can't pop/read an empty variable name");
-        return ValueInfo::null();
+        return ValueInfo::null("can't pop/read an empty variable name");
     } else {
         return VariableContextMgr::singleton().try_get_value(cname.str());
     }
@@ -1184,11 +1173,11 @@ ValueInfo FunctionContext::mk_ptr(std::string_view name, const TypeInfo& type, c
     CODEGEN_FN
     CString cname{name};
     if (cname.empty()) {
-        CODEGEN_PUSH_ERROR(CODE_SECTION, "can't mk an empty variable name");
+        return ValueInfo::null("can't mk an empty variable name");
     } else if (type.has_error()) {
-        CODEGEN_PUSH_ERROR(CODE_SECTION, "can't mk a pointer with invalid type variable");
+        return ValueInfo::null("can't mk a pointer with invalid type variable");
     } else if (default_value.has_error()) {
-        CODEGEN_PUSH_ERROR(CODE_SECTION, "can't mk a pointer with invalid default value");
+        return ValueInfo::null("can't mk a pointer with invalid default value");
     } else {
         return VariableContextMgr::singleton().mk_ptr(cname.str(), type, default_value);
     }

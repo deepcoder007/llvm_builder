@@ -117,6 +117,7 @@ public:
     T* get_field_location(const Field& field) const {
         LLVM_BUILDER_ASSERT(is_instance_of(field.struct_def()));
         int32_t l_offset = field.offset();
+        LLVM_BUILDER_ASSERT(l_offset >= 0);
         char* l_field_ptr = M_get_buf((uint32_t)l_offset);
         LLVM_BUILDER_ASSERT(l_field_ptr  != nullptr);
         return reinterpret_cast<T*>(l_field_ptr);
@@ -593,7 +594,7 @@ private:
         case type_t::uint32:  return 4; break;
         case type_t::uint64:  return 8; break;
         case type_t::float32: return 4; break;
-        case type_t::float64: return 4; break;
+        case type_t::float64: return 8; break;
         case type_t::pointer_struct: return sizeof(uint64_t); break;
         case type_t::pointer_array:  return sizeof(uint64_t); break;
         default:   return std::numeric_limits<uint32_t>::max(); break;

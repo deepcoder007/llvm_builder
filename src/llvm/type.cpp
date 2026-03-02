@@ -151,27 +151,22 @@ public:
     const std::string& name() const {
         return m_name;
     }
-    const TypeInfo& base_type() const {
+    TypeInfo base_type() const {
         if (is_pointer() or is_array() or is_vector()) {
             return m_type_list[0].type();
         } else {
-            CODEGEN_PUSH_ERROR(VALUE_ERROR, LLVM_BUILDER_CONCAT << "can't define base-type of type:" << short_name())
-            static const TypeInfo s_null{};
-            return s_null;
+            return TypeInfo::null(LLVM_BUILDER_CONCAT << "can't define base-type of type: " << short_name());
         }
     }
     field_entry_t  operator [] (uint32_t i) const {
-        CODEGEN_FN
         if (is_struct() and i < m_type_list.size()) {
             const full_field_info_t& l_field_info = m_type_list[i];
             return field_entry_t{i, l_field_info.offset(), l_field_info.name(), l_field_info.type(), l_field_info.is_readonly()};
         } else {
-            CODEGEN_PUSH_ERROR(VALUE_ERROR, LLVM_BUILDER_CONCAT << "unable to find field:" << i << " in struct:" << name())
-            return field_entry_t::null();
+            return field_entry_t::null(LLVM_BUILDER_CONCAT << "unable to find field:" << i << " in struct:" << name());
         }
     }
     field_entry_t operator [] (const std::string& s) const {
-        CODEGEN_FN
         if (is_struct() and s.size() > 0) {
             uint32_t i = 0;
             for (const full_field_info_t& e : m_type_list) {
@@ -181,8 +176,7 @@ public:
                 ++i;
             }
         }
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, LLVM_BUILDER_CONCAT << "unable to find field:" << s << " in struct:" << name())
-        return field_entry_t::null();
+        return field_entry_t::null(LLVM_BUILDER_CONCAT << "unable to find field:" << s << " in struct:" << name());
     }
     uint32_t num_elements() const {
         if (is_array() or is_vector() or is_struct()) {
@@ -245,17 +239,13 @@ TypeInfo::field_entry_t::field_entry_t(const uint32_t idx,
     , m_type{type}
     , m_is_readonly{is_readonly} {
     if (idx == std::numeric_limits<uint32_t>::max()) {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "trying to build invalid field entry")
-        M_mark_error();
+        M_mark_error("trying to build invalid field entry");
     } else if (offset == std::numeric_limits<uint32_t>::max()) {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "trying to build invalid field entry")
-        M_mark_error();
+        M_mark_error("trying to build invalid field entry");
     } else if (name.empty()) {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "trying to build field entry without name")
-        M_mark_error();
+        M_mark_error("trying to build field entry without name");
     } else if (type.has_error()) {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "trying to build field entry wit invalid type")
-        M_mark_error();
+        M_mark_error("trying to build field entry wit invalid type");
     }
 }
 
@@ -300,7 +290,6 @@ auto TypeInfo::field_entry_t::null(const std::string& log) -> field_entry_t {
                                                                         
 #define BINARY_OP_IMPL_FN(FN_NAME, SIGN_FN, UNSIGNED_FN, FLOAT_FN)      \
     llvm::Value* FN_NAME (llvm::Value* lhs, llvm::Value* rhs) {         \
-        CODEGEN_FN                                                      \
         LLVM_BUILDER_ASSERT(lhs != nullptr)                             \
         LLVM_BUILDER_ASSERT(rhs != nullptr)                             \
         if (not is_scalar() and not is_vector())  {                     \
@@ -432,7 +421,6 @@ public:
                   const bool packed)
         : m_cursor_impl{cursor_impl}
         , m_type_id{type_id_t::struct_t} {
-        CODEGEN_FN
         LLVM_BUILDER_ASSERT(m_cursor_impl.is_valid());
         LLVM_BUILDER_ASSERT(field_types.size() > 0);
         LLVM_BUILDER_ASSERT(not m_cursor_impl.is_bind_called());
@@ -445,10 +433,7 @@ public:
             LLVM_BUILDER_ASSERT(l_type.is_scalar() or l_type.is_pointer());
             l_raw_type_list.emplace_back(l_type.native_value());
             auto it = l_field_types_set.emplace(l_info.name());
-            if (not it.second) {
-                CODEGEN_PUSH_ERROR(TYPE_ERROR, "duplicate field name in struct:" << name << "." << l_info.name());
-                return;
-            }
+            LLVM_BUILDER_ASSERT(it.second);
         }
         m_type = (llvm::Type*)llvm::StructType::create(m_cursor_impl.ctx(), l_raw_type_list, name, packed);
         llvm::DataLayout l_data_layout = CursorContextImpl::get_host_data_layout();
@@ -543,14 +528,12 @@ public:
         LLVM_BUILDER_ASSERT(m_type != nullptr);
         return m_type;
     }
-    const TypeInfo& base_type() const {
+    TypeInfo base_type() const {
         CODEGEN_FN
         if (m_derived_info) {
             return m_derived_info->base_type();
         } else {
-            CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type is scalar");
-            static const TypeInfo s_null{};
-            return s_null;
+            return TypeInfo::null("Parent type is scalar");
         }
     }
     field_entry_t operator[](uint32_t i) const {
@@ -558,8 +541,7 @@ public:
         if (m_derived_info) {
             return (*m_derived_info)[i];
         } else {
-            CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type is scalar");
-            return field_entry_t::null();
+            return field_entry_t::null("Type is scalar, can't access array entry in it");
         }
     }
     field_entry_t operator[](const std::string &s) const {
@@ -568,8 +550,7 @@ public:
         if (m_derived_info) {
             return (*m_derived_info)[s];
         } else {
-            CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type is scalar");
-            return field_entry_t::null();
+            return field_entry_t::null("Type is scalar, can't access field entry in it");
         }
     }
     uint32_t num_elements() const {
@@ -577,7 +558,6 @@ public:
         if (m_derived_info) {
             return m_derived_info->num_elements();
         } else {
-            CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type is scalar");
             return std::numeric_limits<uint32_t>::max();
         }
     }
@@ -594,7 +574,6 @@ public:
         if (is_struct()) {
             return m_derived_info->struct_size_bytes();
         } else {
-            CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type is not struct");
             return std::numeric_limits<uint32_t>::max();
         }
     }
@@ -855,7 +834,7 @@ bool TypeInfo::operator == (const TypeInfo& o) const {
     }
 }
 
-#define DEF_GETTER(FN_NAME, TYPE, DEFAULT_VALUE)                    \
+#define DEF_GETTER(FN_NAME, TYPE, DEFAULT_VALUE)                \
 auto TypeInfo::FN_NAME() const -> TYPE {                        \
     CODEGEN_FN                                                  \
         if (has_error()) {                                      \
@@ -885,7 +864,7 @@ DEF_GETTER(is_vector, bool, false)
 DEF_GETTER(is_struct, bool, false)
 DEF_GETTER(is_function, bool, false)
 DEF_GETTER(native_value, llvm::Type*, nullptr)
-DEF_GETTER(base_type, TypeInfo, TypeInfo::null())
+DEF_GETTER(base_type, TypeInfo, TypeInfo::null("INVALID_PARENT_TYPE"))
 DEF_GETTER(num_elements, uint32_t, std::numeric_limits<uint32_t>::max())
 DEF_GETTER(struct_size_bytes, uint32_t, std::numeric_limits<uint32_t>::max())
 DEF_GETTER(struct_name, std::string, "INVALID_STRUCT")
@@ -966,9 +945,7 @@ auto TypeInfo::operator[] (const std::string& s) const -> field_entry_t {
         return field_entry_t::null();
     }
     if (s.empty()) {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "can't search for empty field name in struct");
-        M_mark_error();
-        return field_entry_t::null();
+        return field_entry_t::null("can't search for empty field name in struct");
     }
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         return ptr->operator [](s);
@@ -1057,7 +1034,7 @@ TypeInfo TypeInfo::mk_type<void>() {
 }                                              
 FOR_EACH_LLVM_TYPE(DEF_MK_TYPE2)
 
-#undef DEF_MKT_TYPE2
+#undef DEF_MK_TYPE2
 
 TypeInfo TypeInfo::mk_int_context() {
     CODEGEN_FN
@@ -1067,8 +1044,7 @@ TypeInfo TypeInfo::mk_int_context() {
 TypeInfo TypeInfo::mk_type_from_name(const std::string& name) {
     CODEGEN_FN
     if (name.empty()) {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type name can't be empty");
-        return TypeInfo::null();
+        return TypeInfo::null("Type name can't be empty");
     }
     CString name_view{name};
     if (name_view.equals("bool"_cs)) {
@@ -1094,16 +1070,14 @@ TypeInfo TypeInfo::mk_type_from_name(const std::string& name) {
     } else if(name_view.equals("uint64_t"_cs)) {
         return TypeInfo::mk_uint64();
     } else {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "Type name not identified:" << name);
-        return TypeInfo::null();
+        return TypeInfo::null(LLVM_BUILDER_CONCAT << "Type name not identified:" << name);
     }
 }
 
 TypeInfo TypeInfo::mk_pointer(TypeInfo element_type) {
     CODEGEN_FN
     if (element_type.has_error()) {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "element_type invalid for pointer");
-        return TypeInfo::null();
+        return TypeInfo::null("can't make pointer type of an invalid type");
     } else {
         return CursorContextImpl::mk_type_pointer(element_type);
     }
@@ -1112,14 +1086,11 @@ TypeInfo TypeInfo::mk_pointer(TypeInfo element_type) {
 TypeInfo TypeInfo::mk_array(TypeInfo element_type, uint32_t num_elements) {
     CODEGEN_FN
     if (element_type.has_error()) {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "element_type invalid for array");
-        return TypeInfo::null();
+        return TypeInfo::null("can't make array of invalid type");
     } else if (num_elements == 0) {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "number of elements can't be 0 in array");
-        return TypeInfo::null();
+        return TypeInfo::null("number of elements can't be 0 in array");
     } else if (not element_type.is_scalar() and not element_type.is_pointer()) {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "array can be formed of only scalar type or of pointer");
-        return TypeInfo::null();
+        return TypeInfo::null("array can be formed of only scalar type or of pointer");
     } else {
         return CursorContextImpl::mk_type_array(element_type, num_elements);
     }
@@ -1128,14 +1099,11 @@ TypeInfo TypeInfo::mk_array(TypeInfo element_type, uint32_t num_elements) {
 TypeInfo TypeInfo::mk_vector(TypeInfo element_type, uint32_t num_elements) {
     CODEGEN_FN
     if (element_type.has_error()) {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "element_type invalid for vector");
-        return TypeInfo::null();
-    } else if (element_type.has_error() or num_elements == 0) {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "number of elements can't be 0 in vector");
-        return TypeInfo::null();
+        return TypeInfo::null("can't make vector of invalid type");
+    } else if (num_elements == 0) {
+        return TypeInfo::null("number of elements can't be 0 in vector");
     } else if (not element_type.is_scalar()) {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "vector can be formed of only scalar type");
-        return TypeInfo::null();
+        return TypeInfo::null("vector can be formed of only scalar type");
     } else {
         return CursorContextImpl::mk_type_vector(element_type, num_elements);
     }
@@ -1144,18 +1112,15 @@ TypeInfo TypeInfo::mk_vector(TypeInfo element_type, uint32_t num_elements) {
 TypeInfo TypeInfo::mk_struct(const std::string& name, const std::vector<member_field_entry>& element_list, bool is_packed) {
     CODEGEN_FN
     if (name.empty()) {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "struct name can't be empty");
-        return TypeInfo::null();
+        return TypeInfo::null("struct name can't be empty");
     }
     if (element_list.size() == 0) {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "struct can't have 0 fields");
-        return TypeInfo::null();
+        return TypeInfo::null("struct can't have 0 fields");
     }
     if (CursorContextImpl::has_value()) {
         return CursorContextImpl::mk_type_struct(name, element_list, is_packed);
     } else {
-        CODEGEN_PUSH_ERROR(TYPE_ERROR, "Not in context");
-        return TypeInfo::null();
+        return TypeInfo::null("Not in context");
     }
 }
 
@@ -1218,17 +1183,14 @@ LinkSymbolName::LinkSymbolName(const std::string& ns, const std::string& name)
     , m_full_name{M_full_name()} {
     CODEGEN_FN
     if (m_name.empty()) {
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "name can't be empty in LinkSymbolName");
-        M_mark_error();
+        M_mark_error("name can't be empty in LinkSymbolName");
         return;
     }
     if (m_namespace.empty()) {
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "Namespace can't be empty");
-        M_mark_error();
+        M_mark_error("Namespace can't be empty");
     }
     if (not is_valid()) {
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "LinkSymbolName not valid");
-        M_mark_error();
+        M_mark_error("LinkSymbolName not valid");
     }
 }
 
@@ -1239,8 +1201,7 @@ LinkSymbolName::LinkSymbolName(const std::string& name)
     , m_full_name{M_full_name()} {
     CODEGEN_FN
     if (m_name.empty()) {
-        CODEGEN_PUSH_ERROR(VALUE_ERROR, "name can't be empty in LinkSymbolName");
-        M_mark_error();
+        M_mark_error("name can't be empty in LinkSymbolName");
         return;
     }
 }
@@ -1317,22 +1278,17 @@ void LinkSymbol::M_ensure_valid() const {
         return;
     }
     if (not is_valid()) {
-        CODEGEN_PUSH_ERROR(LINK_SYMBOL, "LinkSymbol not valid");
-        M_mark_error();
+        M_mark_error("LinkSymbol not valid");
     } else if (not m_symbol_name.is_valid()) {
-        CODEGEN_PUSH_ERROR(LINK_SYMBOL, "LinkSymbolName not valid");
-        M_mark_error();
+        M_mark_error("LinkSymbolName not valid");
     } else if (not m_ctype.is_valid()) {
-        CODEGEN_PUSH_ERROR(LINK_SYMBOL, "LinkSymbol Type not valid");
-        M_mark_error();
+        M_mark_error("LinkSymbol Type not valid");
     } else if (is_custom_struct()) {
         if (not m_ctype.is_struct()) {
-            CODEGEN_PUSH_ERROR(LINK_SYMBOL, "LinkSymbol of struct type incorrect tag");
-            M_mark_error();
+            M_mark_error("LinkSymbol of struct type incorrect tag");
         }
     } else if(not is_function()) {
-        CODEGEN_PUSH_ERROR(LINK_SYMBOL, "LinkSymbol is not of any identified type");
-        M_mark_error();
+        M_mark_error("LinkSymbol is not of any identified type");
     }
 }
 
