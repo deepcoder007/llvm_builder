@@ -5,11 +5,12 @@
 #ifndef LLVM_BUILDER_LLVM_MODULE_H_
 #define LLVM_BUILDER_LLVM_MODULE_H_
 
-#include "llvm_builder/type.h"
-#include "llvm_builder/defines.h"
-#include "llvm_builder/util/object.h"
-#include "llvm_builder/function.h"
+#include "defines.h"
+#include "type.h"
+#include "function.h"
 #include "value.h"
+#include "event.h"
+#include "llvm_builder/util/object.h"
 
 #include <unordered_map>
 #include <memory>
@@ -29,7 +30,6 @@ class Function;
 class Module;
 class JustInTimeRunner;
 
-// TODO{vibhanshu}: do we need one context or multiple?
 class Cursor : public _BaseObject {
     using BaseT = _BaseObject;
     friend class CursorPtr;
@@ -52,7 +52,8 @@ public:
     Module gen_module();
     void main_module_hook_fn(on_main_module_fn_t&& fn);
     bool is_bind_called();
-    void bind(const TypeInfo& ctx_type);
+    void add_field(const std::string& name, TypeInfo type, Event event = Event::null());
+    void bind(const std::string& context_name);
     void cleanup();
     void for_each_module(on_module_fn_t&& fn);
     bool operator == (const Cursor& o) const;

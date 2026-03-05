@@ -5,7 +5,7 @@
 #ifndef LLVM_BUILDER_LLVM_TYPE_H_
 #define LLVM_BUILDER_LLVM_TYPE_H_
 
-#include "llvm_builder/defines.h"
+#include "defines.h"
 #include "llvm_builder/util/object.h"
 
 #include <cstddef>
@@ -24,9 +24,9 @@ LLVM_BUILDER_NS_BEGIN
 // TODO{vibhanshu}: add support for unsigned int types
 
 class ValueInfo;
+class TypeInfo;
 class TypeInfoImpl;
-
-class member_field_entry;
+class field_entry_t;
 
 #define DECL_EQUIV_FN(fn)                                                     \
     bool is_##fn##_equiv () const {                                           \
@@ -38,6 +38,7 @@ class TypeInfo : public _BaseObject {
     using BaseT = _BaseObject;
     friend class ValueInfo;
     friend class TypeInfoImpl;
+    friend class Cursor;
     struct void_construct_t{};
     struct int_construct_t{};
     struct float_construct_t{};
@@ -47,43 +48,6 @@ class TypeInfo : public _BaseObject {
     struct struct_construct_t {};
     struct function_construct_t {};
 public:
-    class field_entry_t : public _BaseObject {
-        using BaseT = _BaseObject;
-    private:
-        const uint32_t m_idx;
-        const uint32_t m_offset;
-        // TODO{vibhanshu}: maybe need to add field alignment also
-        const std::string& m_name;
-        const TypeInfo& m_type;
-        const bool m_is_readonly = false;
-    public:
-        explicit field_entry_t(const uint32_t idx,
-                               const uint32_t offset,
-                               const std::string& name,
-                               const TypeInfo& type,
-                               bool is_readonly);
-        // explicit field_entry_t(const uint32_t idx, const uint32_t offset, const std::pair<std::string, TypeInfo>& entry);
-        ~field_entry_t();
-    public:
-        uint32_t idx() const {
-            return m_idx;
-        }
-        uint32_t offset() const {
-            return m_offset;
-        }
-        const std::string& name() const {
-            return m_name;
-        }
-        TypeInfo type() const {
-            return m_type;
-        }
-        bool is_readonly() const {
-            return m_is_readonly;
-        }
-        bool operator == (const field_entry_t& o) const;
-        static field_entry_t null(const std::string& log = "");
-    };
-    static_assert(sizeof(field_entry_t) == 72);
     class Impl;
 private:
     struct derived_info_t;
@@ -143,12 +107,11 @@ FOR_EACH_LLVM_TYPE(DECL_MK_TYPE)
     static TypeInfo mk_fn_type();
     template <typename T>
     static TypeInfo mk_type();
-    static TypeInfo mk_int_context();
     static TypeInfo mk_type_from_name(const std::string& name);
     static TypeInfo mk_pointer(TypeInfo element_type);
     static TypeInfo mk_array(TypeInfo element_type, uint32_t num_elements);
     static TypeInfo mk_vector(TypeInfo element_type, uint32_t num_elements);
-    static TypeInfo mk_struct(const std::string& name, const std::vector<member_field_entry>& element_list, bool is_packed = false);
+    static TypeInfo mk_struct(const std::string& name, const std::vector<field_entry_t>& element_list, bool is_packed = false);
 private:
     bool M_check_sync(const llvm::Value* value) const;
     llvm::Value* M_type_cast(const TypeInfo& src_type, llvm::Value* src_value);
@@ -160,15 +123,38 @@ private:
 };
 #undef DECL_EQUIV_FN
 
-class member_field_entry {
-    std::string m_name;
-    TypeInfo m_type = TypeInfo::null();
-    bool m_is_readonly = false;
+class field_entry_t : public _BaseObject {
+    using BaseT = _BaseObject;
+    friend class TypeInfo;
+    enum : uint32_t {
+        c_invalid = std::numeric_limits<uint32_t>::max()
+    };
+private:
+    uint32_t m_idx = c_invalid;
+    uint32_t m_offset = c_invalid;
+    // TODO{vibhanshu}: maybe need to add field alignment also
+    const std::string m_name;
+    const TypeInfo m_type;
+    const bool m_is_readonly = false;
 public:
-    explicit member_field_entry() = default;
-    explicit member_field_entry(const std::string& name, TypeInfo type, bool is_readonly);
-    explicit member_field_entry(const std::string& name, TypeInfo type);
+    explicit field_entry_t(const uint32_t idx,
+                            const uint32_t offset,
+                            const std::string& name,
+                            const TypeInfo& type,
+                            bool is_readonly);
+    explicit field_entry_t(const std::string& name,
+                            const TypeInfo& type,
+                            bool is_readonly);
+    explicit field_entry_t(const std::string& name,
+                            const TypeInfo& type);
+    ~field_entry_t();
 public:
+    uint32_t idx() const {
+        return m_idx;
+    }
+    uint32_t offset() const {
+        return m_offset;
+    }
     const std::string& name() const {
         return m_name;
     }
@@ -179,10 +165,14 @@ public:
         return m_is_readonly;
     }
     bool is_valid() const;
-    bool operator == (const member_field_entry& o) const {
-        return m_name == o.m_name and m_type == o.m_type;
-    }
+    bool operator == (const field_entry_t& o) const;
+    static field_entry_t null(const std::string& log = "");
+private:
+    void M_set_idx(uint32_t idx);
+    void M_set_offset(uint32_t offset);
 };
+static_assert(sizeof(field_entry_t) == 144);
+
 
 class LinkSymbolName : public _BaseObject {
     using BaseT = _BaseObject;
@@ -224,7 +214,6 @@ private:
 
 class LinkSymbol : public _BaseObject {
     using BaseT = _BaseObject;
-    using field_entry_t = typename TypeInfo::field_entry_t;
 public:
     enum class symbol_type : uint8_t {
         unknown,

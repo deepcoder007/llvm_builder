@@ -5,8 +5,8 @@
 #ifndef LLVM_BUILDER_LLVM_BUILDER_FUNCTION_H_
 #define LLVM_BUILDER_LLVM_BUILDER_FUNCTION_H_
 
-#include "llvm_builder/defines.h"
-#include "llvm_builder/type.h"
+#include "defines.h"
+#include "type.h"
 
 #include <functional>
 #include <string>
@@ -68,6 +68,7 @@ class Function : public _BaseObject {
     using BaseT = _BaseObject;
     struct c_construct {
     };
+    friend class Cursor;
     friend class Module;
     friend class FunctionImpl;
     friend class FunctionContext;

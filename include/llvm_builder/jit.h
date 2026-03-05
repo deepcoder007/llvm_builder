@@ -5,8 +5,8 @@
 #ifndef LLVM_BUILDER_LLVM_JIT_H_
 #define LLVM_BUILDER_LLVM_JIT_H_
 
-#include "llvm_builder/defines.h"
-#include "llvm_builder/module.h"
+#include "defines.h"
+#include "module.h"
 #include "llvm_builder/util/object.h"
 #include <memory>
 #include <vector>

@@ -9,6 +9,7 @@
 #include "llvm_builder/type.h"
 #include "llvm_builder/jit.h"
 #include "llvm_builder/function.h"
+#include "llvm_builder/event.h"
 
 #include <format>
 #include <iomanip>
@@ -27,76 +28,70 @@ int32_t main(int32_t argc, char **argv) {
     (void)argv;
 
     std::cout << " ======= APP BEGIN ======= " << std::endl;
-    CODEGEN_LINE(Cursor l_cursor{"hierarchical_def"})
+    Cursor l_cursor{"hierarchical_def"};
     {
-        CODEGEN_LINE(Cursor::Context l_cursor_ctx{l_cursor})
-        CODEGEN_LINE(TypeInfo int32_type = TypeInfo::mk_int32())
+        Cursor::Context l_cursor_ctx{l_cursor};
+        TypeInfo int32_type = TypeInfo::mk_int32();
 
-        CODEGEN_LINE(TypeInfo args3_type)
-        {
-            std::vector<member_field_entry> args3_fields;
-            args3_fields.emplace_back("arg1", int32_type);
-            args3_fields.emplace_back("arg2", int32_type);
-            args3_fields.emplace_back("arg1_fn_bkp", int32_type);
-            args3_fields.emplace_back("arg2_fn_bkp", int32_type);
-            args3_fields.emplace_back("arr_idx", int32_type);
-            args3_fields.emplace_back("arg_arr1", TypeInfo::mk_array(int32_type, 5).mk_ptr());
-            args3_fields.emplace_back("arg_arr2", TypeInfo::mk_array(int32_type, 5).mk_ptr());
-            CODEGEN_LINE(args3_type = TypeInfo::mk_struct("args3", args3_fields))
-
-        }
-        LLVM_BUILDER_ASSERT(not args3_type.has_error());
-
-        CODEGEN_LINE(const TypeInfo int32_base = int32_type.base_type())
-        std::cout << " base int32 : " << int32_base.short_name() << std::endl;
-        std::cout << " base int32 log : [" << int32_base.error_log() << "]" << std::endl;
-
-        CODEGEN_LINE(l_cursor.bind(args3_type.mk_ptr()))
+        l_cursor.add_field("arg1", int32_type);
+        l_cursor.add_field("arg2", int32_type);
+        l_cursor.add_field("arg1_fn_bkp", int32_type);
+        l_cursor.add_field("arg2_fn_bkp", int32_type);
+        l_cursor.add_field("arr_idx", int32_type);
+        l_cursor.add_field("arg_arr1", int32_type.mk_arr(5).mk_ptr());
+        l_cursor.add_field("arg_arr2", int32_type.mk_arr(5).mk_ptr());
+        l_cursor.bind("context_st");
 
         //
         // computation graph BEGIN
         //
-        CODEGEN_LINE(ValueInfo ctx = ValueInfo::from_context())
-        CODEGEN_LINE(ValueInfo arr_idx = ctx.field("arr_idx").load())
+        ValueInfo ctx = ValueInfo::from_context();
+        ValueInfo arr_idx = ctx.field("arr_idx").load();
 
-        CODEGEN_LINE(ValueInfo arg1_ptr = ctx.field("arg1"))
-        CODEGEN_LINE(ValueInfo arg2_ptr = ctx.field("arg2"))
-        CODEGEN_LINE(ValueInfo arg1_fn_bkp_ptr = ctx.field("arg1_fn_bkp"))
-        CODEGEN_LINE(ValueInfo arg2_fn_bkp_ptr = ctx.field("arg2_fn_bkp"))
-        // CODEGEN_LINE(ValueInfo arr_idx = ctx.field("arr_idx").load())
-        CODEGEN_LINE(ValueInfo arg_arr1_ptr = ctx.field("arg_arr1").load())
-        CODEGEN_LINE(ValueInfo arg_arr2_ptr = ctx.field("arg_arr2").load())
-        CODEGEN_LINE(ValueInfo arg1 = arg1_ptr.load())
-        CODEGEN_LINE(ValueInfo arg2 = arg2_ptr.load())
+        ValueInfo arg1_ptr = ctx.field("arg1");
+        ValueInfo arg2_ptr = ctx.field("arg2");
+        ValueInfo arg1_fn_bkp_ptr = ctx.field("arg1_fn_bkp");
+        ValueInfo arg2_fn_bkp_ptr = ctx.field("arg2_fn_bkp");
+        // ValueInfo arr_idx = ctx.field("arr_idx").load();
+        ValueInfo arg_arr1_ptr = ctx.field("arg_arr1").load();
+        ValueInfo arg_arr2_ptr = ctx.field("arg_arr2").load();
+        ValueInfo arg1 = arg1_ptr.load();
+        ValueInfo arg2 = arg2_ptr.load();
+
+        LLVM_BUILDER_ASSERT(not ctx.has_error());
+        LLVM_BUILDER_ASSERT(not arr_idx.has_error());
+        LLVM_BUILDER_ASSERT(not arg1_ptr.has_error());
+        LLVM_BUILDER_ASSERT(not arg2_ptr.has_error());
+
         //
         //  computation graph END
         //
 
-        CODEGEN_LINE(Module l_module = l_cursor.main_module())
-        CODEGEN_LINE(Module::Context l_module_ctx{l_module})
-        CODEGEN_LINE(Function on_event_fn("on_big_event"))
-        CODEGEN_LINE(Function fibo_fn("fibonacci_calc"))
-        CODEGEN_LINE(Function arr_copy_fn("arr_copy_fn"))
+        Module l_module = l_cursor.main_module();
+        Module::Context l_module_ctx{l_module};
+        Function on_event_fn("on_big_event");
+        Function fibo_fn("fibonacci_calc");
+        Function arr_copy_fn("arr_copy_fn");
 
-        CODEGEN_LINE(FunctionContext::set_fn(on_event_fn))
+        FunctionContext::set_fn(on_event_fn);
 
         {
-            CODEGEN_LINE(FunctionContext l_local_fibo_ctx{fibo_fn})
-            CODEGEN_LINE(arg1_ptr.store(arg2))
-            CODEGEN_LINE(arg2_ptr.store(arg1.add(arg2)))
-            CODEGEN_LINE(arg1_fn_bkp_ptr.store(arg1))
-            CODEGEN_LINE(arg2_fn_bkp_ptr.store(arg2))
-            CODEGEN_LINE(FunctionContext::set_return_value(ValueInfo::from_constant(0)))
+            FunctionContext l_local_fibo_ctx{fibo_fn};
+            arg1_ptr.store(arg2);
+            arg2_ptr.store(arg1.add(arg2));
+            arg1_fn_bkp_ptr.store(arg1);
+            arg2_fn_bkp_ptr.store(arg2);
+            FunctionContext::set_return_value(ValueInfo::from_constant(0));
         }
         {
-            CODEGEN_LINE(FunctionContext l_local_fn_ctx{arr_copy_fn})
-            CODEGEN_LINE(arg_arr2_ptr.entry(arr_idx).store(arg_arr1_ptr.entry(arr_idx).load()))
-            CODEGEN_LINE(FunctionContext::set_return_value(ValueInfo::from_constant(0)))
+            FunctionContext l_local_fn_ctx{arr_copy_fn};
+            arg_arr2_ptr.entry(arr_idx).store(arg_arr1_ptr.entry(arr_idx).load());
+            FunctionContext::set_return_value(ValueInfo::from_constant(0));
         }
-        CODEGEN_LINE(fibo_fn.call_fn())
-        CODEGEN_LINE(arr_copy_fn.call_fn())
+        fibo_fn.call_fn();
+        arr_copy_fn.call_fn();
 
-        CODEGEN_LINE(FunctionContext::set_return_value(arg1_ptr.load()))
+        FunctionContext::set_return_value(arg1_ptr.load());
         l_module.write_to_file();
         {
             const std::string fn_name{"on_big_event"};
@@ -107,25 +102,26 @@ int32_t main(int32_t argc, char **argv) {
 
     LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error())
     {
-        CODEGEN_LINE(JustInTimeRunner jit_runner)
-        CODEGEN_LINE(jit_runner.add_module(l_cursor))
-        CODEGEN_LINE(jit_runner.bind())
+        JustInTimeRunner jit_runner;
+        jit_runner.add_module(l_cursor);
+        jit_runner.bind();
         LLVM_BUILDER_ALWAYS_ASSERT(not jit_runner.has_error())
 
-        CODEGEN_LINE(const runtime::Namespace& l_runtime_module = jit_runner.get_global_namespace())
-        CODEGEN_LINE(const runtime::Struct& l_args3_struct = l_runtime_module.struct_info("args3"))
+        const runtime::Namespace& l_runtime_module = jit_runner.get_global_namespace();
         LLVM_BUILDER_ALWAYS_ASSERT(not l_runtime_module.has_error());
-        CODEGEN_LINE(const runtime::EventFn& sample_fn = l_runtime_module.event_fn_info("on_big_event"))
+        const runtime::Struct& l_args3_struct = l_runtime_module.struct_info("context_st");
+        LLVM_BUILDER_ALWAYS_ASSERT(not l_args3_struct.has_error())
+        const runtime::EventFn& sample_fn = l_runtime_module.event_fn_info("on_big_event");
         LLVM_BUILDER_ALWAYS_ASSERT(not sample_fn.has_error());
 
         {
-            CODEGEN_LINE(runtime::Object l_args_obj = l_args3_struct.mk_object())
-            CODEGEN_LINE(runtime::Array l_arg_arr1 = runtime::Array::from(runtime::type_t::int32, 5))
-            CODEGEN_LINE(runtime::Array l_arg_arr2 = runtime::Array::from(runtime::type_t::int32, 5))
-            CODEGEN_LINE(l_arg_arr1.freeze())
-            CODEGEN_LINE(l_arg_arr2.freeze())
-            CODEGEN_LINE(l_args_obj.set_array("arg_arr1", l_arg_arr1))
-            CODEGEN_LINE(l_args_obj.set_array("arg_arr2", l_arg_arr2))
+            runtime::Object l_args_obj = l_args3_struct.mk_object();
+            runtime::Array l_arg_arr1 = runtime::Array::from(runtime::type_t::int32, 5);
+            runtime::Array l_arg_arr2 = runtime::Array::from(runtime::type_t::int32, 5);
+            l_arg_arr1.freeze();
+            l_arg_arr2.freeze();
+            l_args_obj.set_array("arg_arr1", l_arg_arr1);
+            l_args_obj.set_array("arg_arr2", l_arg_arr2);
             bool is_frozen = l_args_obj.freeze();
             LLVM_BUILDER_ASSERT(is_frozen);
             l_args_obj.set<int32_t>("arg1", 1);
@@ -144,7 +140,7 @@ int32_t main(int32_t argc, char **argv) {
                 }
                 const int32_t new_value = l_arg1_prev + l_arg2_prev;
                 LLVM_BUILDER_ALWAYS_ASSERT(not l_args_obj.has_error())
-                CODEGEN_LINE(int32_t result = sample_fn.on_event(l_args_obj))
+                int32_t result = sample_fn.on_event(l_args_obj);
                     (void)result;
                 LLVM_BUILDER_ALWAYS_ASSERT_EQ(l_arg2_prev, l_args_obj.get<int32_t>("arg1"))
                 LLVM_BUILDER_ALWAYS_ASSERT_EQ(new_value, l_args_obj.get<int32_t>("arg2"))

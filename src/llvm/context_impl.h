@@ -7,6 +7,7 @@
 
 #include "llvm_builder/module.h"
 #include "llvm_builder/function.h"
+#include "llvm_builder/event.h"
 #include "ext_include.h"
 #include "util/debug.h"
 
@@ -29,12 +30,10 @@ public:
     ~CursorPtr();
 public:
     bool is_valid() const;
-    const std::string& name() const;
     TypeInfo context_type() const;
-    Module main_module();
-    Module gen_module();
-    Function mk_function(FunctionImpl&& fn_impl);
+    Function mk_function(const std::string& name, bool is_external);
     Function find_function(const std::string& name);
+    Event find_event(const std::string& name);
     TypeInfo mk_type_pointer(const TypeInfo& base_type);
 #define DECL_MK_TYPE(TYPE_NAME)            \
     TypeInfo mk_type_ ##TYPE_NAME();       \
@@ -42,15 +41,12 @@ public:
 DECL_MK_TYPE(void)
 FOR_EACH_LLVM_TYPE(DECL_MK_TYPE)
 #undef DECL_MK_TYPE
-    TypeInfo mk_int_context();
     TypeInfo mk_type_fn_type();
     TypeInfo mk_type_array(TypeInfo element_type, uint32_t num_elements);
     TypeInfo mk_type_vector(TypeInfo element_type, uint32_t num_elements);
-    TypeInfo mk_type_struct(const std::string& name, const std::vector<member_field_entry>& element_list, bool is_packed);
+    TypeInfo mk_type_struct(const std::string& name, const std::vector<field_entry_t>& element_list, bool is_packed);
     void main_module_hook_fn(on_main_module_fn_t &&fn);
     bool is_bind_called() const;
-    void bind(const TypeInfo& ctx_type);
-    void cleanup();
     void for_each_module(on_module_fn_t&& fn);
 public:
     // TODO{vibhanshu}: make these private
@@ -63,19 +59,14 @@ public:
 // CursorContextImpl
 //
 class CursorContextImpl {
-    using on_main_module_fn_t = typename Cursor::on_main_module_fn_t;
 public:
     static bool has_value() {
         return Cursor::Context::has_value();
     }
-    static const std::string& name();
     static llvm::LLVMContext& ctx();
     static llvm::IRBuilder<> &builder();
-    static llvm::orc::ThreadSafeContext& thread_safe_context(); 
     static TypeInfo context_type();
-    static Module main_module();
-    static Module gen_module();
-    static Function mk_function(FunctionImpl&& fn_impl);
+    static Function mk_function(const std::string& name, bool is_external);
     static TypeInfo mk_type_pointer(const TypeInfo& base_type);
 #define DECL_MK_TYPE(TYPE_NAME)                   \
     static TypeInfo mk_type_ ##TYPE_NAME();       \
@@ -83,14 +74,12 @@ public:
 DECL_MK_TYPE(void)
 FOR_EACH_LLVM_TYPE(DECL_MK_TYPE)
 #undef DECL_MK_TYPE
-    static TypeInfo mk_int_context();
+    static Event find_event(const std::string& name);
     static TypeInfo mk_type_fn_type();
     static TypeInfo mk_type_array(TypeInfo element_type, uint32_t num_elements);
     static TypeInfo mk_type_vector(TypeInfo element_type, uint32_t num_elements);
-    static TypeInfo mk_type_struct(const std::string& name, const std::vector<member_field_entry>& element_list, bool is_packed);
-    static void main_module_hook_fn(on_main_module_fn_t &&fn);
+    static TypeInfo mk_type_struct(const std::string& name, const std::vector<field_entry_t>& element_list, bool is_packed);
     static bool is_bind_called();
-    static void bind(const TypeInfo& ctx_type);
     static llvm::DataLayout get_host_data_layout();
 };
 
@@ -106,8 +95,7 @@ public:
     explicit FunctionImpl(const std::string& fn_name, bool is_external, c_construct);
     ~FunctionImpl();
 public:
-    FunctionImpl(FunctionImpl&&);
-    FunctionImpl& operator = (FunctionImpl&&);
+    FunctionImpl(FunctionImpl&&) = default;
 public:
     std::weak_ptr<Impl> ptr() {
         return m_impl;
@@ -135,6 +123,21 @@ public:
     const std::string& name() const;
 };
 
+class EventImpl {
+    using Impl = typename Event::Impl;
+private:
+    std::shared_ptr<Impl> m_impl;
+public:
+    explicit EventImpl(const std::string& name);
+public:
+    std::weak_ptr<Impl> ptr() {
+        return m_impl;
+    }
+    bool is_valid() const {
+        return static_cast<bool>(m_impl);
+    }
+};
+
 class TypeInfoImpl {
     using Impl = typename TypeInfo::Impl;
 public:
@@ -157,7 +160,7 @@ public:
     explicit TypeInfoImpl(pointer_construct_t, CursorPtr, llvm::Type* type, uint32_t num_bytes, const TypeInfo& base_type);
     explicit TypeInfoImpl(array_construct_t, CursorPtr, TypeInfo element_type, uint32_t array_size);
     explicit TypeInfoImpl(vector_construct_t, CursorPtr, TypeInfo element_type, uint32_t vector_size);
-    explicit TypeInfoImpl(struct_construct_t, CursorPtr, const std::string& name, const std::vector<member_field_entry>& field_types, const bool packed);
+    explicit TypeInfoImpl(struct_construct_t, CursorPtr, const std::string& name, const std::vector<field_entry_t>& field_types, const bool packed);
     explicit TypeInfoImpl(function_construct_t, CursorPtr, llvm::FunctionType* type);
 public:
     std::weak_ptr<Impl> ptr() {

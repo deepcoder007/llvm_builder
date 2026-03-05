@@ -40,47 +40,12 @@ enum class type_id_t : uint8_t {
 // TypeInfo::derived_info_t
 //
 struct TypeInfo::derived_info_t : meta::noncopyable {
-    struct full_field_info_t : public member_field_entry {
-        using BaseT = member_field_entry;
-    private:
-        uint32_t m_offset = std::numeric_limits<uint32_t>::max();
-    public:
-        explicit full_field_info_t() = default;
-        explicit full_field_info_t(uint32_t offset, const std::string& name, const TypeInfo& type)
-            : BaseT{name, type}, m_offset{offset} {
-            LLVM_BUILDER_ASSERT(offset != std::numeric_limits<uint32_t>::max())
-            LLVM_BUILDER_ASSERT(not name.empty())
-            LLVM_BUILDER_ASSERT(not type.has_error())
-            LLVM_BUILDER_ASSERT(not type.has_error());
-        }
-        explicit full_field_info_t(uint32_t offset, const member_field_entry& entry)
-            : BaseT{entry}, m_offset{offset} {
-            LLVM_BUILDER_ASSERT(offset != std::numeric_limits<uint32_t>::max())
-        }
-        ~full_field_info_t() = default;
-    public:
-        uint32_t offset() const {
-            return m_offset;
-        }
-        bool operator == (const std::string& s) const {
-            return BaseT::name() == s;
-        }
-        std::string short_name() const {
-            return LLVM_BUILDER_CONCAT << "{" << BaseT::name() << ":" << BaseT::type().short_name() << "}";
-        }
-        bool operator == (const full_field_info_t& rhs) const {
-            return m_offset == rhs.m_offset
-                and name() == rhs.name()
-                and type() == rhs.type();
-        }
-    };
-    using type_list_t = std::vector<full_field_info_t>;
 private:
     const type_id_t   m_type = type_id_t::invalid_t;
     // TODO{vibhanshu}: remove usage of std::vector<> instead use something which
     //                  does not generate garbage
     const std::string m_name;
-    type_list_t m_type_list;
+    std::vector<field_entry_t> m_type_list;
     std::unordered_set<std::string> m_type_name_set;
     const uint32_t m_num_elements =  0;
     uint32_t m_struct_size_bytes = 0;
@@ -89,18 +54,18 @@ public:
         : m_type{type} {
         LLVM_BUILDER_ASSERT(type == type_id_t::pointer_t);
         LLVM_BUILDER_ASSERT(not base_type.has_error());
-        m_type_list.emplace_back(0, "underlying", base_type);
+        m_type_list.emplace_back(0, 0, "underlying", base_type, false);
     }
     explicit derived_info_t(type_id_t type, TypeInfo element_type, uint32_t num_elements)
         : m_type{type}, m_num_elements{num_elements} {
         LLVM_BUILDER_ASSERT(is_array() or is_vector());
         LLVM_BUILDER_ASSERT(m_num_elements > 0);
         LLVM_BUILDER_ASSERT(not element_type.has_error());
-        m_type_list.emplace_back(0, "entry", element_type);
+        m_type_list.emplace_back(0, 0, "entry", element_type, false);
     }
     explicit derived_info_t(type_id_t type
                             , const std::string& name
-                            , const std::vector<member_field_entry>& field_types
+                            , const std::vector<field_entry_t>& field_types
                             , const llvm::StructLayout& struct_layout)
         : m_type{type}, m_name{name}, m_num_elements{static_cast<uint32_t>(field_types.size())} {
         LLVM_BUILDER_ASSERT(type == type_id_t::struct_t);
@@ -114,7 +79,11 @@ public:
         LLVM_BUILDER_ASSERT(field_types.size() == field_offsets.size());
         const uint32_t l_num_fields = static_cast<uint32_t>(field_types.size());
         for (uint32_t i = 0; i != l_num_fields; ++i) {
-            m_type_list.emplace_back(field_offsets[i], field_types[i]);
+            field_entry_t& l_curr_field = m_type_list.emplace_back(field_types[i]);
+            LLVM_BUILDER_ASSERT(not l_curr_field.is_valid());
+            l_curr_field.M_set_idx(i);
+            l_curr_field.M_set_offset(field_offsets[i]);
+            LLVM_BUILDER_ASSERT(l_curr_field.is_valid());
             [[maybe_unused]] auto it = m_type_name_set.emplace(field_types[i].name());
             LLVM_BUILDER_ASSERT(it.second);
         }
@@ -130,7 +99,7 @@ public:
         } else {
             LLVM_BUILDER_ASSERT(is_struct());
             bool l_all_valid = true;
-            for (const full_field_info_t& l_info : m_type_list) {
+            for (const field_entry_t& l_info : m_type_list) {
                 l_all_valid &= l_info.is_valid();
             }
             return l_all_valid;
@@ -160,8 +129,7 @@ public:
     }
     field_entry_t  operator [] (uint32_t i) const {
         if (is_struct() and i < m_type_list.size()) {
-            const full_field_info_t& l_field_info = m_type_list[i];
-            return field_entry_t{i, l_field_info.offset(), l_field_info.name(), l_field_info.type(), l_field_info.is_readonly()};
+            return m_type_list[i];
         } else {
             return field_entry_t::null(LLVM_BUILDER_CONCAT << "unable to find field:" << i << " in struct:" << name());
         }
@@ -169,9 +137,9 @@ public:
     field_entry_t operator [] (const std::string& s) const {
         if (is_struct() and s.size() > 0) {
             uint32_t i = 0;
-            for (const full_field_info_t& e : m_type_list) {
-                if (e == s) {
-                    return field_entry_t{i, e.offset(), e.name(), e.type(), e.is_readonly()};
+            for (const field_entry_t& e : m_type_list) {
+                if (e.name() == s) {
+                    return e;
                 }
                 ++i;
             }
@@ -225,9 +193,9 @@ public:
 };
 
 //
-// TypeInfo::field_entry_t
+// field_entry_t
 //
-TypeInfo::field_entry_t::field_entry_t(const uint32_t idx,
+field_entry_t::field_entry_t(const uint32_t idx,
                                        const uint32_t offset,
                                        const std::string& name,
                                        const TypeInfo& type,
@@ -249,13 +217,40 @@ TypeInfo::field_entry_t::field_entry_t(const uint32_t idx,
     }
 }
 
-// TypeInfo::field_entry_t::field_entry_t(const uint32_t idx, const uint32_t offset, const std::pair<std::string, TypeInfo>& entry)
-//     : m_idx{idx}, m_offset{offset}, m_name{entry.first}, m_type{entry.second} {
-// }
+field_entry_t::field_entry_t(const std::string& name,
+                            const TypeInfo& type,
+                            bool is_readonly)
+    : BaseT{State::VALID}
+    , m_name{name}
+    , m_type{type}
+    , m_is_readonly{is_readonly} {
+    if (name.empty()) {
+        M_mark_error("trying to build field entry without name");
+    } else if (type.has_error()) {
+        M_mark_error("trying to build field entry wit invalid type");
+    }
+}
 
-TypeInfo::field_entry_t::~field_entry_t() = default;
+field_entry_t::field_entry_t(const std::string& name,
+                            const TypeInfo& type)
+    : field_entry_t{name, type, false} {
+}
 
-bool TypeInfo::field_entry_t::operator==(const field_entry_t &o) const {
+field_entry_t::~field_entry_t() = default;
+
+bool field_entry_t::is_valid() const {
+    return m_idx != c_invalid and m_offset != c_invalid and not has_error();
+}
+
+void field_entry_t::M_set_idx(uint32_t idx) {
+    m_idx = idx;
+}
+
+void field_entry_t::M_set_offset(uint32_t offset) {
+    m_offset = offset;
+}
+
+bool field_entry_t::operator==(const field_entry_t &o) const {
     if (has_error() and o.has_error()) {
         return true;
     }
@@ -269,7 +264,7 @@ bool TypeInfo::field_entry_t::operator==(const field_entry_t &o) const {
     return l_idx_match and l_offset_match and l_name_match and l_type_match;
 }
 
-auto TypeInfo::field_entry_t::null(const std::string& log) -> field_entry_t {
+auto field_entry_t::null(const std::string& log) -> field_entry_t {
     static field_entry_t s_null_entry = []() -> field_entry_t {
             const uint32_t l_uint_max = std::numeric_limits<uint32_t>::max();
             const std::string s_name{};
@@ -417,7 +412,7 @@ public:
         object::Counter::singleton().on_new(object::Callback::object_t::TYPE, (uint64_t)this, short_name());
     }
     explicit Impl(struct_construct_t, CursorPtr cursor_impl, const std::string &name,
-                  const std::vector<member_field_entry> &field_types,
+                  const std::vector<field_entry_t>& field_types,
                   const bool packed)
         : m_cursor_impl{cursor_impl}
         , m_type_id{type_id_t::struct_t} {
@@ -426,8 +421,7 @@ public:
         LLVM_BUILDER_ASSERT(not m_cursor_impl.is_bind_called());
         std::vector<llvm::Type*> l_raw_type_list;
         std::unordered_set<std::string> l_field_types_set;
-        for (const member_field_entry& l_info : field_types) {
-            LLVM_BUILDER_ASSERT(l_info.is_valid());
+        for (const field_entry_t& l_info : field_types) {
             const TypeInfo& l_type = l_info.type();
             LLVM_BUILDER_ASSERT(l_type.is_valid())
             LLVM_BUILDER_ASSERT(l_type.is_scalar() or l_type.is_pointer());
@@ -837,9 +831,9 @@ bool TypeInfo::operator == (const TypeInfo& o) const {
 #define DEF_GETTER(FN_NAME, TYPE, DEFAULT_VALUE)                \
 auto TypeInfo::FN_NAME() const -> TYPE {                        \
     CODEGEN_FN                                                  \
-        if (has_error()) {                                      \
-            return DEFAULT_VALUE;                               \
-        }                                                       \
+    if (has_error()) {                                          \
+        return DEFAULT_VALUE;                                   \
+    }                                                           \
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {            \
         return ptr-> FN_NAME ();                                \
     } else {                                                    \
@@ -881,7 +875,7 @@ bool TypeInfo::is_valid_pointer_field() const {
             if (l_base.is_struct()) {
                 uint32_t l_num_elements = l_base.num_elements();
                 for (uint32_t i = 0; i != l_num_elements; ++i) {
-                    TypeInfo::field_entry_t l_entry = l_base[i];
+                    field_entry_t l_entry = l_base[i];
                     if (not l_entry.type().is_valid_struct_field()) {
                         return false;
                     }
@@ -1036,11 +1030,6 @@ FOR_EACH_LLVM_TYPE(DEF_MK_TYPE2)
 
 #undef DEF_MK_TYPE2
 
-TypeInfo TypeInfo::mk_int_context() {
-    CODEGEN_FN
-    return CursorContextImpl::mk_int_context();
-}
-
 TypeInfo TypeInfo::mk_type_from_name(const std::string& name) {
     CODEGEN_FN
     if (name.empty()) {
@@ -1109,7 +1098,7 @@ TypeInfo TypeInfo::mk_vector(TypeInfo element_type, uint32_t num_elements) {
     }
 }
 
-TypeInfo TypeInfo::mk_struct(const std::string& name, const std::vector<member_field_entry>& element_list, bool is_packed) {
+TypeInfo TypeInfo::mk_struct(const std::string& name, const std::vector<field_entry_t>& element_list, bool is_packed) {
     CODEGEN_FN
     if (name.empty()) {
         return TypeInfo::null("struct name can't be empty");
@@ -1155,20 +1144,6 @@ FOR_EACH_BINARY_OP(BINARY_VALUE_OP)
 
 #undef BINARY_VALUE_OP
  
-//
-// member_field_entry
-//
-member_field_entry::member_field_entry(const std::string& name, TypeInfo type, bool is_readonly)
-: m_name{name}, m_type{type}, m_is_readonly{is_readonly} {
-}
-member_field_entry::member_field_entry(const std::string& name, TypeInfo type)
-: m_name{name}, m_type{type} {
-}
-
-bool member_field_entry::is_valid() const {
-    return  m_name.size() > 0 and not type().has_error() and type().is_valid();
-}
-
 //
 // LinkSymbolName
 //
@@ -1380,7 +1355,7 @@ TypeInfoImpl::TypeInfoImpl(vector_construct_t, CursorPtr cursor_impl, TypeInfo e
     m_impl = std::make_shared<Impl>(vector_construct_t{}, cursor_impl, element_type, vector_size);
 }
 
-TypeInfoImpl::TypeInfoImpl(struct_construct_t, CursorPtr cursor_impl, const std::string& name, const std::vector<member_field_entry>& field_types, const bool packed) {
+TypeInfoImpl::TypeInfoImpl(struct_construct_t, CursorPtr cursor_impl, const std::string& name, const std::vector<field_entry_t>& field_types, const bool packed) {
     LLVM_BUILDER_ASSERT(cursor_impl.is_valid());
     m_impl = std::make_shared<Impl>(struct_construct_t{}, cursor_impl, name, field_types, packed);
 }

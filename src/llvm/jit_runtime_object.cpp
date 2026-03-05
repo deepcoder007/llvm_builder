@@ -1161,7 +1161,7 @@ public:
         LLVM_BUILDER_ASSERT(type.is_struct());
         const uint32_t l_num_fields = type.num_elements();
         for (uint32_t i = 0; i != l_num_fields; ++i) {
-            TypeInfo::field_entry_t l_field = type[i];
+            field_entry_t l_field = type[i];
             const std::string field_name = l_field.name();
             LLVM_BUILDER_ASSERT(l_field.idx() == i);
             LLVM_BUILDER_DEBUG(auto it = ) m_fields.try_emplace(field_name, parent, l_field.idx(), l_field.offset(), field_name, l_field.type(), Field::construct_t{});

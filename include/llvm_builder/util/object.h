@@ -132,20 +132,11 @@ private:
     mutable std::string m_log;
     mutable State m_state = State::VALID;
 protected:
-    _BaseObject(State state) : m_state{state} {
-    }
-    _BaseObject(_BaseObject&& o) : m_state{o.m_state} {
-    }
-    _BaseObject(const _BaseObject& o) : m_state{o.m_state} {
-    }
-    _BaseObject& operator = (const _BaseObject& o) {
-        m_state = o.m_state;
-        return *this;
-    }
-    _BaseObject& operator = (_BaseObject&& o) {
-        m_state = o.m_state;
-        return *this;
-    }
+    _BaseObject(State state);
+    _BaseObject(_BaseObject&& o);
+    _BaseObject(const _BaseObject& o);
+    _BaseObject& operator = (const _BaseObject& o);
+    _BaseObject& operator = (_BaseObject&& o);
 public:
     void M_mark_error(const std::string& log = "") const {
         m_state = State::ERROR;

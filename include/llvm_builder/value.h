@@ -5,10 +5,10 @@
 #ifndef LLVM_BUILDER_LLVM_VALUE_H_
 #define LLVM_BUILDER_LLVM_VALUE_H_
 
-#include "llvm_builder/defines.h"
-#include "llvm_builder/util/object.h"
-#include "llvm_builder/function.h"
+#include "defines.h"
+#include "function.h"
 #include "type.h"
+#include "llvm_builder/util/object.h"
 
 #include <string>
 #include <string_view>

@@ -1,10 +1,20 @@
 #+title: Tasks
 
-* Priority list of tasks[5/9]
+* Priority list of tasks[5/11]
 ** [X] if-else condition redesign, nested and inplace expansion 
 ** [X] function call to internal functions
 ** [X] function call to external C functions
 ** [ ] cross language integration
+** [ ] ability to remotely deploy event code
+:FEATURE_DESCRIPTION:
+like gRPC, but not just function call, you can deploy new version of the code. i.e. hotpatch
+:END:
+** [ ] define event for input fields
+:FEATURE_DESCRIPTION:
+ability to define event for individual fields in input. and function should also be
+attached with event or they are event. and use this combination to define whether
+a value is updated or not
+:END:
 ** [X] hierachical representation of code sections
 :FEATURE_DESCRIPTION:
 ability to specific sections inside sections in hierarchical manner

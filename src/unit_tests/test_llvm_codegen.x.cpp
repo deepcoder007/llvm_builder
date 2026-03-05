@@ -65,7 +65,7 @@ TEST(LLVM_CODEGEN, type_test) {
     LLVM_BUILDER_ALWAYS_ASSERT(int32_vec5_ptr_str == int32_vec3_type.mk_ptr().short_name());
 
     {
-        std::vector<member_field_entry> l_field_list;
+        std::vector<field_entry_t> l_field_list;
         l_field_list.emplace_back("field_1", int32_type);
         l_field_list.emplace_back("field_3", int32_vec5_ptr_type);
         l_field_list.emplace_back("field_2", int32_type);
@@ -119,7 +119,7 @@ TEST(LLVM_CODEGEN, struct_array_type_test) {
 
 
     TypeInfo l_struct_type = [&] {
-                                std::vector<member_field_entry> l_field_list;
+                                std::vector<field_entry_t> l_field_list;
                                 l_field_list.emplace_back("field_1", int32_type);
                                 l_field_list.emplace_back("field_2", int32_arr3_ptr_type);
                                 l_field_list.emplace_back("field_3", int32_vec3_ptr_type);
@@ -144,7 +144,7 @@ TEST(LLVM_CODEGEN, struct_array_type_test) {
     LLVM_BUILDER_ALWAYS_ASSERT(struct_ptr_arr3_ptr_type.is_valid_pointer_field())
 
     TypeInfo l_outer_struct_type = [&] {
-                                std::vector<member_field_entry> l_field_list;
+                                std::vector<field_entry_t> l_field_list;
                                 l_field_list.emplace_back("outer_field_1", int32_type);
                                 l_field_list.emplace_back("outer_field_2", int32_arr3_ptr_type);
                                 l_field_list.emplace_back("outer_field_3", int32_vec3_ptr_type);
@@ -171,13 +171,10 @@ TEST(LLVM_CODEGEN, basic_test) {
         CODEGEN_LINE(TypeInfo int32_type = TypeInfo::mk_int32())
         CODEGEN_LINE(TypeInfo bool_type = TypeInfo::mk_bool())
 
-        std::vector<member_field_entry> args3_fields;
-        args3_fields.emplace_back("arg1", int32_type);
-        args3_fields.emplace_back("arg2", int32_type);
-        args3_fields.emplace_back("arg3", int32_type);
-        CODEGEN_LINE(TypeInfo args3_type = TypeInfo::mk_struct("args3", args3_fields))
-
-        CODEGEN_LINE(l_cursor.bind(args3_type.mk_ptr()))
+        CODEGEN_LINE(l_cursor.add_field("arg1", int32_type))
+        CODEGEN_LINE(l_cursor.add_field("arg2", int32_type))
+        CODEGEN_LINE(l_cursor.add_field("arg3", int32_type))
+        CODEGEN_LINE(l_cursor.bind("args3"))
         {
             CODEGEN_LINE(Module l_module = l_cursor.main_module())
             CODEGEN_LINE(Module::Context l_module_ctx{l_module})
@@ -226,13 +223,10 @@ TEST(LLVM_CODEGEN, basic_test) {
         CODEGEN_LINE(Cursor::Context l_cursor2_ctx{l_cursor2})
         CODEGEN_LINE(TypeInfo int32_type = TypeInfo::mk_int32())
 
-        std::vector<member_field_entry> abc_fields2;
-        abc_fields2.emplace_back("a", int32_type);
-        abc_fields2.emplace_back("b", int32_type);
-        abc_fields2.emplace_back("c", int32_type);
-        CODEGEN_LINE(TypeInfo abc_type2 = TypeInfo::mk_struct("abc_args", abc_fields2))
-
-        CODEGEN_LINE(l_cursor2.bind(abc_type2.mk_ptr()))
+        CODEGEN_LINE(l_cursor2.add_field("a", int32_type))
+        CODEGEN_LINE(l_cursor2.add_field("b", int32_type))
+        CODEGEN_LINE(l_cursor2.add_field("c", int32_type))
+        CODEGEN_LINE(l_cursor2.bind("abc_args"))
         {
             CODEGEN_LINE(Module l_module2 = l_cursor2.main_module())
             CODEGEN_LINE(Module::Context l_module2_ctx{l_module2})
@@ -281,12 +275,9 @@ TEST(LLVM_CODEGEN, basic_test) {
         CODEGEN_LINE(TypeInfo int32_type = TypeInfo::mk_int32())
         CODEGEN_LINE(TypeInfo int32_arr_type = TypeInfo::mk_array(int32_type, 5))
 
-        std::vector<member_field_entry> arr_args_fields;
-        arr_args_fields.emplace_back("a", int32_type);
-        arr_args_fields.emplace_back("b", int32_arr_type.mk_ptr());
-        CODEGEN_LINE(TypeInfo arr_args_type3 = TypeInfo::mk_struct("arr_args", arr_args_fields))
-
-        CODEGEN_LINE(l_cursor3.bind(arr_args_type3.mk_ptr()))
+        CODEGEN_LINE(l_cursor3.add_field("a", int32_type))
+        CODEGEN_LINE(l_cursor3.add_field("b", int32_arr_type.mk_ptr()))
+        CODEGEN_LINE(l_cursor3.bind("arr_args"))
         {
             CODEGEN_LINE(Module l_module3 = l_cursor3.main_module())
             CODEGEN_LINE(Module::Context l_module3_ctx{l_module3})
@@ -377,13 +368,10 @@ TEST(LLVM_CODEGEN, lexical_context) {
     TypeInfo int32_type = TypeInfo::mk_int32();
     TypeInfo bool_type = TypeInfo::mk_bool();
 
-    std::vector<member_field_entry> lexical_args_fields;
-    lexical_args_fields.emplace_back("arg1", int32_type);
-    lexical_args_fields.emplace_back("arg2", int32_type);
-    lexical_args_fields.emplace_back("arg3", int32_type);
-    TypeInfo lexical_args_type = TypeInfo::mk_struct("lexical_args", lexical_args_fields);
-
-    l_cursor.bind(lexical_args_type.mk_ptr());
+    l_cursor.add_field("arg1", int32_type);
+    l_cursor.add_field("arg2", int32_type);
+    l_cursor.add_field("arg3", int32_type);
+    l_cursor.bind("lexical_args");
     Module l_module = Cursor::Context::value().main_module();
     Module::Context l_module_ctx{l_module};
     auto gen_fn = [] (const std::string& fn_name, Module& mod, int version) -> Function {
@@ -466,7 +454,7 @@ TEST(LLVM_CODEGEN, struct_type_test) {
     CODEGEN_LINE(TypeInfo int32_type = TypeInfo::mk_int32())
     CODEGEN_LINE(TypeInfo void_type = TypeInfo::mk_void())
     CODEGEN_LINE(TypeInfo bool_type = TypeInfo::mk_bool())
-    std::vector<member_field_entry> l_field_list;
+    std::vector<field_entry_t> l_field_list;
     l_field_list.emplace_back("field_1", int32_type);
     l_field_list.emplace_back("field_2", int32_type);
     l_field_list.emplace_back("field_3", int32_type);
@@ -475,16 +463,12 @@ TEST(LLVM_CODEGEN, struct_type_test) {
     CODEGEN_LINE(TypeInfo l_struct_type = TypeInfo::mk_struct("test_struct", l_field_list))
     LLVM_BUILDER_ALWAYS_ASSERT(not l_struct_type.has_error());
 
-    std::vector<member_field_entry> struct_test_args_fields;
-    struct_test_args_fields.emplace_back("arg1", int32_type);
-    struct_test_args_fields.emplace_back("arg2", int32_type);
-    struct_test_args_fields.emplace_back("arg3", int32_type);
-    struct_test_args_fields.emplace_back("arg4", int32_type);
-    struct_test_args_fields.emplace_back("arg5", l_struct_type.mk_ptr());
-    CODEGEN_LINE(TypeInfo struct_test_args_type = TypeInfo::mk_struct("struct_test_args", struct_test_args_fields))
-    LLVM_BUILDER_ALWAYS_ASSERT(not struct_test_args_type.has_error());
-
-    CODEGEN_LINE(l_cursor.bind(struct_test_args_type.mk_ptr()))
+    CODEGEN_LINE(l_cursor.add_field("arg1", int32_type))
+    CODEGEN_LINE(l_cursor.add_field("arg2", int32_type))
+    CODEGEN_LINE(l_cursor.add_field("arg3", int32_type))
+    CODEGEN_LINE(l_cursor.add_field("arg4", int32_type))
+    CODEGEN_LINE(l_cursor.add_field("arg5", l_struct_type.mk_ptr()))
+    CODEGEN_LINE(l_cursor.bind("struct_test_args"))
     {
         CODEGEN_LINE(Module l_module = l_cursor.main_module())
         CODEGEN_LINE(Module::Context l_module_ctx{l_module})
@@ -592,7 +576,7 @@ TEST(LLVM_CODEGEN, multi_type) {
     TypeInfo uint64_type = TypeInfo::mk_uint64();
     TypeInfo float32_type = TypeInfo::mk_float32();
     TypeInfo float64_type = TypeInfo::mk_float64();
-    std::vector<member_field_entry> l_field_list;
+    std::vector<field_entry_t> l_field_list;
     l_field_list.emplace_back("int_arg1", int32_type);
     l_field_list.emplace_back("int_arg2", int32_type);
     l_field_list.emplace_back("int16_arg1", int16_type);
@@ -611,16 +595,13 @@ TEST(LLVM_CODEGEN, multi_type) {
     l_field_list.emplace_back("float64_arg2", float64_type);
     TypeInfo l_struct_type = TypeInfo::mk_struct("multi_type_struct", l_field_list);
 
-    std::vector<member_field_entry> multi_type_args_fields;
-    multi_type_args_fields.emplace_back("arg1", int32_type);
-    multi_type_args_fields.emplace_back("arg1_neg", int32_type);
-    multi_type_args_fields.emplace_back("arg2", uint32_type);
-    multi_type_args_fields.emplace_back("arg3", float32_type);
-    multi_type_args_fields.emplace_back("arg4", float64_type);
-    multi_type_args_fields.emplace_back("output", l_struct_type.mk_ptr());
-    TypeInfo multi_type_args_type = TypeInfo::mk_struct("multi_type_args", multi_type_args_fields);
-
-    l_cursor.bind(multi_type_args_type.mk_ptr());
+    l_cursor.add_field("arg1", int32_type);
+    l_cursor.add_field("arg1_neg", int32_type);
+    l_cursor.add_field("arg2", uint32_type);
+    l_cursor.add_field("arg3", float32_type);
+    l_cursor.add_field("arg4", float64_type);
+    l_cursor.add_field("output", l_struct_type.mk_ptr());
+    l_cursor.bind("multi_type_args");
     JustInTimeRunner jit_runner;
     {
         Module l_module = l_cursor.main_module();
@@ -709,12 +690,9 @@ TEST(LLVM_CODEGEN, array_type_test) {
         TypeInfo int32_type = TypeInfo::mk_int32();
         TypeInfo int32_arr5_type = TypeInfo::mk_array(int32_type, 5);
 
-        std::vector<member_field_entry> arr_load_args_fields;
-        arr_load_args_fields.emplace_back("a", int32_type);
-        arr_load_args_fields.emplace_back("b", int32_arr5_type.mk_ptr());
-        TypeInfo arr_load_args_type = TypeInfo::mk_struct("arr_load_args", arr_load_args_fields, false);
-
-        l_cursor.bind(arr_load_args_type.mk_ptr());
+        l_cursor.add_field("a", int32_type);
+        l_cursor.add_field("b", int32_arr5_type.mk_ptr());
+        l_cursor.bind("arr_load_args");
         {
             Module l_module = l_cursor.main_module();
             Module::Context l_module_ctx{l_module};
@@ -750,13 +728,10 @@ TEST(LLVM_CODEGEN, array_type_test) {
         TypeInfo int32_type2 = TypeInfo::mk_int32();
         TypeInfo int32_arr5_type2 = TypeInfo::mk_array(int32_type2, 5);
 
-        std::vector<member_field_entry> arr_assign_args_fields;
-        arr_assign_args_fields.emplace_back("idx", int32_type2);
-        arr_assign_args_fields.emplace_back("arr", int32_arr5_type2.mk_ptr());
-        arr_assign_args_fields.emplace_back("value", int32_type2);
-        TypeInfo arr_assign_args_type = TypeInfo::mk_struct("arr_assign_args", arr_assign_args_fields, false);
-
-        l_cursor2.bind(arr_assign_args_type.mk_ptr());
+        l_cursor2.add_field("idx", int32_type2);
+        l_cursor2.add_field("arr", int32_arr5_type2.mk_ptr());
+        l_cursor2.add_field("value", int32_type2);
+        l_cursor2.bind("arr_assign_args");
         {
             Module l_module2 = l_cursor2.main_module();
             Module::Context l_module2_ctx{l_module2};
@@ -793,12 +768,9 @@ TEST(LLVM_CODEGEN, array_type_test) {
         TypeInfo int32_type3 = TypeInfo::mk_int32();
         TypeInfo int32_vec5_type3 = TypeInfo::mk_vector(int32_type3, 5);
 
-        std::vector<member_field_entry> vec_load_args_fields;
-        vec_load_args_fields.emplace_back("a", int32_type3);
-        vec_load_args_fields.emplace_back("b", int32_vec5_type3.mk_ptr());
-        TypeInfo vec_load_args_type = TypeInfo::mk_struct("vec_load_args", vec_load_args_fields, false);
-
-        l_cursor3.bind(vec_load_args_type.mk_ptr());
+        l_cursor3.add_field("a", int32_type3);
+        l_cursor3.add_field("b", int32_vec5_type3.mk_ptr());
+        l_cursor3.bind("vec_load_args");
         {
             Module l_module3 = l_cursor3.main_module();
             Module::Context l_module3_ctx{l_module3};
@@ -823,13 +795,10 @@ TEST(LLVM_CODEGEN, array_type_test) {
         TypeInfo int32_type4 = TypeInfo::mk_int32();
         TypeInfo int32_vec5_type4 = TypeInfo::mk_vector(int32_type4, 5);
 
-        std::vector<member_field_entry> vec_assign_args_fields;
-        vec_assign_args_fields.emplace_back("idx", int32_type4);
-        vec_assign_args_fields.emplace_back("vec", int32_vec5_type4.mk_ptr());
-        vec_assign_args_fields.emplace_back("value", int32_type4);
-        TypeInfo vec_assign_args_type = TypeInfo::mk_struct("vec_assign_args", vec_assign_args_fields, false);
-
-        l_cursor4.bind(vec_assign_args_type.mk_ptr());
+        l_cursor4.add_field("idx", int32_type4);
+        l_cursor4.add_field("vec", int32_vec5_type4.mk_ptr());
+        l_cursor4.add_field("value", int32_type4);
+        l_cursor4.bind("vec_assign_args");
         {
             Module l_module4 = l_cursor4.main_module();
             Module::Context l_module4_ctx{l_module4};
@@ -979,13 +948,10 @@ TEST(LLVM_CODEGEN, vector_type_test) {
         TypeInfo int32_vec5_type = TypeInfo::mk_vector(int32_type, 5);
         TypeInfo int32_vec5_pointer_type = int32_vec5_type.mk_ptr();
 
-        std::vector<member_field_entry> vec_add_args_fields;
-        vec_add_args_fields.emplace_back("arg1", int32_vec5_pointer_type);
-        vec_add_args_fields.emplace_back("arg2", int32_vec5_pointer_type);
-        vec_add_args_fields.emplace_back("arg3", int32_vec5_pointer_type);
-        TypeInfo vec_add_args_type = TypeInfo::mk_struct("vec_add_args", vec_add_args_fields);
-
-        l_cursor.bind(vec_add_args_type.mk_ptr());
+        l_cursor.add_field("arg1", int32_vec5_pointer_type);
+        l_cursor.add_field("arg2", int32_vec5_pointer_type);
+        l_cursor.add_field("arg3", int32_vec5_pointer_type);
+        l_cursor.bind("vec_add_args");
         {
             Module l_module = l_cursor.main_module();
             Module::Context l_module_ctx{l_module};
@@ -1020,12 +986,9 @@ TEST(LLVM_CODEGEN, vector_type_test) {
         TypeInfo int32_vec5_type2 = TypeInfo::mk_vector(int32_type2, 5);
         TypeInfo int32_vec5_pointer_type2 = int32_vec5_type2.mk_ptr();
 
-        std::vector<member_field_entry> vec_set_args_fields;
-        vec_set_args_fields.emplace_back("arg1", int32_vec5_pointer_type2);
-        vec_set_args_fields.emplace_back("v", int32_type2);
-        TypeInfo vec_set_args_type = TypeInfo::mk_struct("vec_set_args", vec_set_args_fields);
-
-        l_cursor2.bind(vec_set_args_type.mk_ptr());
+        l_cursor2.add_field("arg1", int32_vec5_pointer_type2);
+        l_cursor2.add_field("v", int32_type2);
+        l_cursor2.bind("vec_set_args");
         {
             Module l_module2 = l_cursor2.main_module();
             Module::Context l_module2_ctx{l_module2};
@@ -1053,11 +1016,8 @@ TEST(LLVM_CODEGEN, vector_type_test) {
         TypeInfo int32_vec5_type3 = TypeInfo::mk_vector(int32_type3, 5);
         TypeInfo int32_vec5_pointer_type3 = int32_vec5_type3.mk_ptr();
 
-        std::vector<member_field_entry> vec_load_args_fields;
-        vec_load_args_fields.emplace_back("arg1", int32_vec5_pointer_type3);
-        TypeInfo vec_load_args_type = TypeInfo::mk_struct("vec_load_args", vec_load_args_fields);
-
-        l_cursor3.bind(vec_load_args_type.mk_ptr());
+        l_cursor3.add_field("arg1", int32_vec5_pointer_type3);
+        l_cursor3.bind("vec_load_args");
         {
             Module l_module3 = l_cursor3.main_module();
             Module::Context l_module3_ctx{l_module3};
@@ -1163,15 +1123,12 @@ TEST(LLVM_CODEGEN, multi_module) {
     CODEGEN_LINE(JustInTimeRunner jit_runner)
 
     CODEGEN_LINE(TypeInfo int32_type = TypeInfo::mk_int32())
-    std::vector<member_field_entry> multi_args_fields;
-    multi_args_fields.emplace_back("arg1", int32_type);
-    multi_args_fields.emplace_back("arg2", int32_type);
-    multi_args_fields.emplace_back("arg3", int32_type);
-    multi_args_fields.emplace_back("res5", int32_type);
-    multi_args_fields.emplace_back("res6", int32_type);
-    CODEGEN_LINE(TypeInfo multi_args_type = TypeInfo::mk_struct("multi_args", multi_args_fields))
-
-    CODEGEN_LINE(l_cursor.bind(multi_args_type.mk_ptr()))
+    CODEGEN_LINE(l_cursor.add_field("arg1", int32_type))
+    CODEGEN_LINE(l_cursor.add_field("arg2", int32_type))
+    CODEGEN_LINE(l_cursor.add_field("arg3", int32_type))
+    CODEGEN_LINE(l_cursor.add_field("res5", int32_type))
+    CODEGEN_LINE(l_cursor.add_field("res6", int32_type))
+    CODEGEN_LINE(l_cursor.bind("multi_args"))
     CODEGEN_LINE(Function fn2)
     CODEGEN_LINE(Function fn2_local)
     {
@@ -1301,12 +1258,10 @@ TEST(LLVM_CODEGEN, resilient_api) {
         return fn;
     };
 
-    std::vector<member_field_entry> resilient_args_fields;
-    resilient_args_fields.emplace_back("arg1", int32_type);
-    resilient_args_fields.emplace_back("arg2", int32_type);
-    resilient_args_fields.emplace_back("arg3", int32_type);
-    CODEGEN_LINE(TypeInfo resilient_args_type = TypeInfo::mk_struct("resilient_args", resilient_args_fields))
-    CODEGEN_LINE(Cursor::Context::value().bind(resilient_args_type.mk_ptr()))
+    CODEGEN_LINE(Cursor::Context::value().add_field("arg1", int32_type))
+    CODEGEN_LINE(Cursor::Context::value().add_field("arg2", int32_type))
+    CODEGEN_LINE(Cursor::Context::value().add_field("arg3", int32_type))
+    CODEGEN_LINE(Cursor::Context::value().bind("resilient_args"))
     CODEGEN_LINE(Module l_module = Cursor::Context::value().main_module())
     CODEGEN_LINE(Module::Context l_module_ctx{l_module})
     LLVM_BUILDER_ASSERT(fn_save.has_error());

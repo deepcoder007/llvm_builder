@@ -23,7 +23,7 @@ TEST(LLVM_CODEGEN_OBJECT, complex_struct_definitions) {
     CODEGEN_LINE(TypeInfo int32_type = TypeInfo::mk_int32())
     CODEGEN_LINE(TypeInfo void_type = TypeInfo::mk_void())
     CODEGEN_LINE(TypeInfo bool_type = TypeInfo::mk_bool())
-    std::vector<member_field_entry> l_field_list;
+    std::vector<field_entry_t> l_field_list;
     CODEGEN_LINE(l_field_list.emplace_back("field_1", int32_type))
     CODEGEN_LINE(l_field_list.emplace_back("field_2", int32_type))
     CODEGEN_LINE(l_field_list.emplace_back("field_3", int32_type))
@@ -36,7 +36,7 @@ TEST(LLVM_CODEGEN_OBJECT, complex_struct_definitions) {
     CODEGEN_LINE(TypeInfo l_inner_struct = TypeInfo::mk_struct("inner_struct_2", l_field_list, false))
     CODEGEN_LINE(TypeInfo l_outer_struct)
     {
-        std::vector<member_field_entry> l_field_list;
+        std::vector<field_entry_t> l_field_list;
         CODEGEN_LINE(l_field_list.emplace_back("inner_field_1", int32_type))
         CODEGEN_LINE(l_field_list.emplace_back("inner_field_2", int32_type))
         CODEGEN_LINE(l_field_list.emplace_back("inner_field_3", l_struct_type.mk_ptr()))
@@ -50,14 +50,12 @@ TEST(LLVM_CODEGEN_OBJECT, complex_struct_definitions) {
         CODEGEN_LINE(l_field_list.emplace_back("inner_field_11", l_inner_struct.mk_ptr()))
         CODEGEN_LINE(l_outer_struct = TypeInfo::mk_struct("outer_struct", l_field_list, false))
     }
-    std::vector<member_field_entry> big_struct_args_fields;
-    big_struct_args_fields.emplace_back("arg_struct_type", l_struct_type.mk_ptr());
-    big_struct_args_fields.emplace_back("arg_inner_struct", l_inner_struct.mk_ptr());
-    big_struct_args_fields.emplace_back("arg_outer_struct", l_outer_struct.mk_ptr());
-    CODEGEN_LINE(TypeInfo big_struct_args_type = TypeInfo::mk_struct("big_struct_args", big_struct_args_fields))
+    CODEGEN_LINE(l_cursor.add_field("arg_struct_type", l_struct_type.mk_ptr()))
+    CODEGEN_LINE(l_cursor.add_field("arg_inner_struct", l_inner_struct.mk_ptr()))
+    CODEGEN_LINE(l_cursor.add_field("arg_outer_struct", l_outer_struct.mk_ptr()))
 
     CODEGEN_LINE(JustInTimeRunner jit_runner)
-    CODEGEN_LINE(l_cursor.bind(big_struct_args_type.mk_ptr()))
+    CODEGEN_LINE(l_cursor.bind("big_struct_args"))
     CODEGEN_LINE(Module l_module = l_cursor.main_module())
     CODEGEN_LINE(Module::Context l_module_ctx{l_module})
     {
@@ -359,8 +357,6 @@ TEST(LLVM_CODEGEN_OBJECT, complex_struct_definitions) {
 
 TEST(LLVM_CODEGEN_OBJECT, complex_struct_definitions_v2) {
     JustInTimeRunner jit_runner;
-    TypeInfo inner_copy_args_type;
-    TypeInfo outer_copy_args_type;
     CODEGEN_LINE(Cursor l_cursor{"struct_type_test_v2"})
     {
         CODEGEN_LINE(Cursor::Context l_cursor_ctx{l_cursor})
@@ -375,7 +371,7 @@ TEST(LLVM_CODEGEN_OBJECT, complex_struct_definitions_v2) {
         CODEGEN_LINE(TypeInfo double_vec7_type = TypeInfo::mk_vector(double_type, 7))
         CODEGEN_LINE(TypeInfo double_vec7_ptr_type = double_vec7_type.mk_ptr())
         CODEGEN_LINE(TypeInfo l_inner_struct_type{})
-        std::vector<member_field_entry> l_inner_field_list;
+        std::vector<field_entry_t> l_inner_field_list;
         CODEGEN_LINE(l_inner_field_list.emplace_back("field_1", double_type))
         CODEGEN_LINE(l_inner_field_list.emplace_back("field_2", int32_type))
         CODEGEN_LINE(l_inner_field_list.emplace_back("field_3", int32_arr7_ptr_type))
@@ -387,13 +383,11 @@ TEST(LLVM_CODEGEN_OBJECT, complex_struct_definitions_v2) {
         CODEGEN_LINE(l_inner_field_list.emplace_back("field_8", int32_type))
         CODEGEN_LINE(l_inner_field_list.emplace_back("field_9", double_type))
         CODEGEN_LINE(l_inner_struct_type = TypeInfo::mk_struct("inner_struct_v2", l_inner_field_list, false))
-        std::vector<member_field_entry> inner_copy_args_fields;
-        inner_copy_args_fields.emplace_back("arg1", l_inner_struct_type.mk_ptr());
-        CODEGEN_LINE(inner_copy_args_type = TypeInfo::mk_struct("inner_copy_args_v2", inner_copy_args_fields))
+        CODEGEN_LINE(l_cursor.add_field("arg1", l_inner_struct_type.mk_ptr()))
 
         LLVM_BUILDER_ALWAYS_ASSERT(not ErrorContext::has_error())
 
-        CODEGEN_LINE(l_cursor.bind(inner_copy_args_type.mk_ptr()))
+        CODEGEN_LINE(l_cursor.bind("inner_copy_args_v2"))
         {
             CODEGEN_LINE(Module l_module = l_cursor.main_module())
             CODEGEN_LINE(Module::Context l_module_ctx{l_module})
@@ -448,14 +442,14 @@ TEST(LLVM_CODEGEN_OBJECT, complex_struct_definitions_v2) {
         CODEGEN_LINE(TypeInfo double_arr7_ptr_type = double_arr7_type.mk_ptr())
         CODEGEN_LINE(TypeInfo double_vec7_type = TypeInfo::mk_vector(double_type, 7))
         CODEGEN_LINE(TypeInfo double_vec7_ptr_type = double_vec7_type.mk_ptr())
-        std::vector<member_field_entry> l_field_list;
+        std::vector<field_entry_t> l_field_list;
         CODEGEN_LINE(l_field_list.emplace_back("int_field_1", int32_type))
         CODEGEN_LINE(l_field_list.emplace_back("int_field_2", int32_type))
         CODEGEN_LINE(l_field_list.emplace_back("int_arr_field_1", int32_arr7_ptr_type))
         CODEGEN_LINE(l_field_list.emplace_back("int_arr_field_2", int32_arr7_ptr_type))
         CODEGEN_LINE(TypeInfo l_inner_struct_type{})
         {
-            std::vector<member_field_entry> l_inner_field_list;
+            std::vector<field_entry_t> l_inner_field_list;
             CODEGEN_LINE(l_inner_field_list.emplace_back("field_1", double_type))
             CODEGEN_LINE(l_inner_field_list.emplace_back("field_2", int32_type))
             CODEGEN_LINE(l_inner_field_list.emplace_back("field_3", int32_arr7_ptr_type))
@@ -484,10 +478,8 @@ TEST(LLVM_CODEGEN_OBJECT, complex_struct_definitions_v2) {
         CODEGEN_LINE(l_field_list.emplace_back("int_field_5", int32_type))
         CODEGEN_LINE(TypeInfo l_struct_type = TypeInfo::mk_struct("test_struct_v2", l_field_list, false))
 
-        std::vector<member_field_entry> outer_copy_args_fields;
-        outer_copy_args_fields.emplace_back("arg1", l_struct_type.mk_ptr());
-        CODEGEN_LINE(outer_copy_args_type = TypeInfo::mk_struct("outer_copy_args_v2", outer_copy_args_fields))
-        CODEGEN_LINE(l_cursor2.bind(outer_copy_args_type.mk_ptr()))
+        CODEGEN_LINE(l_cursor2.add_field("arg1", l_struct_type.mk_ptr()))
+        CODEGEN_LINE(l_cursor2.bind("outer_copy_args_v2"))
         {
             CODEGEN_LINE(Module l_module = l_cursor2.main_module())
             CODEGEN_LINE(Module::Context l_module_ctx{l_module})

@@ -750,7 +750,7 @@ ValueInfo ValueInfo::field(const std::string& s) const {
     if (not base_type.is_struct()) {
         return ValueInfo::null("can't define struct-field access operation for non-struct pointer type");
     }
-    TypeInfo::field_entry_t field_entry = base_type[s];
+    field_entry_t field_entry = base_type[s];
     ValueInfo tgt_idx = ValueInfo::from_constant((int32_t)field_entry.idx());
     return ValueInfo{*this, field_entry.type(), tgt_idx, construct_entry_t{}};
 }

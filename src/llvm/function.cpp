@@ -409,9 +409,7 @@ Function::Function(const std::string& name, bool is_external)
         M_mark_error("no active module found");
         return;
     }
-    FunctionImpl impl(name, is_external, c_construct{});
-    Function fn = CursorContextImpl::mk_function(std::move(impl));
-    LLVM_BUILDER_ASSERT(not impl.is_valid());
+    Function fn = CursorContextImpl::mk_function(name, is_external);
     if (fn.has_error()) {
         M_mark_error();
         return;
@@ -1277,15 +1275,6 @@ FunctionImpl::FunctionImpl(const std::string& fn_name, bool is_external, c_const
         LLVM_BUILDER_ASSERT(Module::Context::has_value())
         Module::Context::value().register_symbol(m_impl->link_symbol());
     }
-}
-
-FunctionImpl::FunctionImpl(FunctionImpl&& o) {
-    m_impl = std::move(o.m_impl);
-}
-
-FunctionImpl& FunctionImpl::operator = (FunctionImpl&& o) {
-    m_impl = std::move(o.m_impl);
-    return *this;
 }
 
 FunctionImpl::~FunctionImpl() = default;

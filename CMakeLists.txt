@@ -2,6 +2,16 @@ cmake_minimum_required(VERSION 3.16)
 
 project(llvm_builder DESCRIPTION "LLvm representation builder" VERSION 1.0 LANGUAGES CXX)
 
+# Prevent conda environment from polluting include/library paths
+if(DEFINED ENV{CONDA_PREFIX})
+    set(CMAKE_CXX_FLAGS "" CACHE STRING "" FORCE)
+    set(CMAKE_C_FLAGS "" CACHE STRING "" FORCE)
+    set(CMAKE_EXE_LINKER_FLAGS "" CACHE STRING "" FORCE)
+    set(CMAKE_SHARED_LINKER_FLAGS "" CACHE STRING "" FORCE)
+    set(CMAKE_MODULE_LINKER_FLAGS "" CACHE STRING "" FORCE)
+    list(FILTER CMAKE_PREFIX_PATH EXCLUDE REGEX "conda")
+endif()
+
 find_program(CCACHE_PROGRAM ccache)
 if(CCACHE_PROGRAM)
     message(STATUS "Found ccache: ${CCACHE_PROGRAM}")
@@ -156,7 +166,7 @@ function(setup_test target src_files)
 endfunction()
 
 enable_testing()
-find_package(GTest REQUIRED)
+find_package(GTest REQUIRED PATHS /usr/lib/cmake /usr/local/lib/cmake NO_DEFAULT_PATH)
 file(GLOB_RECURSE ${MODULE_NAME}_test_sources CONFIGURE_DEPENDS "src/unit_tests/*.x.cpp")
 message(VERBOSE "List of tests: ${${MODULE_NAME}_test_sources}")
 setup_test(unit_test_${MODULE_NAME} "${${MODULE_NAME}_test_sources}")

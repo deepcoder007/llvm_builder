@@ -40,9 +40,11 @@ private:
     llvm::LLVMContext& m_context;
     llvm::IRBuilder<> m_ir_builder;
     TypeInfo m_ctx_type;
+    std::vector<field_entry_t> m_context_fields;
     std::unordered_map<std::string, ModuleImpl> m_modules;
     std::vector<FunctionImpl> m_func_list;
     std::vector<TypeInfoImpl> m_type_list;
+    std::unordered_map<std::string, EventImpl> m_event_map;
 #define DECL_MK_TYPE(TYPE_NAME)         \
     TypeInfo m_type_ ##TYPE_NAME;       \
 /**/ 
@@ -52,7 +54,6 @@ FOR_EACH_LLVM_TYPE(DECL_MK_TYPE)
     TypeInfo m_type_fn_type;
     std::unordered_map<uint32_t, std::vector<TypeInfo>> m_array_types;
     std::unordered_map<uint32_t, std::vector<TypeInfo>> m_vector_types;
-    TypeInfo m_int_context;
     std::vector<std::pair<TypeInfo, TypeInfo>> m_pointer_cache;
     Module m_main_module;
     std::vector<on_main_module_fn_t> m_main_mod_hook;
@@ -80,6 +81,7 @@ public:
         m_modules.clear();
         m_func_list.clear();
         m_type_list.clear();
+        m_event_map.clear();
 #define DECL_DEL_TYPE(TYPE_NAME)                                               \
         m_type_ ##TYPE_NAME = TypeInfo::null();                                \
 /**/
@@ -151,7 +153,6 @@ FOR_EACH_LLVM_TYPE(DECL_DEL_TYPE)
         }
         LLVM_BUILDER_ASSERT(not ErrorContext::has_error());
     }
-private:
     const std::string &name() const {
         return m_name;
     }
@@ -171,14 +172,44 @@ private:
         const std::string l_mod_name = LLVM_BUILDER_CONCAT << m_name << "_" << m_modules.size();
         return M_gen_module(l_mod_name, ptr);
     }
-    Function mk_function(FunctionImpl&& fn_impl) {
+    void add_field(const std::string& name, TypeInfo type, Event event) {
+        LLVM_BUILDER_ASSERT(is_valid());
+        LLVM_BUILDER_ASSERT(not is_bind_called());
+        m_context_fields.emplace_back(name, type, false);
+        (void)event;
+    }
+    size_t num_fields() const {
+        return m_context_fields.size();
+    }
+    void bind(const std::weak_ptr<Impl>& ptr, const std::string& context_name) {
+        CODEGEN_FN
+        LLVM_BUILDER_ASSERT(is_valid());
+        LLVM_BUILDER_ASSERT(not is_bind_called());
+        LLVM_BUILDER_ASSERT(not m_context_fields.empty());
+        LLVM_BUILDER_ASSERT(not context_name.empty())
+        m_ctx_type = TypeInfo::mk_struct(context_name, m_context_fields).mk_ptr();
+        LLVM_BUILDER_ASSERT(not m_ctx_type.has_error());
+        m_is_bind = true;
+        m_main_module = M_gen_module(m_name, ptr);
+        Module::Context l_module_ctx{m_main_module};
+        for (on_main_module_fn_t& fn : m_main_mod_hook) {
+            fn(m_main_module);
+        }
+    }
+private:
+    Function mk_function(const std::string& name, bool is_external) {
         CODEGEN_FN
         // TODO{vibhanshu}: add checks to avoid name clashes
         LLVM_BUILDER_ASSERT(is_valid());
-        LLVM_BUILDER_ASSERT(fn_impl.is_valid());
-        FunctionImpl& impl =  m_func_list.emplace_back(std::move(fn_impl));
-        LLVM_BUILDER_ASSERT(not fn_impl.is_valid());
+        FunctionImpl& impl =  m_func_list.emplace_back(name, is_external, typename Function::c_construct{});
         return Function{impl};
+    }
+    Event try_mk_event(const std::string& name) {
+        LLVM_BUILDER_ASSERT(is_valid());
+        auto it = m_event_map.try_emplace(name, name);
+        EventImpl& impl = it.first->second;
+        LLVM_BUILDER_ASSERT(impl.is_valid());
+        return Event{impl};
     }
     Function find_function(const std::string& name) {
         for (FunctionImpl& fn_impl : m_func_list) {
@@ -245,23 +276,13 @@ FOR_EACH_LLVM_TYPE(DECL_MK_TYPE)
         TypeInfoImpl& l_type_impl = m_type_list.emplace_back(typename TypeInfoImpl::vector_construct_t{}, parent, element_type, num_elements);
         return l_vec.emplace_back(l_type_impl);
     }
-    TypeInfo mk_int_context() {
-        LLVM_BUILDER_ASSERT(is_valid());
-        if (m_int_context.is_null()) {
-            std::vector<member_field_entry> args;
-            args.emplace_back("arg", TypeInfo::mk_int32());
-            m_int_context = TypeInfo::mk_struct("int_arg", args, false);
-        }
-        return m_int_context;
-    }
-    TypeInfo mk_type_struct(const std::string& name, const std::vector<member_field_entry>& element_list, bool is_packed, CursorPtr parent) {
+    TypeInfo mk_type_struct(const std::string& name, const std::vector<field_entry_t>& element_list, bool is_packed, CursorPtr parent) {
         LLVM_BUILDER_ASSERT(is_valid());
         LLVM_BUILDER_ASSERT(not name.empty());
         LLVM_BUILDER_ASSERT(element_list.size() > 0);
         LLVM_BUILDER_ASSERT(not is_bind_called());
         std::unordered_set<std::string> l_field_types_set;
-        for ([[maybe_unused]] const member_field_entry& l_entry : element_list) {
-            LLVM_BUILDER_ASSERT(l_entry.is_valid());
+        for ([[maybe_unused]] const field_entry_t& l_entry : element_list) {
             LLVM_BUILDER_ASSERT(l_entry.type().is_valid_struct_field());
             auto it = l_field_types_set.emplace(l_entry.name());
             LLVM_BUILDER_ASSERT(it.second);
@@ -284,21 +305,6 @@ FOR_EACH_LLVM_TYPE(DECL_MK_TYPE)
         LLVM_BUILDER_ASSERT(not is_bind_called());
         LLVM_BUILDER_ASSERT(fn);
         m_main_mod_hook.emplace_back(std::move(fn));
-    }
-    void bind(const std::weak_ptr<Impl>& ptr, const TypeInfo& ctx_type) {
-        CODEGEN_FN
-        LLVM_BUILDER_ASSERT(is_valid());
-        LLVM_BUILDER_ASSERT(not is_bind_called());
-        LLVM_BUILDER_ASSERT(not ctx_type.has_error());
-        LLVM_BUILDER_ASSERT(ctx_type.is_pointer());
-        LLVM_BUILDER_ASSERT(ctx_type.base_type().is_struct());
-        m_ctx_type = ctx_type;
-        m_is_bind = true;
-        m_main_module = M_gen_module(m_name, ptr);
-        Module::Context l_module_ctx{m_main_module};
-        for (on_main_module_fn_t& fn : m_main_mod_hook) {
-            fn(m_main_module);
-        }
     }
     void for_each_module(on_module_fn_t &&fn) const {
         CODEGEN_FN
@@ -344,15 +350,6 @@ bool CursorPtr::is_valid() const {
     return not m_impl.expired();
 }
 
-const std::string& CursorPtr::name() const {
-    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
-        return ptr->name();
-    } else {
-        static std::string s_null{"<NULL>"};
-        return s_null;
-    }
-}
-
 auto CursorPtr::context_type() const -> TypeInfo {
     CODEGEN_FN
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
@@ -360,54 +357,30 @@ auto CursorPtr::context_type() const -> TypeInfo {
             if (ptr->is_bind_called()) {
                 return ptr->context_type();
             } else {
-                return TypeInfo::null(LLVM_BUILDER_CONCAT << " bind not called for Cursor:" << name());
+                return TypeInfo::null(LLVM_BUILDER_CONCAT << " bind not called for Cursor:" << ptr->name());
             }
         }
     }
     return TypeInfo::null();
 }
 
-Module CursorPtr::main_module() {
+Function CursorPtr::mk_function(const std::string& name, bool is_external) {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         if (ptr->is_valid()) {
-            if (ptr->is_bind_called()) {
-                return ptr->main_module();
-            } else {
-                return Module::null(LLVM_BUILDER_CONCAT << " bind not called for Cursor:" << name());
-            }
-        } else {
-            return Module::null();
-        }
-    } else {
-        return Module::null();
-    }
-}
-
-Module CursorPtr::gen_module() {
-    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
-        if (ptr->is_valid()) {
-            if (ptr->is_bind_called()) {
-                return ptr->gen_module(m_impl);
-            } else {
-                return Module::null(LLVM_BUILDER_CONCAT << " bind not called for Cursor:" << name());
-            }
-        } else {
-            return Module::null();
-        }
-    } else {
-        return Module::null();
-    }
-} 
-
-Function CursorPtr::mk_function(FunctionImpl&& fn_impl) {
-    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
-        if (ptr->is_valid()) {
-            return ptr->mk_function(std::move(fn_impl));
+            return ptr->mk_function(name, is_external);
         } else {
             return Function::null();
         }
     } else {
         return Function::null();
+    }
+}
+
+Event CursorPtr::find_event(const std::string& name) {
+    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
+        return ptr->try_mk_event(name);
+    } else {
+        return Event::null();
     }
 }
 
@@ -456,15 +429,6 @@ TypeInfo CursorPtr::mk_type_fn_type() {
     return TypeInfo::null();
 }
 
-TypeInfo CursorPtr::mk_int_context() {
-    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
-        if (ptr->is_valid()) {
-            return ptr->mk_int_context();
-        }
-    }
-    return TypeInfo::null();
-}
-
 TypeInfo CursorPtr::mk_type_array(TypeInfo element_type, uint32_t num_elements) {
     if (element_type.has_error()) {
         return TypeInfo::null(" can't define array to an invalid type");
@@ -501,7 +465,7 @@ TypeInfo CursorPtr::mk_type_vector(TypeInfo element_type, uint32_t num_elements)
     return TypeInfo::null();
 }
 
-TypeInfo CursorPtr::mk_type_struct(const std::string& name, const std::vector<member_field_entry>& element_list, bool is_packed) {
+TypeInfo CursorPtr::mk_type_struct(const std::string& name, const std::vector<field_entry_t>& element_list, bool is_packed) {
     if (name.empty()) {
         return TypeInfo::null("can't define struct without name");
     }
@@ -509,11 +473,11 @@ TypeInfo CursorPtr::mk_type_struct(const std::string& name, const std::vector<me
         return TypeInfo::null("can't define struct without fields");
     }
     std::unordered_set<std::string> l_field_types_set;
-    for (const member_field_entry &l_element : element_list) {
-        if (not l_element.is_valid()) {
-            return TypeInfo::null("can't define struct with invalid entry");
-        }
+    for (const field_entry_t& l_element : element_list) {
         const TypeInfo& l_element_type = l_element.type();
+        if (l_element.name().size() == 0) {
+            return TypeInfo::null("can't define struct with invalid name:");
+        }
         if (l_element_type.has_error() or not l_element_type.is_valid_struct_field()) {
             return TypeInfo::null(LLVM_BUILDER_CONCAT << "fields of struct is not of valid type:" << l_element.name());
         }
@@ -533,7 +497,7 @@ TypeInfo CursorPtr::mk_type_struct(const std::string& name, const std::vector<me
             if (not ptr->is_bind_called()) {
                 return ptr->mk_type_struct(name, element_list, is_packed, *this);
             } else {
-                return TypeInfo::null(LLVM_BUILDER_CONCAT << " can't create new type after binding cursor:" << this->name());
+                return TypeInfo::null(LLVM_BUILDER_CONCAT << " can't create new type after binding cursor:" << ptr->name());
             }
         }
     }
@@ -551,7 +515,7 @@ void CursorPtr::main_module_hook_fn(on_main_module_fn_t &&fn) {
             if (not ptr->is_bind_called()) {
                 ptr->main_module_hook_fn(std::move(fn));
             } else {
-                CODEGEN_PUSH_ERROR(MODULE, " can't create new type after binding cursor:" << name());
+                CODEGEN_PUSH_ERROR(MODULE, " can't create new type after binding cursor:" << ptr->name());
             }
         }
     }
@@ -565,30 +529,12 @@ bool CursorPtr::is_bind_called() const {
     }
 }
 
-void CursorPtr::bind(const TypeInfo& ctx_type) {
-    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
-        if (ptr->is_bind_called()) {
-            CODEGEN_PUSH_ERROR(MODULE, " bind already called for Cursor:" << name());
-        } else {
-            ptr->bind(m_impl, ctx_type);
-        }
-    }
-}
-
-void CursorPtr::cleanup() {
-    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
-        if (ptr->is_valid()) {
-            ptr->cleanup();
-        }
-    }
-}
-
 void CursorPtr::for_each_module(on_module_fn_t&& fn) {
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         if (ptr->is_bind_called()) {
             return ptr->for_each_module(std::move(fn));
         } else {
-            CODEGEN_PUSH_ERROR(MODULE, " modules not yet initialied for cursor:" << name());
+            CODEGEN_PUSH_ERROR(MODULE, " modules not yet initialied for cursor:" << ptr->name());
         }
     }
 }
@@ -638,14 +584,16 @@ auto Cursor::name() -> const std::string& {
         static std::string s_name{"<ERROR_CURSOR>"};
         return s_name;
     }
-    return CursorPtr{*this}.name();
+    LLVM_BUILDER_ASSERT(m_impl);
+    return m_impl->name();
 }
 
 auto Cursor::context_type() -> TypeInfo {
     if (has_error()) {
         return TypeInfo::null();
     }
-    return CursorPtr{*this}.context_type();
+    LLVM_BUILDER_ASSERT(m_impl);
+    return m_impl->context_type();
 }
 
 Module Cursor::main_module() {
@@ -653,7 +601,8 @@ Module Cursor::main_module() {
     if (has_error()) {
         return Module::null();
     }
-    return CursorPtr{*this}.main_module();
+    LLVM_BUILDER_ASSERT(m_impl);
+    return m_impl->main_module();
 }
 
 Module Cursor::gen_module() {
@@ -661,7 +610,8 @@ Module Cursor::gen_module() {
     if (has_error()) {
         return Module::null();
     }
-    return CursorPtr{*this}.gen_module();
+    LLVM_BUILDER_ASSERT(m_impl);
+    return m_impl->gen_module(std::weak_ptr<Impl>(m_impl));
 }
 
 void Cursor::main_module_hook_fn(on_main_module_fn_t &&fn) {
@@ -677,26 +627,38 @@ bool Cursor::is_bind_called() {
     if (has_error()) {
         return false;
     }
-    return CursorPtr{*this}.is_bind_called();
+    LLVM_BUILDER_ASSERT(m_impl);
+    return m_impl->is_bind_called();
 }
 
-void Cursor::bind(const TypeInfo& ctx_type) {
+void Cursor::add_field(const std::string& name, TypeInfo type, Event event) {
     CODEGEN_FN
     if (has_error()) {
         return;
     }
-    if (not ctx_type.is_pointer() or not ctx_type.base_type().is_struct()) {
-        CODEGEN_PUSH_ERROR(MODULE, "context type need to be pointer to struct, found:" << ctx_type.short_name());
+    LLVM_BUILDER_ASSERT(m_impl);
+    m_impl->add_field(name, type, event);
+}
+
+void Cursor::bind(const std::string& context_name) {
+    CODEGEN_FN
+    if (has_error()) {
         return;
     }
-    CursorPtr{*this}.bind(ctx_type);
+    LLVM_BUILDER_ASSERT(m_impl);
+    if (m_impl->num_fields() == 0) {
+        CODEGEN_PUSH_ERROR(MODULE, "Can't bind cursor with 0 fields in context");
+        return;
+    }
+    m_impl->bind(std::weak_ptr<Impl>(m_impl), context_name);
 }
 
 void Cursor::cleanup() {
     if (has_error()) {
         return;
     }
-    CursorPtr{*this}.cleanup();
+    LLVM_BUILDER_ASSERT(m_impl);
+    m_impl->cleanup();
 }
 
 void Cursor::for_each_module(on_module_fn_t&& fn) {

@@ -66,24 +66,14 @@ void bind_types(nb::module_& m) {
         .value("custom_struct", LinkSymbol::symbol_type::custom_struct)
         .value("function", LinkSymbol::symbol_type::function);
 
-    // member_field_entry
-    nb::class_<member_field_entry>(m, "MemberFieldEntry")
-        .def(nb::init<>())
-        .def(nb::init<const std::string&, TypeInfo>(), "name"_a, "type"_a)
-        .def(nb::init<const std::string&, TypeInfo, bool>(), "name"_a, "type"_a, "is_readonly"_a)
-        .def("name", &member_field_entry::name)
-        .def("type", &member_field_entry::type)
-        .def("is_readonly", &member_field_entry::is_readonly)
-        .def("is_valid", &member_field_entry::is_valid);
-
-    // TypeInfo::field_entry_t
-    nb::class_<TypeInfo::field_entry_t>(m, "FieldEntry")
-        .def("idx", &TypeInfo::field_entry_t::idx)
-        .def("offset", &TypeInfo::field_entry_t::offset)
-        .def("name", &TypeInfo::field_entry_t::name)
-        .def("type", &TypeInfo::field_entry_t::type)
-        .def("is_readonly", &TypeInfo::field_entry_t::is_readonly)
-        .def_static("null", &TypeInfo::field_entry_t::null, nb::rv_policy::reference);
+    // field_entry_t
+    nb::class_<field_entry_t>(m, "FieldEntry")
+        .def("idx", &field_entry_t::idx)
+        .def("offset", &field_entry_t::offset)
+        .def("name", &field_entry_t::name)
+        .def("type", &field_entry_t::type)
+        .def("is_readonly", &field_entry_t::is_readonly)
+        .def_static("null", &field_entry_t::null, nb::rv_policy::reference);
 
     // TypeInfo
     nb::class_<TypeInfo>(m, "TypeInfo")
@@ -339,7 +329,7 @@ void bind_modules(nb::module_& m) {
         .def("main_module", &Cursor::main_module)
         .def("gen_module", &Cursor::gen_module)
         .def("is_bind_called", &Cursor::is_bind_called)
-        .def("bind", &Cursor::bind, "ctx_type"_a)
+        .def("bind", &Cursor::bind)
         .def("cleanup", &Cursor::cleanup)
         .def("__eq__", &Cursor::operator==)
         .def_static("null", &Cursor::null);
