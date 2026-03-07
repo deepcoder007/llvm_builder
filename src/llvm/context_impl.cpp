@@ -41,6 +41,14 @@ TypeInfo CursorContextImpl::context_type() {
     }
 }
 
+EventSet CursorContextImpl::field_event(const std::string& name) {
+    if (has_value()) {
+        return CursorPtr{Cursor::Context::value()}.field_event(name);
+    } else {
+        return EventSet{};
+    }
+}
+
 Function CursorContextImpl::mk_function(const std::string& name, bool is_external) {
     if (has_value()) {
         return CursorPtr{Cursor::Context::value()}.mk_function(name, is_external);

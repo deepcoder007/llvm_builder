@@ -94,4 +94,65 @@ bool Event::operator == (const Event& o) const {
     }
 }
 
+//
+// EventSet
+//
+EventSet::EventSet(const Event& event) {
+    add(event);
+}
+
+void EventSet::M_mark_global() {
+    m_is_global = true;
+    m_events.clear();
+}
+
+void EventSet::add(const Event& event) {
+    if (not m_is_global) {
+        if (event.is_global()) {
+            M_mark_global();
+        } else {
+            for (const Event& l_event : m_events) {
+                if (l_event == event) {
+                    return;
+                }
+            }
+            m_events.emplace_back(event);
+        }
+    }
+}
+
+void EventSet::add(const EventSet& events) {
+    if (m_is_global or events.m_is_global) {
+        M_mark_global();
+    } else {
+        for (const Event& l_event : events.m_events) {
+            add(l_event);
+        }
+    }
+}
+
+EventSet EventSet::set_union(const EventSet& events) const {
+    EventSet l_ret;
+    l_ret.add(events);
+    return l_ret;
+}
+
+bool EventSet::contains(const Event& event) const {
+    if (m_is_global) {
+        return true;
+    }
+    for (const Event& l_entry : m_events) {
+        if (event == l_entry) {
+            return true;
+        }
+    }
+    return false;
+}
+
+auto EventSet::global() -> EventSet {
+    EventSet l_ret;
+    l_ret.M_mark_global();
+    return l_ret;
+}
+
 LLVM_BUILDER_NS_END

@@ -52,7 +52,8 @@ public:
     Module gen_module();
     void main_module_hook_fn(on_main_module_fn_t&& fn);
     bool is_bind_called();
-    void add_field(const std::string& name, TypeInfo type, Event event = Event::null());
+    void add_field(const std::string& name, const TypeInfo& type, EventSet event = EventSet::global());
+    EventSet field_event(const std::string& name);
     void bind(const std::string& context_name);
     void cleanup();
     void for_each_module(on_module_fn_t&& fn);

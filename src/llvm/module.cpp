@@ -41,6 +41,7 @@ private:
     llvm::IRBuilder<> m_ir_builder;
     TypeInfo m_ctx_type;
     std::vector<field_entry_t> m_context_fields;
+    std::unordered_map<std::string, EventSet> m_field_events;
     std::unordered_map<std::string, ModuleImpl> m_modules;
     std::vector<FunctionImpl> m_func_list;
     std::vector<TypeInfoImpl> m_type_list;
@@ -172,11 +173,19 @@ FOR_EACH_LLVM_TYPE(DECL_DEL_TYPE)
         const std::string l_mod_name = LLVM_BUILDER_CONCAT << m_name << "_" << m_modules.size();
         return M_gen_module(l_mod_name, ptr);
     }
-    void add_field(const std::string& name, TypeInfo type, Event event) {
+    void add_field(const std::string& name, const TypeInfo& type, const EventSet& event) {
         LLVM_BUILDER_ASSERT(is_valid());
         LLVM_BUILDER_ASSERT(not is_bind_called());
+        LLVM_BUILDER_ASSERT(not name.empty());
+        LLVM_BUILDER_ASSERT(type.is_valid_struct_field());
         m_context_fields.emplace_back(name, type, false);
-        (void)event;
+        m_field_events.try_emplace(name, event);
+    }
+    EventSet field_event(const std::string& name) const {
+        LLVM_BUILDER_ASSERT(not name.empty());
+        auto it = m_field_events.find(name);
+        LLVM_BUILDER_ASSERT(it != m_field_events.end());
+        return it->second;
     }
     size_t num_fields() const {
         return m_context_fields.size();
@@ -362,6 +371,16 @@ auto CursorPtr::context_type() const -> TypeInfo {
         }
     }
     return TypeInfo::null();
+}
+
+auto CursorPtr::field_event(const std::string& name) const -> EventSet {
+    CODEGEN_FN
+    if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
+        if (ptr->is_valid()) {
+            return ptr->field_event(name);
+        }
+    }
+    return EventSet{};
 }
 
 Function CursorPtr::mk_function(const std::string& name, bool is_external) {
@@ -631,13 +650,33 @@ bool Cursor::is_bind_called() {
     return m_impl->is_bind_called();
 }
 
-void Cursor::add_field(const std::string& name, TypeInfo type, Event event) {
+void Cursor::add_field(const std::string& name, const TypeInfo& type, EventSet event) {
     CODEGEN_FN
     if (has_error()) {
         return;
     }
+    if (name.empty()) {
+        M_mark_error("field name can't be empty in context");
+        return;
+    }
+    if (not type.is_valid_struct_field()) {
+        M_mark_error(LLVM_BUILDER_CONCAT << "not a valid struct field:" << name);
+        return;
+    }
     LLVM_BUILDER_ASSERT(m_impl);
     m_impl->add_field(name, type, event);
+}
+
+EventSet Cursor::field_event(const std::string& name) {
+    CODEGEN_FN
+    if (has_error()) {
+        return EventSet{};
+    }
+    if (name.empty()) {
+        M_mark_error("field name can't be empty in context");
+        return EventSet{};
+    }
+    return CursorPtr{*this}.field_event(name);
 }
 
 void Cursor::bind(const std::string& context_name) {
@@ -647,7 +686,7 @@ void Cursor::bind(const std::string& context_name) {
     }
     LLVM_BUILDER_ASSERT(m_impl);
     if (m_impl->num_fields() == 0) {
-        CODEGEN_PUSH_ERROR(MODULE, "Can't bind cursor with 0 fields in context");
+        M_mark_error("Can't bind cursor with 0 fields in context");
         return;
     }
     m_impl->bind(std::weak_ptr<Impl>(m_impl), context_name);
@@ -667,7 +706,7 @@ void Cursor::for_each_module(on_module_fn_t&& fn) {
         return;
     }
     if (not fn) {
-        CODEGEN_PUSH_ERROR(MODULE, "action defined to be null");
+        M_mark_error("can't run a null event");
         return;
     }
     CursorPtr{*this}.for_each_module(std::move(fn));
@@ -955,7 +994,7 @@ std::vector<std::string> Module::transformed_public_symbols(std::function<std::s
         if (ptr->is_init()) {
             return ptr->transformed_public_symbols(std::move(fn));
         } else {
-            CODEGEN_PUSH_ERROR(MODULE, "module not init");
+            M_mark_error("Module not init");
             return std::vector<std::string>{};
         }
     } else {
@@ -966,12 +1005,7 @@ std::vector<std::string> Module::transformed_public_symbols(std::function<std::s
 
 auto Module::public_symbol_name(const std::string& symbol) const -> std::string {
     CODEGEN_FN
-    if (has_error()) {
-        return StringManager::null();
-    }
-    if (symbol.empty()) {
-        CODEGEN_PUSH_ERROR(MODULE, "can't search for an empty symbol");
-        M_mark_error();
+    if (has_error() or symbol.empty()) {
         return StringManager::null();
     }
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
@@ -1004,24 +1038,20 @@ void Module::register_symbol(const LinkSymbol& link_symbol) {
         return;
     }
     if (link_symbol.has_error()) {
-        CODEGEN_PUSH_ERROR(MODULE, "can't register an invalid symbol");
-        M_mark_error();
+        M_mark_error("can't register an invalid symbol");
         return;
     }
     if (link_symbol.full_name().empty()) {
-        CODEGEN_PUSH_ERROR(MODULE, "can't register empty symbol");
-        M_mark_error();
+        M_mark_error("can't register empty symbol");
         return;
     }
     if (not link_symbol.is_valid()) {
-        CODEGEN_PUSH_ERROR(MODULE, "link symbol not valid:" << link_symbol.full_name());
-        M_mark_error();
+        M_mark_error(LLVM_BUILDER_CONCAT << "link symbol not valid:" << link_symbol.full_name());
         return;
     }
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         if (ptr->contains(link_symbol.full_name())) {
-            CODEGEN_PUSH_ERROR(MODULE, "symbol already exists:" << link_symbol.full_name());
-            M_mark_error();
+            M_mark_error(LLVM_BUILDER_CONCAT << "symbol already exists:" << link_symbol.full_name());
             return;
         }
         return ptr->register_symbol(link_symbol);
@@ -1038,8 +1068,6 @@ void Module::init_standard() {
     }
     if (std::shared_ptr<Impl> ptr = m_impl.lock()) {
         if (ptr->is_init()) {
-            CODEGEN_PUSH_ERROR(MODULE, "module already init:" << name());
-            M_mark_error();
             return;
         }
         ptr->init_standard();

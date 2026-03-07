@@ -8,6 +8,7 @@
 #include "defines.h"
 #include "function.h"
 #include "type.h"
+#include "event.h"
 #include "llvm_builder/util/object.h"
 
 #include <string>
@@ -83,7 +84,7 @@ private:
                        const TypeInfo& type_info,
                        const std::vector<ValueInfo>& parent);
     explicit ValueInfo(const TypeInfo& type_info, llvm::Value* v, construct_const_t);
-    explicit ValueInfo(const ValueInfo& parent, const TypeInfo& entry_type, const ValueInfo& entry_idx, construct_entry_t);
+    explicit ValueInfo(const ValueInfo& parent, const TypeInfo& entry_type, const ValueInfo& entry_idx, const EventSet& events, construct_entry_t);
     explicit ValueInfo(const TypeInfo& res_type, const ValueInfo& v1, const ValueInfo& v2, binary_op_fn_t fn, construct_binary_op_t);
     explicit ValueInfo(llvm::Function* fn, construct_fn_t);
 public:
@@ -96,6 +97,7 @@ public:
     value_type_t value_type() const;
     TypeInfo type() const;
     const TagInfo& tag_info() const;
+    const EventSet& events() const;
     [[nodiscard]]
     ValueInfo cast(TypeInfo target_type) const;
 #define MK_BINARY_FN(FN_NAME)                                              \

@@ -31,6 +31,7 @@ public:
 public:
     bool is_valid() const;
     TypeInfo context_type() const;
+    EventSet field_event(const std::string& name) const;
     Function mk_function(const std::string& name, bool is_external);
     Function find_function(const std::string& name);
     Event find_event(const std::string& name);
@@ -66,6 +67,7 @@ public:
     static llvm::LLVMContext& ctx();
     static llvm::IRBuilder<> &builder();
     static TypeInfo context_type();
+    static EventSet field_event(const std::string& name);
     static Function mk_function(const std::string& name, bool is_external);
     static TypeInfo mk_type_pointer(const TypeInfo& base_type);
 #define DECL_MK_TYPE(TYPE_NAME)                   \

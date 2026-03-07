@@ -5,6 +5,7 @@
 #include "llvm_builder/defines.h"
 #include "llvm_builder/type.h"
 #include "llvm_builder/value.h"
+#include "llvm_builder/event.h"
 #include "llvm_builder/analyze.h"
 #include "llvm/context_impl.h"
 #include "llvm_builder/function.h"
@@ -73,6 +74,7 @@ class ValueInfo::Impl {
 private:
     value_type_t m_value_type = value_type_t::null;
     TypeInfo m_type_info;
+    EventSet m_events;
     std::vector<ValueInfo> m_parent;
     TagInfo m_tag_info;
     llvm::Value* m_const_value_cache = nullptr;
@@ -80,6 +82,9 @@ private:
     TypeInfo m_parent_ptr_type;
     llvm::Function* m_fn_ptr = nullptr;
 public:
+    explicit Impl(value_type_t value_type, const TypeInfo& type_info, const EventSet& events)
+      : m_value_type{value_type} , m_type_info{type_info}, m_events{events} {
+    }
     explicit Impl(value_type_t value_type, const TypeInfo& type_info)
       : m_value_type{value_type} , m_type_info{type_info} {
     }
@@ -89,7 +94,11 @@ public:
 public:
     void add_parent(const std::vector<ValueInfo>& parent) {
         for (const ValueInfo& l_info : parent) {
+            LLVM_BUILDER_ASSERT(not l_info.has_error());
             m_parent.emplace_back(l_info);
+            if (not l_info.events().is_global()) {
+                m_events.add(l_info.events());
+            }
         }
     }
     void add_tag(const TagInfo& t) {
@@ -126,6 +135,9 @@ public:
     }
     const TagInfo& tag() const {
         return m_tag_info;
+    }
+    const EventSet& events() const {
+        return m_events;
     }
     bool has_tag(std::string_view v) const {
         return m_tag_info.contains(v);
@@ -465,9 +477,9 @@ ValueInfo::ValueInfo(const TypeInfo& type_info, llvm::Value* v, construct_const_
     object::Counter::singleton().on_new(object::Callback::object_t::VALUE, (uint64_t)this, "");
 }
 
-ValueInfo::ValueInfo(const ValueInfo& parent, const TypeInfo& entry_type, const ValueInfo& entry_idx, construct_entry_t)
+ValueInfo::ValueInfo(const ValueInfo& parent, const TypeInfo& entry_type, const ValueInfo& entry_idx, const EventSet& events, construct_entry_t)
     : BaseT{State::VALID}
-    , m_impl{std::make_shared<Impl>(value_type_t::inner_entry, entry_type.mk_ptr())} {
+    , m_impl{std::make_shared<Impl>(value_type_t::inner_entry, entry_type.mk_ptr(), events)} {
     LLVM_BUILDER_ASSERT(not parent.has_error());
     LLVM_BUILDER_ASSERT(not entry_type.has_error());
     LLVM_BUILDER_ASSERT(not entry_idx.has_error());
@@ -552,6 +564,15 @@ const TagInfo& ValueInfo::tag_info() const {
     }
     LLVM_BUILDER_ASSERT(m_impl != nullptr);
     return m_impl->tag();
+}
+
+const EventSet& ValueInfo::events() const {
+    if (has_error()) {
+        static const EventSet s_events;
+        return s_events;
+    }
+    LLVM_BUILDER_ASSERT(m_impl != nullptr);
+    return m_impl->events();
 }
 
 bool ValueInfo::equals_type(const ValueInfo& o) const {
@@ -696,8 +717,7 @@ ValueInfo ValueInfo::load() const {
     if (not this->type().is_pointer()) {
         return ValueInfo::null("can't define load underlying operation for non pointer type");
     }
-    ValueInfo v{value_type_t::load, type().base_type(), std::vector<ValueInfo>{{*this}}};
-    return v;
+    return ValueInfo{value_type_t::load, type().base_type(), std::vector<ValueInfo>{{*this}}};
 }
 
 ValueInfo ValueInfo::entry(uint32_t i) const {
@@ -715,7 +735,7 @@ ValueInfo ValueInfo::entry(uint32_t i) const {
     if (i >= base_type.num_elements()) {
         return ValueInfo::null(LLVM_BUILDER_CONCAT << "Array is of size: " << base_type.num_elements() << ", can't access element:" << i);
     }
-    return ValueInfo{*this, base_type.base_type(), ValueInfo::from_constant(i), construct_entry_t{}};
+    return ValueInfo{*this, base_type.base_type(), ValueInfo::from_constant(i), m_impl->events(), construct_entry_t{}};
 }
 
 ValueInfo ValueInfo::entry(const ValueInfo& i) const {
@@ -732,7 +752,7 @@ ValueInfo ValueInfo::entry(const ValueInfo& i) const {
         return ValueInfo::null("can't define array-entry operation for non-array pointer type");
     }
     // TODO{vibhanshu}: check if i is of type integer
-    return ValueInfo{*this, base_type.base_type(), i, construct_entry_t{}};
+    return ValueInfo{*this, base_type.base_type(), i, m_impl->events(), construct_entry_t{}};
 }
 
 ValueInfo ValueInfo::field(const std::string& s) const {
@@ -751,8 +771,15 @@ ValueInfo ValueInfo::field(const std::string& s) const {
         return ValueInfo::null("can't define struct-field access operation for non-struct pointer type");
     }
     field_entry_t field_entry = base_type[s];
+    if (field_entry.has_error()) {
+        return ValueInfo::null(LLVM_BUILDER_CONCAT << "Can't find valid field with name:" << s);
+    }
     ValueInfo tgt_idx = ValueInfo::from_constant((int32_t)field_entry.idx());
-    return ValueInfo{*this, field_entry.type(), tgt_idx, construct_entry_t{}};
+    EventSet ev_set;
+    if (m_impl->value_type() == value_type_t::context) {
+        ev_set = CursorContextImpl::field_event(s);
+    }
+    return ValueInfo{*this, field_entry.type(), tgt_idx, ev_set, construct_entry_t{}};
 }
 
 ValueInfo ValueInfo::load_vector_entry(const ValueInfo& idx_v) const {
